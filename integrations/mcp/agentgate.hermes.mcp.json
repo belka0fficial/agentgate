@@ -1,0 +1,12 @@
+{
+  "mcp_servers": {
+    "agentgate": {
+      "command": "python",
+      "args": ["P:/repos/agentgate/mcp/agentgate_mcp.py"],
+      "env": {
+        "AGENTGATE_URL": "http://127.0.0.1:8030",
+        "AGENTGATE_MCP_KEY": "set-this-from-your-private-AgentGate-env"
+      }
+    }
+  }
+}

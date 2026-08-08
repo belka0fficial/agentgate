@@ -1,0 +1,14 @@
+.env
+.venv/
+api/Lib/
+api/Scripts/
+api/Include/
+api/pyvenv.cfg
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+data/
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.vite/
