@@ -115,6 +115,7 @@ def verification_view(source: str, item: dict[str, Any]) -> dict[str, Any]:
         "run_id": item.get("run_id"),
         "action": redact_sensitive({
             "subject_type": payload.get("subject_type"), "subject_id": payload.get("subject_id"),
+            "subject_version": payload.get("subject_version") or payload.get("object_version") or payload.get("version"),
             "arguments": payload.get("args"), "binding": {
                 "expires_at": (binding or {}).get("expires_at"),
                 "args_digest": (binding or {}).get("args_digest"),
@@ -316,6 +317,11 @@ async def verifications(store: Database = Depends(db), up: Upstream = Depends(up
     return rows
 
 
+@app.get("/api/approvals", dependencies=[Depends(require_auth)])
+async def approvals(store: Database = Depends(db), up: Upstream = Depends(upstream)):
+    return await verifications(store, up)
+
+
 @app.post("/api/verifications/toolgate/{request_id}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def decide_toolgate(request_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
     return await up.request("toolgate", "POST", f"/v2/requests/{request_id}/decision", json=payload)
@@ -445,6 +451,27 @@ async def memory_search(payload: dict[str, Any], up: Upstream = Depends(upstream
 @app.get("/api/cron/jobs", dependencies=[Depends(require_auth)])
 async def cron_jobs(up: Upstream = Depends(upstream)):
     return await up.request("hermes", "GET", "/api/jobs")
+
+
+@app.get("/api/automations", dependencies=[Depends(require_auth)])
+async def automations(up: Upstream = Depends(upstream)):
+    async def optional(name: str, path: str):
+        try:
+            return await up.request(name, "GET", path)
+        except HTTPException as exc:
+            return {"error": exc.detail}
+    jobs, toolgate_automations = await asyncio.gather(
+        optional("hermes", "/api/jobs"),
+        optional("toolgate", "/v2/automations"),
+    )
+    return {
+        "jobs": jobs if isinstance(jobs, list) else jobs.get("jobs", []) if isinstance(jobs, dict) else [],
+        "toolgate_automations": toolgate_automations if isinstance(toolgate_automations, list) else [],
+        "errors": {
+            "hermes": jobs.get("error") if isinstance(jobs, dict) else None,
+            "toolgate": toolgate_automations.get("error") if isinstance(toolgate_automations, dict) else None,
+        },
+    }
 
 
 @app.post("/api/cron/jobs", dependencies=[Depends(require_auth), Depends(require_csrf)])
