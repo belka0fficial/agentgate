@@ -13,6 +13,6 @@ export const mockSystemData = {
     ],
   },
   backups: {
-    latest: { name: '20260814T010000Z', path: '~/orech-backups/20260814T010000Z' },
+    latest: { name: '20260814T010000Z', path: '~/conker-backups/20260814T010000Z' },
   },
 }
