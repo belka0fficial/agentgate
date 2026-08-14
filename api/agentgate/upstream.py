@@ -13,13 +13,15 @@ class Upstream:
         self.settings = settings
 
     def base(self, name: str) -> str:
-        return {"hermes": self.settings.hermes_url, "toolgate": self.settings.toolgate_url, "memorygate": self.settings.memorygate_url}[name]
+        return {"hermes": self.settings.hermes_url, "toolgate": self.settings.toolgate_url, "memorygate": self.settings.memorygate_url, "systemgate": self.settings.systemgate_url}[name]
 
     def headers(self, name: str) -> dict[str, str]:
         if name == "hermes":
             return {"Authorization": f"Bearer {self.settings.hermes_api_key}"} if self.settings.hermes_api_key else {}
         if name == "toolgate":
             return {"X-ToolGate-Key": self.settings.toolgate_admin_key} if self.settings.toolgate_admin_key else {}
+        if name == "systemgate":
+            return {"X-SystemGate-Key": self.settings.systemgate_admin_key} if self.settings.systemgate_admin_key else {}
         headers = {"X-MemoryGate-Key": self.settings.memorygate_admin_key} if self.settings.memorygate_admin_key else {}
         if self.settings.memorygate_agent_id:
             headers["X-Agent-Id"] = self.settings.memorygate_agent_id

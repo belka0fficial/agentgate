@@ -24,6 +24,8 @@ class Settings:
     memorygate_url: str
     memorygate_admin_key: str
     memorygate_agent_id: str
+    systemgate_url: str
+    systemgate_admin_key: str
 
 
 def _value(name: str, default: str = "") -> str:
@@ -47,4 +49,6 @@ def get_settings() -> Settings:
         memorygate_url=_value("MEMORYGATE_URL", "http://127.0.0.1:8020").rstrip("/"),
         memorygate_admin_key=_value("MEMORYGATE_ADMIN_KEY"),
         memorygate_agent_id=_value("MEMORYGATE_AGENT_ID", "hermes"),
+        systemgate_url=_value("SYSTEMGATE_URL", "http://127.0.0.1:8040").rstrip("/"),
+        systemgate_admin_key=_value("SYSTEMGATE_ADMIN_KEY"),
     )

@@ -184,7 +184,7 @@ async def dependency_health(up: Upstream = Depends(upstream)):
             return {"name": name, "status": "online"}
         except HTTPException as exc:
             return {"name": name, "status": "offline", "detail": exc.detail}
-    return await asyncio.gather(check("hermes", "/health"), check("toolgate", "/health"), check("memorygate", "/health"))
+    return await asyncio.gather(check("hermes", "/health"), check("toolgate", "/health"), check("memorygate", "/health"), check("systemgate", "/health"))
 
 
 @app.get("/api/home", dependencies=[Depends(require_auth)])
@@ -472,6 +472,21 @@ async def automations(up: Upstream = Depends(upstream)):
             "toolgate": toolgate_automations.get("error") if isinstance(toolgate_automations, dict) else None,
         },
     }
+
+
+@app.get("/api/system", dependencies=[Depends(require_auth)])
+async def system(up: Upstream = Depends(upstream)):
+    async def optional(path: str):
+        try:
+            return await up.request("systemgate", "GET", path)
+        except HTTPException as exc:
+            return {"error": exc.detail}
+    vitals, containers, backups = await asyncio.gather(
+        optional("/vitals"),
+        optional("/containers"),
+        optional("/backups"),
+    )
+    return {"vitals": vitals, "containers": containers, "backups": backups}
 
 
 @app.post("/api/cron/jobs", dependencies=[Depends(require_auth), Depends(require_csrf)])

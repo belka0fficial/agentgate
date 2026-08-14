@@ -64,3 +64,34 @@ def test_verification_views_keep_action_context_without_secrets():
     assert item["action"]["arguments"]["amount"] == 10
     assert item["action"]["arguments"]["api_key"] == "[redacted]"
     assert redact_sensitive({"password": "hidden"}) == {"password": "[redacted]"}
+
+
+def test_system_proxy_keeps_systemgate_key_server_side(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SYSTEMGATE_ADMIN_KEY", "server-only-system-key")
+
+    from agentgate.main import app
+
+    calls = []
+
+    async def fake_request(name, method, path, **kwargs):
+        calls.append((name, method, path))
+        if path == "/vitals":
+            return {"cpu_percent": 1}
+        if path == "/containers":
+            return {"results": []}
+        if path == "/backups":
+            return {"latest": None}
+        return {}
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/system")
+
+    assert response.status_code == 200
+    assert response.json()["vitals"]["cpu_percent"] == 1
+    assert calls == [("systemgate", "GET", "/vitals"), ("systemgate", "GET", "/containers"), ("systemgate", "GET", "/backups")]
