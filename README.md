@@ -24,46 +24,21 @@ AgentGate never sends their credentials to the browser.
 
 ## Prerequisites
 
-- Node.js 22 or newer.
-- Python 3.12 or newer with `pip`.
+- Docker Engine with Compose plugin.
 - Hermes API server enabled on port `8642`.
 - ToolGate and MemoryGate running when their screens are needed.
 
 ## First Run
 
-1. Create the private configuration file.
+Use the Compose-driven stack in `conker` as the supported boot path:
 
-```powershell
-Set-Location P:\repos\agentgate
-Copy-Item .env.example .env
+```bash
+cd ../conker
+./install.sh --local
 ```
 
-2. Generate and place three private values into `.env`.
-
-```powershell
--join ((48..57) + (65..90) + (97..122) | Get-Random -Count 48 | ForEach-Object {[char]$_})
-```
-
-Use distinct values for `AGENTGATE_ADMIN_KEY`, `AGENTGATE_SESSION_SECRET`, and
-`AGENTGATE_MCP_KEY`. Then set the real Hermes, ToolGate, and MemoryGate keys.
-
-3. Install and build the dashboard.
-
-```powershell
-Set-Location P:\repos\agentgate\dashboard
-npm install
-npm run build
-```
-
-4. Install and start the API.
-
-```powershell
-Set-Location P:\repos\agentgate\api
-python -m pip install -r requirements.txt
-python run.py
-```
-
-Open `http://127.0.0.1:8030`, then sign in with `AGENTGATE_ADMIN_KEY`.
+Open `http://127.0.0.1:8030`, then sign in with the `AGENTGATE_ADMIN_KEY`
+stored in `../conker/.env`.
 
 ## Connect And Verify
 
@@ -86,13 +61,11 @@ perform these owner-safe checks:
 The dashboard requires the Hermes API server to be running. Its bearer key is
 required even on loopback because that API can use Hermes' full toolset.
 
-To verify the upstream credentials and endpoint contracts before opening the
-dashboard, run:
+To verify the full local stack, run:
 
-```powershell
-Set-Location P:\repos\agentgate
-$env:PYTHONPATH = "$PWD\api\Lib\site-packages;$PWD\api"
-python api\scripts\verify_live.py
+```bash
+cd ../conker
+./install.sh verify
 ```
 
 ## Backup And Restore
@@ -112,20 +85,12 @@ backup. Do not copy `.env` into backups or version control.
 
 ## Development
 
-Run these in separate terminals:
+For local development, rebuild and restart through the Compose stack:
 
-```powershell
-Set-Location P:\repos\agentgate\api
-python run.py
+```bash
+cd ../conker
+docker compose up -d --build agentgate
 ```
-
-```powershell
-Set-Location P:\repos\agentgate\dashboard
-npm run dev
-```
-
-The Vite server is available at `http://127.0.0.1:5174` and proxies `/api` to
-the backend on `8030`.
 
 ## Hermes MCP Output Bridge
 
@@ -143,13 +108,9 @@ credentials.
 
 ## Verification
 
-```powershell
-Set-Location P:\repos\agentgate\dashboard
-npm run build
-
-Set-Location P:\repos\agentgate
-$env:PYTHONPATH = "$PWD\api\Lib\site-packages;$PWD\api"
-python -m pytest api\tests -q
+```bash
+cd ../conker
+./install.sh verify
 ```
 
 ## Current Limits
