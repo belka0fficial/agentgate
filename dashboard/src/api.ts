@@ -1,3 +1,5 @@
+import { mockSystemData } from './mockData'
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) { super(message) }
 }
@@ -8,6 +10,10 @@ export function csrfHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  if (import.meta.env.DEV && import.meta.env.VITE_AGENTGATE_MOCK_SYSTEM === '1' && method === 'GET' && path === '/api/system') {
+    return mockSystemData as T
+  }
+
   const response = await fetch(path, {
     method,
     credentials: 'same-origin',
