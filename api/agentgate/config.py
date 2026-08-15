@@ -17,8 +17,8 @@ class Settings:
     admin_key: str
     session_secret: str
     mcp_key: str
-    hermes_url: str
-    hermes_api_key: str
+    brain_url: str
+    brain_api_key: str
     toolgate_url: str
     toolgate_admin_key: str
     memorygate_url: str
@@ -42,13 +42,13 @@ def get_settings() -> Settings:
         admin_key=_value("AGENTGATE_ADMIN_KEY"),
         session_secret=_value("AGENTGATE_SESSION_SECRET"),
         mcp_key=_value("AGENTGATE_MCP_KEY"),
-        hermes_url=_value("HERMES_URL", "http://127.0.0.1:8642").rstrip("/"),
-        hermes_api_key=_value("HERMES_API_KEY"),
+        brain_url=_value("BRAIN_URL", "http://127.0.0.1:8644").rstrip("/"),
+        brain_api_key=_value("BRAIN_API_KEY"),
         toolgate_url=_value("TOOLGATE_URL", "http://127.0.0.1:8010").rstrip("/"),
         toolgate_admin_key=_value("TOOLGATE_ADMIN_KEY"),
         memorygate_url=_value("MEMORYGATE_URL", "http://127.0.0.1:8020").rstrip("/"),
         memorygate_admin_key=_value("MEMORYGATE_ADMIN_KEY"),
-        memorygate_agent_id=_value("MEMORYGATE_AGENT_ID", "hermes"),
+        memorygate_agent_id=_value("MEMORYGATE_AGENT_ID", "brain"),
         systemgate_url=_value("SYSTEMGATE_URL", "http://127.0.0.1:8040").rstrip("/"),
         systemgate_admin_key=_value("SYSTEMGATE_ADMIN_KEY"),
     )

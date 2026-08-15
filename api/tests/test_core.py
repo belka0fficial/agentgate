@@ -33,9 +33,9 @@ def test_owner_and_mcp_workflows(monkeypatch, tmp_path):
         mcp = client.post("/api/mcp/suggestions", headers={"X-AgentGate-MCP-Key": "test-mcp-key-123456"}, json={"title": "Cron finding", "summary": "Something useful"})
         assert mcp.status_code == 200
 
-        profile = client.put("/api/character", headers=csrf_headers(client), json={"name": "Hermes", "personality": "calm"}).json()
-        assert profile["name"] == "Hermes"
-        assert "You are Hermes" in profile["context_preview"]
+        profile = client.put("/api/character", headers=csrf_headers(client), json={"name": "Brain", "personality": "calm"}).json()
+        assert profile["name"] == "Brain"
+        assert "You are Brain" in profile["context_preview"]
         assert "calm" in profile["context_preview"]
 
         page = client.get("/")
@@ -46,8 +46,8 @@ def test_owner_and_mcp_workflows(monkeypatch, tmp_path):
 def test_verification_references_are_updated_in_place(tmp_path):
     store = Database(tmp_path)
     store.initialize()
-    first = store.upsert_verification({"source": "hermes", "source_id": "approval-1", "run_id": "run-1", "status": "pending", "summary": {"title": "Send message"}})
-    second = store.upsert_verification({"source": "hermes", "source_id": "approval-1", "run_id": "run-1", "status": "approved", "summary": {"title": "Send message"}})
+    first = store.upsert_verification({"source": "brain", "source_id": "approval-1", "run_id": "run-1", "status": "pending", "summary": {"title": "Send message"}})
+    second = store.upsert_verification({"source": "brain", "source_id": "approval-1", "run_id": "run-1", "status": "approved", "summary": {"title": "Send message"}})
 
     assert first["id"] == second["id"]
     assert second["status"] == "approved"

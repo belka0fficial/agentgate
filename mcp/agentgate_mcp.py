@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small stdio MCP server for Hermes to publish AgentGate outputs safely."""
+"""Small stdio MCP server for the brain runtime to publish AgentGate outputs safely."""
 from __future__ import annotations
 
 import json

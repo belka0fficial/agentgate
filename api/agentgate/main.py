@@ -54,7 +54,7 @@ class AppInput(BaseModel):
 
 
 class CharacterInput(BaseModel):
-    name: str = Field(default="Hermes", max_length=120)
+    name: str = Field(default="Brain", max_length=120)
     owner_name: str = Field(default="", max_length=120)
     personality: str = Field(default="", max_length=10_000)
     background: str = Field(default="", max_length=10_000)
@@ -64,8 +64,8 @@ class CharacterInput(BaseModel):
 
 
 def character_context(item: dict[str, Any]) -> str:
-    """Make the local character settings inspectable before any Hermes sync exists."""
-    name = item.get("name") or "Hermes"
+    """Make the local character settings inspectable before any broader sync exists."""
+    name = item.get("name") or "Brain"
     owner = item.get("owner_name") or "the user"
     sections = [f"# Identity\nYou are {name}, the user's personal agent. Address the user as {owner}."]
     for label, key in (
@@ -123,6 +123,10 @@ def verification_view(source: str, item: dict[str, Any]) -> dict[str, Any]:
             },
         }) if isinstance(payload, dict) else {},
     }
+
+
+def normalize_source(source: str | None) -> str:
+    return "brain" if source in {None, "", "hermes", "brain"} else source
 
 
 @asynccontextmanager
@@ -184,7 +188,7 @@ async def dependency_health(up: Upstream = Depends(upstream)):
             return {"name": name, "status": "online"}
         except HTTPException as exc:
             return {"name": name, "status": "offline", "detail": exc.detail}
-    return await asyncio.gather(check("hermes", "/health"), check("toolgate", "/health"), check("memorygate", "/health"), check("systemgate", "/health"))
+    return await asyncio.gather(check("brain", "/health"), check("toolgate", "/health"), check("memorygate", "/health"), check("systemgate", "/health"))
 
 
 @app.get("/api/home", dependencies=[Depends(require_auth)])
@@ -194,56 +198,56 @@ async def home(request: Request, up: Upstream = Depends(upstream), store: Databa
             return await up.request(name, "GET", path)
         except HTTPException as exc:
             return {"error": exc.detail}
-    hermes, toolgate, memorygate, chats, jobs, requests = await asyncio.gather(
-        optional("hermes", "/health/detailed"), optional("toolgate", "/v2/status"), optional("memorygate", "/health"),
-        optional("hermes", "/api/sessions"), optional("hermes", "/api/jobs"), optional("toolgate", "/v2/requests"),
+    brain, toolgate, memorygate, chats, jobs, requests = await asyncio.gather(
+        optional("brain", "/health/detailed"), optional("toolgate", "/v2/status"), optional("memorygate", "/health"),
+        optional("brain", "/api/sessions"), optional("brain", "/api/jobs"), optional("toolgate", "/v2/requests"),
     )
     suggestions = [store.decode(item) for item in store.rows("SELECT * FROM suggestions WHERE status = 'new' ORDER BY created_at DESC LIMIT 3")]
     apps = store.rows("SELECT * FROM apps WHERE pinned = 1 ORDER BY position, name LIMIT 8")
     toolgate_pending = [item for item in requests if isinstance(item, dict) and item.get("kind") == "verification" and item.get("status") == "pending"] if isinstance(requests, list) else []
-    hermes_pending = [store.decode(item) for item in store.rows("SELECT * FROM verification_refs WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10")]
+    brain_pending = [store.decode(item) for item in store.rows("SELECT * FROM verification_refs WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10")]
     chat_rows = chats if isinstance(chats, list) else chats.get("sessions", chats.get("items", [])) if isinstance(chats, dict) else []
     job_rows = jobs if isinstance(jobs, list) else jobs.get("jobs", []) if isinstance(jobs, dict) else []
     return {
-        "health": {"hermes": hermes, "toolgate": toolgate, "memorygate": memorygate}, "suggestions": suggestions,
-        "pinned_apps": apps, "pending_verifications": [{"source": "toolgate", "source_id": item.get("id"), **item} for item in toolgate_pending] + hermes_pending,
+        "health": {"brain": brain, "toolgate": toolgate, "memorygate": memorygate}, "suggestions": suggestions,
+        "pinned_apps": apps, "pending_verifications": [{"source": "toolgate", "source_id": item.get("id"), **item} for item in toolgate_pending] + brain_pending,
         "recent_chats": chat_rows[:5], "active_jobs": [item for item in job_rows if not item.get("paused", False)][:5],
     }
 
 
 @app.get("/api/chats", dependencies=[Depends(require_auth)])
 async def chats(limit: int = 100, up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", "/api/sessions", params={"limit": min(limit, 100), "offset": 0, "include_children": True})
+    return await up.request("brain", "GET", "/api/sessions", params={"limit": min(limit, 100), "offset": 0, "include_children": True})
 
 
 @app.post("/api/chats", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def create_chat(payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "POST", "/api/sessions", json=payload)
+    return await up.request("brain", "POST", "/api/sessions", json=payload)
 
 
 @app.get("/api/chats/{session_id}", dependencies=[Depends(require_auth)])
 async def chat(session_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", f"/api/sessions/{session_id}")
+    return await up.request("brain", "GET", f"/api/sessions/{session_id}")
 
 
 @app.patch("/api/chats/{session_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def update_chat(session_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "PATCH", f"/api/sessions/{session_id}", json=payload)
+    return await up.request("brain", "PATCH", f"/api/sessions/{session_id}", json=payload)
 
 
 @app.delete("/api/chats/{session_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def delete_chat(session_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "DELETE", f"/api/sessions/{session_id}")
+    return await up.request("brain", "DELETE", f"/api/sessions/{session_id}")
 
 
 @app.get("/api/chats/{session_id}/messages", dependencies=[Depends(require_auth)])
 async def messages(session_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", f"/api/sessions/{session_id}/messages")
+    return await up.request("brain", "GET", f"/api/sessions/{session_id}/messages")
 
 
 @app.post("/api/chats/{session_id}/fork", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def fork_chat(session_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "POST", f"/api/sessions/{session_id}/fork", json=payload)
+    return await up.request("brain", "POST", f"/api/sessions/{session_id}/fork", json=payload)
 
 
 @app.post("/api/chats/{session_id}/stream", dependencies=[Depends(require_auth), Depends(require_csrf)])
@@ -260,9 +264,9 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
     async def events() -> AsyncIterator[bytes]:
         client = httpx.AsyncClient(timeout=None)
         try:
-            response = await client.send(client.build_request("POST", f"{up.base('hermes')}/api/sessions/{session_id}/chat/stream", headers={**up.headers("hermes"), "Accept": "text/event-stream"}, json=body), stream=True)
+            response = await client.send(client.build_request("POST", f"{up.base('brain')}/api/sessions/{session_id}/chat/stream", headers={**up.headers("brain"), "Accept": "text/event-stream"}, json=body), stream=True)
             if response.is_error:
-                yield f"event: run.failed\ndata: {json.dumps({'message': 'Hermes stream failed', 'status': response.status_code})}\n\n".encode()
+                yield f"event: run.failed\ndata: {json.dumps({'message': 'Brain stream failed', 'status': response.status_code})}\n\n".encode()
                 return
             event_name = "message"
             async for line in response.aiter_lines():
@@ -274,7 +278,7 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
                         source_id = str(approval.get("approval_id") or approval.get("id") or approval.get("request_id") or "")
                         if source_id:
                             store.upsert_verification({
-                                "source": "hermes", "source_id": source_id, "run_id": str(approval.get("run_id") or "") or None,
+                                "source": "brain", "source_id": source_id, "run_id": str(approval.get("run_id") or "") or None,
                                 "session_id": session_id, "status": "pending", "summary": approval,
                                 "expires_at": approval.get("expires_at"),
                             })
@@ -285,7 +289,7 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
                 else:
                     yield b"\n"
         except httpx.HTTPError:
-            yield b"event: run.failed\ndata: {\"message\":\"Hermes stream disconnected\"}\n\n"
+            yield b"event: run.failed\ndata: {\"message\":\"Brain stream disconnected\"}\n\n"
         finally:
             await client.aclose()
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -293,17 +297,17 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
 
 @app.get("/api/models", dependencies=[Depends(require_auth)])
 async def models(up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", "/api/model/options")
+    return await up.request("brain", "GET", "/api/model/options")
 
 
 @app.get("/api/capabilities", dependencies=[Depends(require_auth)])
 async def capabilities(up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", "/v1/capabilities")
+    return await up.request("brain", "GET", "/v1/capabilities")
 
 
 @app.get("/api/capabilities/{kind}", dependencies=[Depends(require_auth)])
 async def capability_kind(kind: Literal["skills", "toolsets"], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", f"/v1/{kind}")
+    return await up.request("brain", "GET", f"/v1/{kind}")
 
 
 @app.get("/api/verifications", dependencies=[Depends(require_auth)])
@@ -313,7 +317,9 @@ async def verifications(store: Database = Depends(db), up: Upstream = Depends(up
     except HTTPException:
         toolgate = []
     rows = [verification_view("toolgate", item) for item in toolgate if item.get("kind") == "verification"]
-    rows.extend(verification_view("hermes", store.decode(item)) for item in store.rows("SELECT * FROM verification_refs ORDER BY created_at DESC"))
+    for item in store.rows("SELECT * FROM verification_refs ORDER BY created_at DESC"):
+        decoded = store.decode(item)
+        rows.append(verification_view(normalize_source(decoded.get("source")), decoded))
     return rows
 
 
@@ -329,21 +335,21 @@ async def decide_toolgate(request_id: str, payload: dict[str, Any], up: Upstream
 
 @app.post("/api/runs/{run_id}/stop", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def stop_run(run_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "POST", f"/v1/runs/{run_id}/stop")
+    return await up.request("brain", "POST", f"/v1/runs/{run_id}/stop")
 
 
 @app.post("/api/runs/{run_id}/approval", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def approve_run(run_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "POST", f"/v1/runs/{run_id}/approval", json=payload)
+    return await up.request("brain", "POST", f"/v1/runs/{run_id}/approval", json=payload)
 
 
-@app.post("/api/verifications/hermes/{source_id}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def decide_hermes(source_id: str, payload: dict[str, Any], store: Database = Depends(db), up: Upstream = Depends(upstream)):
-    item = store.row("SELECT * FROM verification_refs WHERE source = 'hermes' AND source_id = ?", (source_id,))
+@app.post("/api/verifications/brain/{source_id}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
+async def decide_brain(source_id: str, payload: dict[str, Any], store: Database = Depends(db), up: Upstream = Depends(upstream)):
+    item = store.row("SELECT * FROM verification_refs WHERE source IN ('brain', 'hermes') AND source_id = ?", (source_id,))
     if not item or not item.get("run_id"):
-        raise HTTPException(404, "Hermes approval is no longer available")
-    result = await up.request("hermes", "POST", f"/v1/runs/{item['run_id']}/approval", json=payload)
-    store.upsert_verification({"source": "hermes", "source_id": source_id, "run_id": item["run_id"], "session_id": item.get("session_id"), "status": payload.get("decision", "approved"), "summary": store.decode(item).get("summary", {}), "expires_at": item.get("expires_at")})
+        raise HTTPException(404, "Brain approval is no longer available")
+    result = await up.request("brain", "POST", f"/v1/runs/{item['run_id']}/approval", json=payload)
+    store.upsert_verification({"source": "brain", "source_id": source_id, "run_id": item["run_id"], "session_id": item.get("session_id"), "status": payload.get("decision", "approved"), "summary": store.decode(item).get("summary", {}), "expires_at": item.get("expires_at")})
     return result
 
 
@@ -450,7 +456,7 @@ async def memory_search(payload: dict[str, Any], up: Upstream = Depends(upstream
 
 @app.get("/api/cron/jobs", dependencies=[Depends(require_auth)])
 async def cron_jobs(up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "GET", "/api/jobs")
+    return await up.request("brain", "GET", "/api/jobs")
 
 
 @app.get("/api/automations", dependencies=[Depends(require_auth)])
@@ -461,14 +467,14 @@ async def automations(up: Upstream = Depends(upstream)):
         except HTTPException as exc:
             return {"error": exc.detail}
     jobs, toolgate_automations = await asyncio.gather(
-        optional("hermes", "/api/jobs"),
+        optional("brain", "/api/jobs"),
         optional("toolgate", "/v2/automations"),
     )
     return {
         "jobs": jobs if isinstance(jobs, list) else jobs.get("jobs", []) if isinstance(jobs, dict) else [],
         "toolgate_automations": toolgate_automations if isinstance(toolgate_automations, list) else [],
         "errors": {
-            "hermes": jobs.get("error") if isinstance(jobs, dict) else None,
+            "brain": jobs.get("error") if isinstance(jobs, dict) else None,
             "toolgate": toolgate_automations.get("error") if isinstance(toolgate_automations, dict) else None,
         },
     }
@@ -491,22 +497,22 @@ async def system(up: Upstream = Depends(upstream)):
 
 @app.post("/api/cron/jobs", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def create_cron(payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "POST", "/api/jobs", json=payload)
+    return await up.request("brain", "POST", "/api/jobs", json=payload)
 
 
 @app.patch("/api/cron/jobs/{job_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def update_cron(job_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "PATCH", f"/api/jobs/{job_id}", json=payload)
+    return await up.request("brain", "PATCH", f"/api/jobs/{job_id}", json=payload)
 
 
 @app.delete("/api/cron/jobs/{job_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def delete_cron(job_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "DELETE", f"/api/jobs/{job_id}")
+    return await up.request("brain", "DELETE", f"/api/jobs/{job_id}")
 
 
 @app.post("/api/cron/jobs/{job_id}/{action}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def cron_action(job_id: str, action: Literal["pause", "resume", "run"], up: Upstream = Depends(upstream)):
-    return await up.request("hermes", "POST", f"/api/jobs/{job_id}/{action}")
+    return await up.request("brain", "POST", f"/api/jobs/{job_id}/{action}")
 
 
 @app.get("/api/character", dependencies=[Depends(require_auth)])
@@ -527,14 +533,14 @@ async def save_character(payload: CharacterInput, store: Database = Depends(db))
 @app.post("/api/mcp/suggestions", dependencies=[Depends(require_mcp)])
 async def mcp_create_suggestion(payload: SuggestionInput, store: Database = Depends(db)):
     data = payload.model_dump()
-    data["source"] = "hermes"
+    data["source"] = "brain"
     return store.create_suggestion(data)
 
 
 @app.post("/api/mcp/apps", dependencies=[Depends(require_mcp)])
 async def mcp_create_app(payload: AppInput, store: Database = Depends(db)):
     data = payload.model_dump()
-    data["source"] = "hermes"
+    data["source"] = "brain"
     data["url"] = valid_url(data["url"])
     if data.get("health_url"):
         data["health_url"] = valid_url(data["health_url"])
