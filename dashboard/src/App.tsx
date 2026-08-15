@@ -8,6 +8,7 @@ import { Button, Card, Empty, ErrorBox, Page, Status } from './components/ui-pri
 import { agentBus, useAgentBus } from './event-bus'
 import type { CoreState } from './event-bus'
 import { useLoad } from './hooks/use-load'
+import { copyMachineValue, formatRelativeTime, statusToTone } from './ui/registry'
 
 type Any = Record<string, any>
 
@@ -34,25 +35,6 @@ const routeMeta = [
 
 function machine(value: ReactNode, className = '') {
   return <code className={className}>{value}</code>
-}
-
-function humanDate(value?: string) {
-  if (!value) return 'unknown'
-  const delta = Date.now() - new Date(value).getTime()
-  if (!Number.isFinite(delta)) return value
-  const minutes = Math.max(1, Math.round(delta / 60000))
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 48) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
-}
-
-function statusTone(value?: string) {
-  const text = String(value || '').toLowerCase()
-  if (/error|fail|down|critical|reject|stale/.test(text)) return 'danger'
-  if (/pending|warn|degraded|paused|waiting/.test(text)) return 'warn'
-  if (/ok|online|running|approved|healthy|active|ready/.test(text)) return 'good'
-  return 'muted'
 }
 
 function bindingOf(item: Any) {
@@ -254,7 +236,7 @@ function CommandScreen() {
 function ApprovalLine({ item, onApprove, onReject }: { item: Any, onApprove: () => void, onReject: () => void }) {
   const binding = bindingOf(item)
   return <div className="approval-line">
-    <span className={`status-dot ${statusTone(item.severity || item.status)}`} />
+    <span className={`status-dot ${statusToTone(item.severity || item.status)}`} />
     <div className="approval-copy"><strong>{item.title || 'Approval required'}</strong><p>{item.details || 'Review this exact action before it continues.'}</p><pre>{`type: ${binding.type}\nid: ${binding.id}\nversion: ${binding.version}\ndigest: ${binding.digest}`}</pre></div>
     <div className="thumb-actions"><Button onClick={onApprove}><Check size={14} />Approve</Button><Button kind="danger" onClick={onReject}>Reject</Button></div>
   </div>
@@ -297,14 +279,14 @@ function ApprovalsScreen() {
       <Card className="table-card">
         <header className="section-title"><h2>Waiting for you</h2><span>{machine('j/k a/r')}</span></header>
         {loading ? <Empty>Loading approvals.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : pending.length ? pending.map((item, index) => <div className={`approval-line ${focused === index ? 'focused' : ''}`} key={item.id || item.source_id}>
-          <span className={`status-dot ${statusTone(item.severity || item.status)}`} />
-          <div className="approval-copy"><div className="source-line"><Status text={item.source || 'gate'} tone={statusTone(item.source)} /><strong>{item.title}</strong></div><p>{item.details || 'Review this exact action before it continues.'}</p><pre>{`type: ${bindingOf(item).type}\nid: ${bindingOf(item).id}\nversion: ${bindingOf(item).version}\ndigest: ${bindingOf(item).digest}`}</pre></div>
+          <span className={`status-dot ${statusToTone(item.severity || item.status)}`} />
+          <div className="approval-copy"><div className="source-line"><Status text={item.source || 'gate'} tone={statusToTone(item.source)} /><strong>{item.title}</strong></div><p>{item.details || 'Review this exact action before it continues.'}</p><pre>{`type: ${bindingOf(item).type}\nid: ${bindingOf(item).id}\nversion: ${bindingOf(item).version}\ndigest: ${bindingOf(item).digest}`}</pre></div>
           <div className="thumb-actions"><Button onClick={() => decide(item, 'approved')}>Approve</Button><Button kind="danger" onClick={() => decide(item, 'rejected')}>Reject</Button></div>
         </div>) : <Empty>Nothing needs you.</Empty>}
       </Card>
       <Card className="table-card">
         <header className="section-title"><h2>History</h2><span>{machine(`${history.length} decided`)}</span></header>
-        {history.length ? history.map((item) => <div className="instrument-row" key={item.id || item.source_id}><span className={`status-dot ${statusTone(item.status)}`} /><div><strong>{item.title}</strong><p>{item.status} by {item.actor || 'owner'} at {machine(item.updated_at || item.created_at || 'unknown')}</p></div></div>) : <Empty>Decisions will collapse here after action.</Empty>}
+        {history.length ? history.map((item) => <div className="instrument-row" key={item.id || item.source_id}><span className={`status-dot ${statusToTone(item.status)}`} /><div><strong>{item.title}</strong><p>{item.status} by {item.actor || 'owner'} at {machine(item.updated_at || item.created_at || 'unknown')}</p></div></div>) : <Empty>Decisions will collapse here after action.</Empty>}
       </Card>
     </section>
   </Page>
@@ -321,7 +303,7 @@ function ChatListScreen() {
     <div className="screen-toolbar"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sessions" /><Button onClick={create}><Plus size={14} />New chat</Button><Button kind="quiet" onClick={reload}><RefreshCw size={14} /></Button></div>
     <Card className="table-card">{loading ? <Empty>Loading sessions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : visible.length ? visible.map((row: Any) => {
       const id = row.id || row.session_id
-      return <button className="chat-list-row" key={id} onClick={() => navigate(`/chats/${id}`)}><span className="status-dot muted" /><div><strong>{row.title || 'Untitled chat'}</strong><p>{row.preview || row.last_message || 'Hermes session'}</p></div>{machine(humanDate(row.updated_at || row.created_at))}<ChevronRight size={14} /></button>
+      return <button className="chat-list-row" key={id} onClick={() => navigate(`/chats/${id}`)}><span className="status-dot muted" /><div><strong>{row.title || 'Untitled chat'}</strong><p>{row.preview || row.last_message || 'Hermes session'}</p></div>{machine(formatRelativeTime(row.updated_at || row.created_at))}<ChevronRight size={14} /></button>
     }) : <Empty>No sessions match this search.</Empty>}</Card>
   </Page>
 }
@@ -408,7 +390,7 @@ function ChatScreen() {
 
   const stop = async () => { if (runId) await api.post(`/api/runs/${runId}/stop`); setStreaming(false); agentBus.setCoreState('error', 1); agentBus.emit({ type: 'error', label: 'run killed', source: 'Chat' }) }
   const fork = async () => { const item: Any = await api.post(`/api/chats/${id}/fork`, { title: 'Forked chat' }); navigate(`/chats/${item.id || item.session_id}`) }
-  const copy = async (value: string) => navigator.clipboard?.writeText(value)
+  const copy = copyMachineValue
   const speak = (value: string) => { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(value)) } }
 
   return <Page title="Chat">
@@ -464,7 +446,7 @@ function SystemScreen() {
   return <Page title="System">
     {loading ? <Empty>Loading system telemetry.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : <>
       <div className="vitals-grid"><Metric title="CPU" value={`${vitals.cpu_percent ?? 'n/a'}%`} detail={`${vitals.cpu_count || 0} cores`} data={history} /><Metric title="RAM" value={`${vitals.memory?.percent ?? 'n/a'}%`} detail={`${vitals.memory?.available || 'unknown'} free`} /><Metric title="Disk" value={`${vitals.disk?.percent ?? 'n/a'}%`} detail={`${vitals.disk?.free || 'unknown'} free`} tone={vitals.disk?.percent > 85 ? 'warn' : 'good'} /><Metric title="Backup" value={backup?.name || 'missing'} detail={backup?.path || 'no archive reported'} tone={backup?.name ? 'good' : 'warn'} /></div>
-      <Card className="table-card"><header className="section-title"><h2>Containers</h2><Button kind="quiet" onClick={reload}><RefreshCw size={14} />Refresh</Button></header>{containers.length ? containers.map((item: Any) => <div className="system-row" key={item.id || item.name}><span className={`status-dot ${statusTone(item.status)}`} /><div><strong>{item.name}</strong><p>{item.image}</p></div>{machine(item.status)}{machine(item.id)}</div>) : <Empty>No containers reported.</Empty>}</Card>
+      <Card className="table-card"><header className="section-title"><h2>Containers</h2><Button kind="quiet" onClick={reload}><RefreshCw size={14} />Refresh</Button></header>{containers.length ? containers.map((item: Any) => <div className="system-row" key={item.id || item.name}><span className={`status-dot ${statusToTone(item.status)}`} /><div><strong>{item.name}</strong><p>{item.image}</p></div>{machine(item.status)}{machine(item.id)}</div>) : <Empty>No containers reported.</Empty>}</Card>
     </>}
   </Page>
 }
@@ -480,7 +462,7 @@ function SuggestionsScreen() {
   const rows = data || []
   const ask = async (item: Any) => { const session: Any = await api.post('/api/chats', { title: `Suggestion: ${item.title}` }); navigate(`/chats/${session.id || session.session_id}?prompt=${encodeURIComponent(`Help me evaluate this suggestion:\n\n${item.title}\n${item.summary}`)}`) }
   const patch = async (id: string, status: string) => { await api.patch(`/api/suggestions/${id}`, { status }); agentBus.emit({ type: 'suggestion', label: status, source: 'Suggestions' }); reload() }
-  return <Page title="Suggestions"><Card className="table-card">{loading ? <Empty>Loading suggestions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : rows.length ? rows.map((item) => <div className="instrument-row" key={item.id}><span className={`status-dot ${statusTone(item.status)}`} /><div><strong>{item.title}</strong><p>{item.summary}</p><small>{machine(`${item.category || 'general'} · ${item.confidence || 'unknown'} · ${item.urgency || 'normal'}`)}</small></div><div className="row-actions"><Button kind="quiet" onClick={() => ask(item)}>Ask agent</Button><Button kind="quiet" onClick={() => patch(item.id, 'saved')}>Save to memory</Button><Button kind="quiet" onClick={() => patch(item.id, 'dismissed')}>Dismiss</Button></div></div>) : <Empty>No suggestions in this view.</Empty>}</Card></Page>
+  return <Page title="Suggestions"><Card className="table-card">{loading ? <Empty>Loading suggestions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : rows.length ? rows.map((item) => <div className="instrument-row" key={item.id}><span className={`status-dot ${statusToTone(item.status)}`} /><div><strong>{item.title}</strong><p>{item.summary}</p><small>{machine(`${item.category || 'general'} · ${item.confidence || 'unknown'} · ${item.urgency || 'normal'}`)}</small></div><div className="row-actions"><Button kind="quiet" onClick={() => ask(item)}>Ask agent</Button><Button kind="quiet" onClick={() => patch(item.id, 'saved')}>Save to memory</Button><Button kind="quiet" onClick={() => patch(item.id, 'dismissed')}>Dismiss</Button></div></div>) : <Empty>No suggestions in this view.</Empty>}</Card></Page>
 }
 
 function AutomationsScreen() {
@@ -496,7 +478,7 @@ function AutomationsScreen() {
     {open && <Card className="form-card"><form onSubmit={save}><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Job name" required /><input value={form.schedule} onChange={(event) => setForm({ ...form, schedule: event.target.value })} placeholder="Cron schedule" required /><textarea value={form.prompt} onChange={(event) => setForm({ ...form, prompt: event.target.value })} placeholder="What should the agent do?" required /><input value={form.deliver} onChange={(event) => setForm({ ...form, deliver: event.target.value })} placeholder="Delivery target" /><Button type="submit">Create job</Button></form></Card>}
     <Card className="table-card">{loading ? <Empty>Loading automations.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : [...jobs, ...toolgate].length ? [...jobs, ...toolgate].map((job: Any) => {
       const id = job.id || job.job_id || job.name
-      return <div className="automation-row" key={id}><span className={`status-dot ${statusTone(job.status || (job.paused ? 'paused' : 'running'))}`} /><div><strong>{job.name || id}</strong><p>{job.prompt || job.description || job.summary || 'Runs without owner input until verification is needed.'}</p></div>{machine(job.schedule || 'pattern')}{machine(job.last_run_at || job.last_run || 'never')}{machine(job.next_run_at || job.next_run || 'unknown')}<div className="row-actions"><Button kind="quiet" onClick={() => action(id, 'run')}>Run now</Button>{job.paused ? <Button kind="quiet" onClick={() => action(id, 'resume')}>Resume</Button> : <Button kind="quiet" onClick={() => action(id, 'pause')}>Pause</Button>}</div></div>
+      return <div className="automation-row" key={id}><span className={`status-dot ${statusToTone(job.status || (job.paused ? 'paused' : 'running'))}`} /><div><strong>{job.name || id}</strong><p>{job.prompt || job.description || job.summary || 'Runs without owner input until verification is needed.'}</p></div>{machine(job.schedule || 'pattern')}{machine(job.last_run_at || job.last_run || 'never')}{machine(job.next_run_at || job.next_run || 'unknown')}<div className="row-actions"><Button kind="quiet" onClick={() => action(id, 'run')}>Run now</Button>{job.paused ? <Button kind="quiet" onClick={() => action(id, 'resume')}>Resume</Button> : <Button kind="quiet" onClick={() => action(id, 'pause')}>Pause</Button>}</div></div>
     }) : <Empty>No jobs yet. Create one when a repeated task is worth automation.</Empty>}</Card>
   </Page>
 }
