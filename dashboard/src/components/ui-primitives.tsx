@@ -1,8 +1,7 @@
 import { ReactNode } from 'react'
-import { Moon, Sun } from 'lucide-react'
 
 export function Status({ text, tone = 'muted' }: { text: string, tone?: string }) {
-  return <span className={`status ${tone}`}>{text}</span>
+  return <span className={`status ${tone}`}><i aria-hidden="true" /> <code>{text}</code></span>
 }
 
 export function Card({ children, className = '' }: { children: ReactNode, className?: string }) {
@@ -23,8 +22,4 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function ErrorBox({ value, retry }: { value: string, retry?: () => void }) {
   return <div className="error"><span>{value}</span>{retry && <Button kind="quiet" onClick={retry}>Retry</Button>}</div>
-}
-
-export function ThemeToggle({ theme, toggle }: { theme: 'light' | 'dark', toggle: () => void }) {
-  return <button className="theme-toggle" onClick={toggle} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}<span>{theme === 'light' ? 'Dark' : 'Light'}</span></button>
 }
