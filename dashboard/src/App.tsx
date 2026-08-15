@@ -1,8 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Activity, Bot, Brain, Check, ChevronRight, Clock3, Command as CommandIcon, Copy, ExternalLink, Gauge, HeartPulse, History, Lightbulb, LogOut, Menu, MessageSquare, Plus, RefreshCw, Search, Send, ShieldCheck, Square, Trash2, Volume2, Wrench, X } from 'lucide-react'
-import { Group, Panel, Separator } from 'react-resizable-panels'
-import { Toaster, toast } from 'sonner'
 
 import { api, csrfHeaders } from './api'
 import { Core } from './components/Core'
@@ -402,7 +400,6 @@ function ChatScreen() {
       agentBus.setCoreState('idle', 0.18)
     } catch (err) {
       agentBus.setCoreState('error', 1)
-      toast.error(err instanceof Error ? err.message : 'Unable to stream response')
       setDraft(`Error: ${err instanceof Error ? err.message : 'Unable to stream response'}`)
     } finally {
       setStreaming(false)
@@ -425,18 +422,18 @@ function ChatScreen() {
       <Button kind="quiet" disabled>Promote to mission</Button>
     </div>
     <div className="chat-workspace">
-      <Group className="chat-panels" orientation="horizontal">
-        <Panel defaultSize={72} minSize={55}>
+      <div className="chat-panels">
+        <section className="chat-main-panel">
           <Card className="messages">{messages.loading ? <Empty>Loading conversation.</Empty> : messages.error ? <ErrorBox value={messages.error} retry={messages.reload} /> : <>
             {rows.map((message: Any, index: number) => <article className={`message ${message.role === 'user' ? 'user' : 'assistant'}`} key={message.id || index}><header><span>{message.role === 'user' ? 'You' : 'Hermes'}</span>{message.role !== 'user' && <span><button onClick={() => copy(messageText(message))}><Copy size={12} /></button><button onClick={() => speak(messageText(message))}><Volume2 size={12} /></button></span>}</header><div>{messageText(message)}</div>{message.trace && <details><summary>Trace</summary><pre>{JSON.stringify(message.trace, null, 2)}</pre></details>}</article>)}
             {draft && <article className="message assistant"><header><span>Hermes</span><span><button onClick={() => copy(draft)}><Copy size={12} /></button><button onClick={() => speak(draft)}><Volume2 size={12} /></button></span></header><div>{draft}</div></article>}
           </>}</Card>
-        </Panel>
-        <Separator className="panel-handle" />
-        <Panel collapsible defaultSize={28} minSize={18}>
+        </section>
+        <SeparatorLine />
+        <section className="chat-rail-panel">
           <Card className="run-rail"><header><h2>Current run</h2><Status text={streaming ? 'active' : 'idle'} tone={streaming ? 'good' : 'muted'} /></header><MiniDatum label="mode" value={incognito ? 'incognito' : 'normal'} /><MiniDatum label="model" value={`${provider || 'auto'} / ${model || 'auto'}`} /><MiniDatum label="reasoning" value={intensity} /><div className="rail-list">{toolEvents.length ? toolEvents.map((item) => <div key={item}>{machine(item)}</div>) : <span>No live tools yet.</span>}</div></Card>
-        </Panel>
-      </Group>
+        </section>
+      </div>
       <form className="composer" onSubmit={send}><textarea value={input} onFocus={() => agentBus.setCoreState('listening', 0.25)} onChange={(event) => { setInput(event.target.value); agentBus.setCoreState('listening', Math.min(0.75, 0.2 + event.target.value.length / 200)) }} placeholder="Message Hermes" rows={3} /><Button type="submit" disabled={!input.trim() || streaming}><Send size={14} />Send</Button></form>
     </div>
   </Page>
@@ -446,6 +443,10 @@ function messageText(message: Any) {
   if (typeof message.content === 'string') return message.content
   if (Array.isArray(message.content)) return message.content.map((part: Any) => part.text || part.content || '').join('\n')
   return message.text || message.message || JSON.stringify(message)
+}
+
+function SeparatorLine() {
+  return <div className="panel-handle" aria-hidden="true" />
 }
 
 function SystemScreen() {
@@ -529,7 +530,7 @@ function App() {
   const [ready, setReady] = useState<boolean | null>(null)
   useEffect(() => { api.get('/api/auth/session').then(() => setReady(true)).catch(() => setReady(false)) }, [])
   if (ready === null) return <div className="splash">Loading AgentGate.</div>
-  return <BrowserRouter>{ready ? <Shell /> : <Routes><Route path="/login" element={<Login />} /><Route path="*" element={<Navigate to="/login" replace />} /></Routes>}<Toaster position="top-right" richColors theme="dark" /></BrowserRouter>
+  return <BrowserRouter>{ready ? <Shell /> : <Routes><Route path="/login" element={<Login />} /><Route path="*" element={<Navigate to="/login" replace />} /></Routes>}</BrowserRouter>
 }
 
 export default App
