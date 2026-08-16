@@ -41,7 +41,53 @@ const suggestions = [
   { title: 'Bundle daily automation results into one owner briefing', summary: 'Reduce review overhead without widening any automation permissions.' },
   { title: 'Attach evidence to the trust research claims', summary: 'Three conclusions still lack a source link in the draft.' },
   { title: 'Schedule an incident delivery rehearsal', summary: 'Practice a contained failure response before any real external handoff.' },
+  { title: 'Review the stale source connectors', summary: 'Two research feeds have not delivered evidence during the expected interval.' },
+  { title: 'Narrow the weekly repository policy', summary: 'Keep the maintenance automation inside its reviewed file scope.' },
 ]
+
+export type ChatMessage = { id: string; role: 'owner' | 'agent'; content: string; created_at: string }
+
+const chatMessages: ChatMessage[] = [
+  { id: 'msg_01', role: 'owner', content: 'Cross-check the 0.8 release checklist and unresolved risks.', created_at: ago(28) },
+  { id: 'msg_02', role: 'agent', content: 'The release is structurally ready. Four owner decisions remain: the changelog publication, infrastructure summary, token rotation, and research-thread archive.', created_at: ago(25) },
+  { id: 'msg_03', role: 'owner', content: 'Which one blocks the public release?', created_at: ago(20) },
+  { id: 'msg_04', role: 'agent', content: 'Only the changelog publication is release-facing. Its file binding and digest are available in Approvals for review.', created_at: ago(18) },
+  { id: 'msg_05', role: 'owner', content: 'Prepare the final readiness summary, but do not publish anything.', created_at: ago(12) },
+  { id: 'msg_06', role: 'agent', content: 'Prepared. I will retain the summary locally until you explicitly approve the bound publication action.', created_at: ago(8) },
+]
+
+const automations = [
+  { id: 'auto_brief', name: 'Daily owner briefing', description: 'Collect verified system changes into one owner-ready summary.', schedule: '0 8 * * 1-5', next: 'in 16h', status: 'active', runs: 82 },
+  { id: 'auto_backup', name: 'Backup verification', description: 'Validate the newest encrypted archive and retention pointer.', schedule: '15 6 * * *', next: 'in 14h', status: 'active', runs: 103 },
+  { id: 'auto_memory', name: 'Memory evidence scan', description: 'Flag durable notes without linked source evidence.', schedule: '0 */6 * * *', next: 'in 2h', status: 'active', runs: 341 },
+  { id: 'auto_policy', name: 'Permission drift review', description: 'Compare active tool policy against the reviewed baseline.', schedule: '30 9 * * 1', next: 'in 1d', status: 'paused', runs: 18 },
+  { id: 'auto_release', name: 'Release checklist watcher', description: 'Report unresolved release gates without taking action.', schedule: '0 */2 * * *', next: 'in 43m', status: 'active', runs: 64 },
+  { id: 'auto_archive', name: 'Research archive digest', description: 'Prepare a monthly archive candidate list for review.', schedule: '0 10 1 * *', next: 'in 15d', status: 'draft', runs: 0 },
+]
+
+const memories = [
+  ['mem_001', 'Release policy: public notes require a bound approval', 'policy', 'high', 5],
+  ['mem_002', 'Owner prefers concise, evidence-linked daily briefings', 'preference', 'high', 16],
+  ['mem_003', 'Infrastructure disk alert threshold is 78 percent', 'operational', 'high', 32],
+  ['mem_004', 'Linear integration token rotated on August 02', 'credential-event', 'medium', 94],
+  ['mem_005', 'Agent trust research claim set needs three citations', 'research', 'medium', 128],
+  ['mem_006', 'Release 0.8 verification checklist is active', 'project', 'high', 181],
+  ['mem_007', 'Incident rehearsal uses contained delivery failure scenario', 'runbook', 'medium', 239],
+  ['mem_008', 'Repository writes remain scoped to reviewed paths', 'policy', 'high', 317],
+  ['mem_009', 'Morning backup is stored under the encrypted archive policy', 'operational', 'medium', 419],
+  ['mem_010', 'Character voice: direct, observant, calm under pressure', 'character', 'high', 522],
+  ['mem_011', 'Automation jobs never widen their own permission scope', 'policy', 'high', 711],
+  ['mem_012', 'Research archive export is reviewed monthly', 'retention', 'low', 885],
+  ['mem_013', 'Owner channel is local until an external endpoint is bound', 'integration', 'medium', 1062],
+  ['mem_014', 'Use evidence links for any recommendation with external impact', 'policy', 'high', 1394],
+].map(([id, title, kind, confidence, minutes]) => ({ id, title, kind, confidence, updated_at: ago(minutes as number) }))
+
+const character = {
+  name: 'Hermes',
+  role: 'A careful operator for a privately owned agent system.',
+  voice: 'Direct, observant, and calm under pressure. State evidence before recommendations. Never imply an action has happened when it has only been proposed.',
+  operating_principle: 'Prefer narrow, reviewable actions. Escalate when an external effect, privilege change, or irreversible step requires owner approval.',
+}
 
 const homeFixture = {
   health: { hermes: { status: 'ok' }, toolgate: { status: 'ok' }, memorygate: { status: 'ok' } },
@@ -57,6 +103,13 @@ const homeFixture = {
 const systemFixture = {
   vitals: { cpu_percent: 27, memory: { percent: 46 }, disk: { percent: 63 }, cpu_count: 12 },
   backups: { latest: { name: 'agentgate-2026-08-16-0600.zst' } },
+  containers: [
+    { name: 'hermes-core', status: 'healthy', uptime: '12d 4h', cpu: '8.2%', memory: '742 MB' },
+    { name: 'toolgate', status: 'healthy', uptime: '12d 4h', cpu: '2.7%', memory: '184 MB' },
+    { name: 'memorygate', status: 'healthy', uptime: '12d 4h', cpu: '4.1%', memory: '392 MB' },
+    { name: 'event-router', status: 'healthy', uptime: '12d 4h', cpu: '1.6%', memory: '96 MB' },
+    { name: 'backup-worker', status: 'idle', uptime: '12d 4h', cpu: '0.3%', memory: '71 MB' },
+  ],
 }
 
 const fixtures: Record<string, unknown> = {
@@ -64,10 +117,17 @@ const fixtures: Record<string, unknown> = {
   '/api/system': systemFixture,
   '/api/approvals': pendingApprovals,
   '/api/chats': { sessions },
+  '/api/automations': { automations },
+  '/api/gates/memorygate': { memories },
+  '/api/suggestions': { suggestions },
+  '/api/character': character,
 }
 
 export async function getAgentGate<T>(path: string): Promise<T> {
-  if (import.meta.env.DEV && import.meta.env.VITE_AGENTGATE_FIXTURES !== '0' && fixtures[path] !== undefined) return fixtures[path] as T
+  if (import.meta.env.DEV && import.meta.env.VITE_AGENTGATE_FIXTURES !== '0') {
+    if (fixtures[path] !== undefined) return fixtures[path] as T
+    if (/^\/api\/chats\/[^/]+\/messages$/.test(path)) return { messages: chatMessages } as T
+  }
   const response = await fetch(path, { credentials: 'same-origin' })
   if (!response.ok) throw new Error(`Request failed: ${response.status}`)
   return response.json() as Promise<T>
