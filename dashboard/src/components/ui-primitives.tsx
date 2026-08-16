@@ -8,8 +8,8 @@ export function Card({ children, className = '' }: { children: ReactNode, classN
   return <section className={`card ${className}`}>{children}</section>
 }
 
-export function Page({ title, note, actions, children }: { title: string, note?: string, actions?: ReactNode, children: ReactNode }) {
-  return <div className="page"><header className="page-head"><div><h1>{title}</h1>{note && <p>{note}</p>}</div><div className="actions">{actions}</div></header>{children}</div>
+export function Page({ title, note, actions, children, className = '' }: { title: string, note?: string, actions?: ReactNode, children: ReactNode, className?: string }) {
+  return <div className={`page ${className}`}><header className="page-head"><div><h1>{title}</h1>{note && <p>{note}</p>}</div><div className="actions">{actions}</div></header>{children}</div>
 }
 
 export function Button({ children, onClick, kind = 'primary', disabled = false, type = 'button' }: { children: ReactNode, onClick?: () => void, kind?: 'primary' | 'quiet' | 'danger', disabled?: boolean, type?: 'button' | 'submit' }) {

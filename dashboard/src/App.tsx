@@ -195,7 +195,7 @@ function CommandScreen() {
     await home.reload()
   }
 
-  return <Page title="Command">
+  return <Page title="Command" note="Review live agent activity and decide what needs you." className="command-page">
     <div className="command-grid">
       <section className="command-main">
         <form className="omnibar" onSubmit={submitIntent}>
@@ -213,11 +213,11 @@ function CommandScreen() {
         </div>
         {home.loading ? <Empty>Loading live state.</Empty> : home.error ? <ErrorBox value={home.error} retry={home.reload} /> : <>
           <section className="dense-section">
-            <header><h2>Waiting for you</h2><span>{machine(`${approvals.length} pending`)}</span></header>
+            <header><div><h2>Waiting for you</h2><p>Actions that require an owner decision.</p></div><span>{machine(`${approvals.length} pending`)}</span></header>
             {approvals.length ? approvals.slice(0, 3).map((item: Any) => <ApprovalLine key={item.id || item.source_id} item={item} onApprove={() => decide(item, 'approved')} onReject={() => decide(item, 'rejected')} />) : <Empty>Nothing needs you.</Empty>}
           </section>
           <section className="dense-section">
-            <header><h2>Suggested next</h2><span>{machine(`${suggestions.length} items`)}</span></header>
+            <header><div><h2>Suggested next</h2><p>Useful follow-ups from the current system context.</p></div><span>{machine(`${suggestions.length} items`)}</span></header>
             {suggestions.slice(0, 4).map((item: Any) => <div className="instrument-row" key={item.id}><span className="status-dot warn" /><div><strong>{item.title}</strong><p>{item.summary}</p></div><Button kind="quiet" onClick={() => navigate(`/chats?prompt=${encodeURIComponent(item.title)}`)}>Ask agent</Button></div>)}
             {!suggestions.length && <Empty>No suggestions in this view.</Empty>}
           </section>
@@ -299,9 +299,9 @@ function ChatListScreen() {
   const rows = Array.isArray(data) ? data : data?.sessions || data?.items || []
   const visible = rows.filter((row: Any) => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()))
   const create = async () => { const item: Any = await api.post('/api/chats', { title: 'New chat' }); navigate(`/chats/${item.id || item.session_id}`) }
-  return <Page title="Chats">
+  return <Page title="Chats" note="Start a new conversation or continue a recent session." className="chats-page">
     <div className="screen-toolbar"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sessions" /><Button onClick={create}><Plus size={14} />New chat</Button><Button kind="quiet" onClick={reload}><RefreshCw size={14} /></Button></div>
-    <Card className="table-card">{loading ? <Empty>Loading sessions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : visible.length ? visible.map((row: Any) => {
+    <Card className="table-card chat-sessions-card"><header className="section-title"><div><h2>Recent sessions</h2><p>Your private conversation history.</p></div>{machine(`${visible.length} sessions`)}</header>{loading ? <Empty>Loading sessions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : visible.length ? visible.map((row: Any) => {
       const id = row.id || row.session_id
       return <button className="chat-list-row" key={id} onClick={() => navigate(`/chats/${id}`)}><span className="status-dot muted" /><div><strong>{row.title || 'Untitled chat'}</strong><p>{row.preview || row.last_message || 'Hermes session'}</p></div>{machine(formatRelativeTime(row.updated_at || row.created_at))}<ChevronRight size={14} /></button>
     }) : <Empty>No sessions match this search.</Empty>}</Card>
@@ -393,7 +393,7 @@ function ChatScreen() {
   const copy = copyMachineValue
   const speak = (value: string) => { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(value)) } }
 
-  return <Page title="Chat">
+  return <Page title="Chat" note="Private session with Hermes." className="chats-page chat-page">
     <div className="chat-toolbar">
       <input value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="Provider" />
       <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Model" />
