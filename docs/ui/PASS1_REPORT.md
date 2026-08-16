@@ -16,15 +16,15 @@ Captured with representative browser-only fixture data. The fixture is not part 
 
 | Screen | Desktop | 380px |
 |---|---|---|
-| Command | [desktop](pass1-desktop-command.png) | [mobile](pass1-mobile-command.png) |
-| Approvals | [desktop](pass1-desktop-approvals.png) | [mobile](pass1-mobile-approvals.png) |
-| Chats | [desktop](pass1-desktop-chats.png) | [mobile](pass1-mobile-chats.png) |
-| Chat detail | [desktop](pass1-desktop-chat-detail.png) | [mobile](pass1-mobile-chat-detail.png) |
-| Suggestions | [desktop](pass1-desktop-suggestions.png) | [mobile](pass1-mobile-suggestions.png) |
-| Automations | [desktop](pass1-desktop-automations.png) | [mobile](pass1-mobile-automations.png) |
-| Memory | [desktop](pass1-desktop-memory.png) | [mobile](pass1-mobile-memory.png) |
-| System | [desktop](pass1-desktop-system.png) | [mobile](pass1-mobile-system.png) |
-| Character | [desktop](pass1-desktop-character.png) | [mobile](pass1-mobile-character.png) |
+| Command | [desktop](pass1-register-desktop-command.png) | [mobile](pass1-register-mobile-command.png) |
+| Approvals | [desktop](pass1-register-desktop-approvals.png) | [mobile](pass1-register-mobile-approvals.png) |
+| Chats | [desktop](pass1-register-desktop-chats.png) | [mobile](pass1-register-mobile-chats.png) |
+| Chat detail | [desktop](pass1-register-desktop-chat-detail.png) | [mobile](pass1-register-mobile-chat-detail.png) |
+| Suggestions | [desktop](pass1-register-desktop-suggestions.png) | [mobile](pass1-register-mobile-suggestions.png) |
+| Automations | [desktop](pass1-register-desktop-automations.png) | [mobile](pass1-register-mobile-automations.png) |
+| Memory | [desktop](pass1-register-desktop-memory.png) | [mobile](pass1-register-mobile-memory.png) |
+| System | [desktop](pass1-register-desktop-system.png) | [mobile](pass1-register-mobile-system.png) |
+| Character | [desktop](pass1-register-desktop-character.png) | [mobile](pass1-register-mobile-character.png) |
 
 ## PASS 1 checks
 
