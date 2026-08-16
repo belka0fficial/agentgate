@@ -195,10 +195,10 @@ function CommandScreen() {
     await home.reload()
   }
 
-  return <Page title="Command" note="Review live agent activity and decide what needs you." className="command-page">
+  return <Page title="Command" note="Review live agent activity and decide what needs you." actions={<Button kind="quiet" onClick={() => navigate('/system')}><Activity size={14} />View system</Button>} className="command-page">
     <div className="command-grid">
       <section className="command-main">
-        <form className="omnibar" onSubmit={submitIntent}>
+        <form className="omnibar command-input-card" onSubmit={submitIntent}>
           <Search size={15} />
           <input ref={omnibar} value={intent} onFocus={() => agentBus.setCoreState('listening', 0.28)} onBlur={() => agentBus.setCoreState(approvals.length ? 'blocked' : 'idle', approvals.length ? 0.45 : 0.18)} onChange={(event) => { setIntent(event.target.value); agentBus.setCoreState('listening', Math.min(0.7, 0.2 + event.target.value.length / 140)) }} placeholder="Type intent, /approve, /status, or /chat ..." />
           {machine('Ctrl K')}
@@ -212,19 +212,19 @@ function CommandScreen() {
           <MiniDatum label="waiting" value={approvals.length} />
         </div>
         {home.loading ? <Empty>Loading live state.</Empty> : home.error ? <ErrorBox value={home.error} retry={home.reload} /> : <>
-          <section className="dense-section">
+          <Card className="dense-section">
             <header><div><h2>Waiting for you</h2><p>Actions that require an owner decision.</p></div><span>{machine(`${approvals.length} pending`)}</span></header>
             {approvals.length ? approvals.slice(0, 3).map((item: Any) => <ApprovalLine key={item.id || item.source_id} item={item} onApprove={() => decide(item, 'approved')} onReject={() => decide(item, 'rejected')} />) : <Empty>Nothing needs you.</Empty>}
-          </section>
-          <section className="dense-section">
+          </Card>
+          <Card className="dense-section">
             <header><div><h2>Suggested next</h2><p>Useful follow-ups from the current system context.</p></div><span>{machine(`${suggestions.length} items`)}</span></header>
             {suggestions.slice(0, 4).map((item: Any) => <div className="instrument-row" key={item.id}><span className="status-dot warn" /><div><strong>{item.title}</strong><p>{item.summary}</p></div><Button kind="quiet" onClick={() => navigate(`/chats?prompt=${encodeURIComponent(item.title)}`)}>Ask agent</Button></div>)}
             {!suggestions.length && <Empty>No suggestions in this view.</Empty>}
-          </section>
-          {anomaly.length > 0 && <section className="dense-section anomaly"><header><h2>Anomalies</h2><Status text="warn" tone="warn" /></header>{anomaly.map((item) => <div className="instrument-row" key={item}><span className="status-dot warn" /><div><strong>{item}</strong><p>Review the system screen before trusting automation.</p></div></div>)}</section>}
+          </Card>
+          {anomaly.length > 0 && <Card className="dense-section anomaly"><header><h2>Anomalies</h2><Status text="warn" tone="warn" /></header>{anomaly.map((item) => <div className="instrument-row" key={item}><span className="status-dot warn" /><div><strong>{item}</strong><p>Review the system screen before trusting automation.</p></div></div>)}</Card>}
         </>}
       </section>
-      <aside className="command-core">
+      <aside className="command-core card">
         <Core state={bus.coreState} intensity={bus.intensity} size="medium" />
         <div className="pinned-row">{pinned.length ? pinned.map((app: Any) => <a key={app.id} href={app.url} target="_blank" rel="noreferrer">{app.name}<ExternalLink size={12} /></a>) : <span>No pinned apps.</span>}</div>
         <ActivityTicker />
@@ -299,9 +299,9 @@ function ChatListScreen() {
   const rows = Array.isArray(data) ? data : data?.sessions || data?.items || []
   const visible = rows.filter((row: Any) => JSON.stringify(row).toLowerCase().includes(query.toLowerCase()))
   const create = async () => { const item: Any = await api.post('/api/chats', { title: 'New chat' }); navigate(`/chats/${item.id || item.session_id}`) }
-  return <Page title="Chats" note="Start a new conversation or continue a recent session." className="chats-page">
-    <div className="screen-toolbar"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sessions" /><Button onClick={create}><Plus size={14} />New chat</Button><Button kind="quiet" onClick={reload}><RefreshCw size={14} /></Button></div>
-    <Card className="table-card chat-sessions-card"><header className="section-title"><div><h2>Recent sessions</h2><p>Your private conversation history.</p></div>{machine(`${visible.length} sessions`)}</header>{loading ? <Empty>Loading sessions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : visible.length ? visible.map((row: Any) => {
+  return <Page title="Chats" note="Start a new conversation or continue a recent session." actions={<Button onClick={create}><Plus size={14} />New chat</Button>} className="chats-page">
+    <Card className="screen-toolbar"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search sessions" /><Button kind="quiet" onClick={reload}><RefreshCw size={14} />Refresh</Button></Card>
+    <Card className="table-card chat-sessions-card"><header className="section-title"><div><h2>Recent sessions</h2><p>Your private conversation history, ordered by latest activity.</p></div>{machine(`${visible.length} sessions`)}</header><div className="table-column-head"><span>Session</span><span>Updated</span><span /></div>{loading ? <Empty>Loading sessions.</Empty> : error ? <ErrorBox value={error} retry={reload} /> : visible.length ? visible.map((row: Any) => {
       const id = row.id || row.session_id
       return <button className="chat-list-row" key={id} onClick={() => navigate(`/chats/${id}`)}><span className="status-dot muted" /><div><strong>{row.title || 'Untitled chat'}</strong><p>{row.preview || row.last_message || 'Hermes session'}</p></div>{machine(formatRelativeTime(row.updated_at || row.created_at))}<ChevronRight size={14} /></button>
     }) : <Empty>No sessions match this search.</Empty>}</Card>
@@ -393,8 +393,8 @@ function ChatScreen() {
   const copy = copyMachineValue
   const speak = (value: string) => { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(value)) } }
 
-  return <Page title="Chat" note="Private session with Hermes." className="chats-page chat-page">
-    <div className="chat-toolbar">
+  return <Page title="Chat" note="Private session with Hermes." actions={<Button kind="quiet" onClick={() => navigate('/chats')}><MessageSquare size={14} />All chats</Button>} className="chats-page chat-page">
+    <Card className="chat-toolbar">
       <input value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="Provider" />
       <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Model" />
       <select value={intensity} onChange={(event) => setIntensity(event.target.value)}><option value="light">Light</option><option value="medium">Medium</option><option value="high">High</option><option value="very_high">Very high</option></select>
@@ -402,7 +402,7 @@ function ChatScreen() {
       {streaming && <Button kind="danger" onClick={stop}><Square size={14} />Stop</Button>}
       <Button kind="quiet" onClick={fork}><History size={14} />Fork</Button>
       <Button kind="quiet" disabled>Promote to mission</Button>
-    </div>
+    </Card>
     <div className="chat-workspace">
       <div className="chat-panels">
         <section className="chat-main-panel">

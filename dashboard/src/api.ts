@@ -1,3 +1,4 @@
+import { fixtureResponse } from './dev-fixtures'
 import { mockSystemData } from './mockData'
 
 export class ApiError extends Error {
@@ -10,6 +11,10 @@ export function csrfHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  if (import.meta.env.DEV && import.meta.env.VITE_AGENTGATE_FIXTURES !== '0') {
+    const fixture = fixtureResponse(path, method)
+    if (fixture !== undefined) return fixture as T
+  }
   if (import.meta.env.DEV && import.meta.env.VITE_AGENTGATE_MOCK_SYSTEM === '1' && method === 'GET' && path === '/api/system') {
     return mockSystemData as T
   }
