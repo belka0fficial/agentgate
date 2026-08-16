@@ -40,6 +40,22 @@ Captured with representative browser-only fixture data. The fixture is not part 
 - PASS 2: live event bus integration, all seven animated Core states, the `/dev/core` harness, event arrivals, value ticks, and heartbeats.
 - The addendum’s iridescent active-state treatment is deferred to PASS 2. PASS 1 intentionally retains a static monochrome/signal Core.
 
+## Register correction — 2026-08-16
+
+The initial PASS 1 review identified that the base system needed filled card construction rather than a field of outlined strips. Every screen now uses the shared surface-card register: `#0C0F14` surface fill, 6px radius, 1px subdued line, 16px internal padding, and 20px page gutters. Command vitals are now stat cards with large mono values. Toolbars, data regions, forms, the chat composer, and the Core each sit in their own filled card.
+
+| Screen | Desktop | 380px |
+|---|---|---|
+| Command | [desktop](pass1-register-desktop-command.png) | [mobile](pass1-register-mobile-command.png) |
+| Approvals | [desktop](pass1-register-desktop-approvals.png) | [mobile](pass1-register-mobile-approvals.png) |
+| Chats | [desktop](pass1-register-desktop-chats.png) | [mobile](pass1-register-mobile-chats.png) |
+| Chat detail | [desktop](pass1-register-desktop-chat-detail.png) | [mobile](pass1-register-mobile-chat-detail.png) |
+| Suggestions | [desktop](pass1-register-desktop-suggestions.png) | [mobile](pass1-register-mobile-suggestions.png) |
+| Automations | [desktop](pass1-register-desktop-automations.png) | [mobile](pass1-register-mobile-automations.png) |
+| Memory | [desktop](pass1-register-desktop-memory.png) | [mobile](pass1-register-mobile-memory.png) |
+| System | [desktop](pass1-register-desktop-system.png) | [mobile](pass1-register-mobile-system.png) |
+| Character | [desktop](pass1-register-desktop-character.png) | [mobile](pass1-register-mobile-character.png) |
+
 ## Review request
 
 Please approve or redirect the static visual language before PASS 1.5 begins. No motion work has been started.
