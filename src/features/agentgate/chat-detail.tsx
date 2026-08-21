@@ -1,36 +1,1352 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ArrowLeft, Send } from 'lucide-react'
+import { useLocation, useNavigate } from '@tanstack/react-router'
+import {
+  ArrowUp,
+  Ban,
+  Brain,
+  Check,
+  Clipboard,
+  Download,
+  EyeOff,
+  FileText,
+  FilePenLine,
+  GitFork,
+  Globe,
+  Library,
+  Mic,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  RotateCcw,
+  Share2,
+  SlidersHorizontal,
+  Square,
+  Trash2,
+  Volume2,
+  WifiOff,
+  Wrench,
+  X,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { Main } from '@/components/layout/main'
 import { getAgentGate, relativeTime, type ChatMessage } from './api'
-import { AgentGateHeader } from './page-header'
+import { personas } from './personas'
+
+const chatStates = [
+  'default',
+  'streaming',
+  'tool',
+  'approval',
+  'empty',
+  'stopped',
+  'failed',
+  'lost',
+  'artifact',
+  'selection',
+] as const
+
+type ChatState = (typeof chatStates)[number]
 
 export function ChatDetailPage({ chatId }: { chatId: string }) {
+  const [quoteDraft, setQuoteDraft] = useState('')
+  const [selectionChip, setSelectionChip] = useState<{
+    text: string
+    x: number
+    y: number
+  } | null>(null)
+  const [memoryCandidate, setMemoryCandidate] = useState('')
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
+  const threadViewportRef = useRef<HTMLDivElement>(null)
+  const threadEndRef = useRef<HTMLDivElement>(null)
+  const isPinnedToLatestRef = useRef(true)
+  const navigate = useNavigate()
+  const locationHref = useLocation({
+    select: (location) => location.href,
+  })
+  const chatState = getChatStateFromHref(locationHref)
   const conversation = useQuery({
     queryKey: ['agentgate', 'chats', chatId, 'messages'],
-    queryFn: () => getAgentGate<{ messages: ChatMessage[] }>(`/api/chats/${chatId}/messages`),
+    queryFn: () =>
+      getAgentGate<{ messages: ChatMessage[] }>(
+        `/api/chats/${chatId}/messages`
+      ),
   })
 
-  return <><AgentGateHeader /><Main className='max-w-4xl'>
-    <div className='mb-6 flex items-center justify-between gap-4'>
-      <div><h1 className='text-2xl font-bold tracking-tight'>Release readiness review</h1><p className='text-sm text-muted-foreground'><code className='font-mono'>{chatId}</code> · private session</p></div>
-      <Button asChild variant='outline'><Link to='/chats'><ArrowLeft />All chats</Link></Button>
+  useEffect(() => {
+    setSelectionChip(null)
+  }, [chatState])
+
+  const scrollThreadToLatest = useCallback(
+    (behavior: ScrollBehavior = 'auto') => {
+      const viewport = threadViewportRef.current
+      if (!viewport) return
+
+      viewport.scrollTo({
+        top: viewport.scrollHeight,
+        behavior,
+      })
+      isPinnedToLatestRef.current = true
+      setShowJumpToLatest(false)
+    },
+    []
+  )
+
+  function handleThreadScroll() {
+    const viewport = threadViewportRef.current
+    if (!viewport) return
+
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const isAtLatest = distanceFromBottom < 96
+    isPinnedToLatestRef.current = isAtLatest
+    setShowJumpToLatest(!isAtLatest)
+  }
+
+  function handleForkFromMessage(message: ChatMessage) {
+    const forkId = `${chatId}_fork_${message.id}`
+    const prefill = message.role === 'owner' ? message.content : ''
+    sessionStorage.setItem(
+      `agentgate:fork:${forkId}`,
+      JSON.stringify({
+        sourceChatId: chatId,
+        throughMessageId: message.id,
+        prefill,
+      })
+    )
+    void navigate({ to: '/chats/$id', params: { id: forkId } })
+  }
+
+  function handleThreadSelection() {
+    const selection = window.getSelection()
+    const text = selection?.toString().trim()
+    if (!selection || !text || text.length < 2) {
+      if (chatState !== 'selection') setSelectionChip(null)
+      return
+    }
+    const range = selection.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
+    setSelectionChip({
+      text,
+      x: Math.min(rect.left + rect.width / 2, window.innerWidth - 160),
+      y: Math.max(rect.top - 42, 72),
+    })
+  }
+
+  const messages =
+    conversation.data?.messages && chatState !== 'empty'
+      ? getStateMessages(conversation.data.messages, chatState)
+      : []
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (isPinnedToLatestRef.current) {
+        scrollThreadToLatest('auto')
+      } else {
+        setShowJumpToLatest(true)
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [messages.length, chatState, scrollThreadToLatest])
+
+  return (
+    <div
+      data-ui='chat-shell'
+      className='flex h-[100dvh] min-h-0 flex-col overflow-hidden'
+    >
+      <Main fixed fluid className='min-h-0 flex-1 overflow-hidden py-0'>
+        <div className='grid h-full min-h-0 w-full min-w-0 overflow-hidden'>
+          <div className='flex min-h-0 min-w-0 flex-col overflow-hidden'>
+            <div className='mx-auto w-full max-w-[760px] shrink-0 pt-6 pb-4'>
+              <div className='flex min-w-0 items-start justify-between gap-4'>
+                <div className='min-w-0'>
+                  <h1 className='truncate text-2xl font-bold tracking-tight'>
+                    Release readiness review
+                  </h1>
+                  <p className='truncate font-mono text-xs text-muted-foreground'>
+                    {chatId} - private session - 6 turns
+                  </p>
+                </div>
+                <div className='flex shrink-0 items-center gap-1'>
+                  <SessionActionsMenu />
+                </div>
+              </div>
+            </div>
+            <div
+              ref={threadViewportRef}
+              data-ui='chat-thread'
+              className='min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]'
+              onScroll={handleThreadScroll}
+              onMouseUp={handleThreadSelection}
+            >
+              <div className='mx-auto flex min-h-full w-full max-w-[760px] min-w-0 flex-col px-0 pt-6 pb-8'>
+                <div className='min-w-0 flex-1 space-y-6'>
+                  {messages.length ? (
+                    messages.map((message, index) => (
+                      <div key={message.id} className='min-w-0 space-y-4'>
+                        <MessageRow
+                          message={message}
+                          onFork={handleForkFromMessage}
+                        />
+                        <StateInlineSurface
+                          state={chatState}
+                          message={message}
+                          index={index}
+                          onOpenArtifact={() => undefined}
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <EmptySession onPrompt={setQuoteDraft} />
+                  )}
+                  <RunStateSurface state={chatState} />
+                  <div ref={threadEndRef} aria-hidden='true' />
+                </div>
+              </div>
+              {showJumpToLatest ? (
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='secondary'
+                  className='sticky bottom-4 left-1/2 z-10 mx-auto flex -translate-x-1/2 rounded-full shadow-lg'
+                  onClick={() => scrollThreadToLatest('smooth')}
+                >
+                  Jump to latest
+                </Button>
+              ) : null}
+            </div>
+            <div
+              data-ui='chat-composer-slot'
+              className='mx-auto w-full max-w-[760px] shrink-0'
+            >
+              <Composer
+                chatId={chatId}
+                quoteDraft={quoteDraft}
+                onQuoteConsumed={() => setQuoteDraft('')}
+                isStreaming={chatState === 'streaming'}
+                onSend={() => scrollThreadToLatest('smooth')}
+              />
+            </div>
+          </div>
+        </div>
+      </Main>
+      {selectionChip ? (
+        <SelectionChip
+          selection={selectionChip}
+          onQuote={(text) => {
+            setQuoteDraft(text)
+            setSelectionChip(null)
+            window.getSelection()?.removeAllRanges()
+          }}
+          onCopy={(text) => navigator.clipboard?.writeText(text)}
+          onMemory={(text) => {
+            setMemoryCandidate(text)
+            setSelectionChip(null)
+          }}
+        />
+      ) : null}
+      {memoryCandidate ? (
+        <div className='fixed right-4 bottom-4 z-50 rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md'>
+          Memory candidate queued for approval
+        </div>
+      ) : null}
     </div>
-    <Card>
-      <CardHeader><CardTitle>Conversation</CardTitle><CardDescription>Hermes retains context for this session only.</CardDescription></CardHeader>
-      <CardContent className='space-y-5'>
-        {(conversation.data?.messages ?? []).map((message) => <div key={message.id} className={message.role === 'owner' ? 'ml-auto max-w-[85%]' : 'max-w-[85%]'}>
-          <div className={message.role === 'owner' ? 'rounded-lg bg-primary p-4 text-primary-foreground' : 'rounded-lg bg-muted p-4'}><p className='whitespace-pre-wrap text-sm leading-6'>{message.content}</p></div>
-          <p className='mt-1 px-1 font-mono text-xs text-muted-foreground'>{message.role === 'owner' ? 'Owner' : 'Hermes'} · {relativeTime(message.created_at)}</p>
-        </div>)}
-      </CardContent>
-    </Card>
-    <Card className='mt-4'>
-      <CardHeader><CardTitle>Reply</CardTitle><CardDescription>Your message stays in this session unless an explicit action is approved.</CardDescription></CardHeader>
-      <CardContent><form className='space-y-3'><Textarea placeholder='Message Hermes…' className='min-h-28' /><div className='flex justify-end'><Button type='submit'><Send />Send</Button></div></form></CardContent>
-    </Card>
-  </Main></>
+  )
+}
+
+function MessageRow({
+  message,
+  onFork,
+}: {
+  message: ChatMessage
+  onFork: (message: ChatMessage) => void
+}) {
+  const isOwner = message.role === 'owner'
+
+  return (
+    <article
+      className={`group flex py-1 ${isOwner ? 'justify-end' : 'justify-start'}`}
+    >
+      <div
+        className={
+          isOwner
+            ? 'max-w-[65%] min-w-0 max-sm:max-w-[86%]'
+            : 'max-w-[72ch] min-w-0'
+        }
+      >
+        {!isOwner ? (
+          <div className='mb-1.5 text-xs text-muted-foreground'>Hermes</div>
+        ) : null}
+        <div
+          className={
+            isOwner
+              ? 'rounded-xl bg-muted/55 px-4 py-3 text-sm leading-6 font-normal break-words whitespace-pre-wrap'
+              : 'text-sm leading-6 font-normal break-words whitespace-pre-wrap'
+          }
+        >
+          {message.content}
+        </div>
+        <div
+          className={`mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap transition-opacity ${
+            isOwner
+              ? 'justify-end opacity-45 group-focus-within:opacity-100 group-hover:opacity-100'
+              : 'justify-start opacity-50 group-focus-within:opacity-100 group-hover:opacity-100'
+          }`}
+        >
+          <MessageMeta message={message} onFork={() => onFork(message)} />
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function getChatStateFromHref(href: string): ChatState {
+  const value = new URL(href, 'http://agentgate.local').searchParams.get(
+    'state'
+  )
+
+  return chatStates.includes(value as ChatState)
+    ? (value as ChatState)
+    : 'default'
+}
+
+function getStateMessages(messages: ChatMessage[], state: ChatState) {
+  if (state === 'streaming')
+    return [
+      ...messages.slice(0, 5),
+      {
+        id: 'msg_stream',
+        role: 'agent' as const,
+        content:
+          'I am preparing the release summary now. The verified blocker is still the changelog publication, and I am keeping the draft local',
+        created_at: new Date().toISOString(),
+      },
+    ]
+  if (state === 'stopped')
+    return [
+      ...messages.slice(0, 5),
+      {
+        id: 'msg_stopped',
+        role: 'agent' as const,
+        content:
+          'Prepared the first half of the readiness summary: release checks are green, owner approval remains required for public changelog publication.',
+        created_at: new Date().toISOString(),
+      },
+    ]
+  if (state === 'failed' || state === 'lost')
+    return [
+      ...messages.slice(0, 4),
+      {
+        id: `msg_${state}`,
+        role: 'agent' as const,
+        content:
+          state === 'failed'
+            ? 'I could not finish the readiness summary.'
+            : 'The stream paused before I could finish the summary.',
+        created_at: new Date().toISOString(),
+      },
+    ]
+  return messages
+}
+
+function StateInlineSurface({
+  state,
+  message,
+  index,
+  onOpenArtifact,
+}: {
+  state: ChatState
+  message: ChatMessage
+  index: number
+  onOpenArtifact: () => void
+}) {
+  if (state === 'streaming' && message.id === 'msg_stream')
+    return <StreamingCursor />
+  if (state === 'tool' && message.id === 'msg_02') return <InlineToolCall />
+  if (state === 'approval' && message.id === 'msg_04')
+    return <InlineApprovalCard />
+  if (state === 'artifact' && message.id === 'msg_06')
+    return <ArtifactCard onOpen={onOpenArtifact} />
+  if (state === 'selection' && index === 1)
+    return (
+      <p className='font-mono text-[11px] text-muted-foreground'>
+        Select any passage in the message above to reveal quote, copy, and
+        memory actions.
+      </p>
+    )
+  return null
+}
+
+function StreamingCursor() {
+  return (
+    <div className='max-w-[72ch] font-mono text-[11px] text-muted-foreground'>
+      <span className='mr-2 inline-block size-1.5 animate-pulse rounded-full bg-primary' />
+      tokens streaming
+      <span className='ml-1 inline-block h-4 w-px animate-pulse bg-primary align-middle' />
+    </div>
+  )
+}
+
+function InlineToolCall() {
+  return (
+    <Collapsible className='max-w-[72ch] rounded-lg bg-muted/35 px-3 py-2'>
+      <CollapsibleTrigger className='flex w-full items-center justify-between gap-3 text-left font-mono text-[11px] text-muted-foreground'>
+        <span>memory.search - 6 records - 84ms</span>
+        <FilePenLine className='size-3.5' />
+      </CollapsibleTrigger>
+      <CollapsibleContent className='mt-3 space-y-2 border-t pt-3 text-xs'>
+        <TraceLine label='Args' value='query="release 0.8 checklist" limit=8' />
+        <TraceLine label='Result' value='6 records, 4 with direct evidence' />
+        <TraceLine
+          label='Preview'
+          value='release checklist, approval policy, changelog draft'
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+function InlineApprovalCard() {
+  const [decision, setDecision] = useState<'approved' | 'rejected' | null>(null)
+  const approval = {
+    title: 'Publish release notes to public changelog',
+    summary:
+      'This action writes the reviewed 0.8 release notes to a public repository file.',
+    binding: {
+      type: 'repository.write',
+      id: 'agentgate/docs/CHANGELOG.md',
+      version: '9e4ab21',
+      digest: 'sha256:8d18c2e4...4f0e',
+    },
+  }
+
+  function decide(next: 'approved' | 'rejected') {
+    setDecision(next)
+    localStorage.setItem('agentgate:inline-approval:appr_01', next)
+    window.dispatchEvent(
+      new CustomEvent('agentgate:inline-approval', {
+        detail: { id: 'appr_01', decision: next },
+      })
+    )
+  }
+
+  return (
+    <div className='max-w-[72ch] rounded-xl border bg-muted/35 p-4'>
+      <div className='mb-3 flex items-start justify-between gap-4'>
+        <div>
+          <p className='text-sm font-medium'>{approval.title}</p>
+          <p className='mt-1 text-xs text-muted-foreground'>
+            {approval.summary}
+          </p>
+        </div>
+        <Badge variant={decision ? 'secondary' : 'outline'}>
+          {decision ?? 'approval required'}
+        </Badge>
+      </div>
+      <div className='grid gap-1 rounded-md bg-background/40 p-3 font-mono text-[11px] text-muted-foreground'>
+        <span>type: {approval.binding.type}</span>
+        <span>id: {approval.binding.id}</span>
+        <span>version: {approval.binding.version}</span>
+        <span>digest: {approval.binding.digest}</span>
+      </div>
+      <div className='mt-3 flex justify-end gap-2'>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          onClick={() => decide('rejected')}
+        >
+          <Ban />
+          Reject
+        </Button>
+        <Button
+          type='button'
+          size='sm'
+          variant='secondary'
+          onClick={() => decide('approved')}
+        >
+          <Check />
+          Approve
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ArtifactCard({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type='button'
+      className='block max-w-[72ch] rounded-xl border bg-muted/35 p-4 text-left transition-colors hover:bg-muted/50'
+      onClick={onOpen}
+    >
+      <div className='flex items-start gap-3'>
+        <div className='rounded-md bg-background/50 p-2 text-muted-foreground'>
+          <FileText className='size-5' />
+        </div>
+        <div className='min-w-0 flex-1'>
+          <div className='flex items-center gap-2'>
+            <p className='truncate text-sm font-medium'>release-readiness.md</p>
+            <Badge variant='secondary'>v2</Badge>
+          </div>
+          <p className='mt-1 font-mono text-[11px] text-muted-foreground'>
+            markdown - 2.8 KB - 84 lines - revised draft
+          </p>
+          <pre className='mt-3 overflow-hidden rounded-md bg-background/40 p-3 text-xs text-muted-foreground'>
+            {`# Release readiness
+- checks green
+- public changelog approval pending
+- token rotation queued`}
+          </pre>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function RunStateSurface({ state }: { state: ChatState }) {
+  if (state === 'stopped')
+    return (
+      <InlineRunNotice
+        tone='muted'
+        text='Stopped by you. Partial output retained.'
+        actions={['Resume', 'Regenerate']}
+      />
+    )
+  if (state === 'failed')
+    return (
+      <InlineRunNotice
+        tone='destructive'
+        text='The run failed while writing the draft. Nothing was published.'
+        actions={['Retry']}
+      />
+    )
+  if (state === 'lost')
+    return (
+      <InlineRunNotice
+        tone='muted'
+        icon={<WifiOff />}
+        text='Connection lost mid-stream. Data is stale; retrying automatically.'
+        actions={['Retry now']}
+      />
+    )
+  return null
+}
+
+function InlineRunNotice({
+  text,
+  actions,
+  icon,
+  tone,
+}: {
+  text: string
+  actions: string[]
+  icon?: React.ReactNode
+  tone: 'muted' | 'destructive'
+}) {
+  return (
+    <div
+      className={`flex max-w-[72ch] items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs ${
+        tone === 'destructive'
+          ? 'border-destructive/40 text-destructive'
+          : 'text-muted-foreground'
+      }`}
+    >
+      <div className='flex items-center gap-2'>
+        {icon}
+        <span>{text}</span>
+      </div>
+      <div className='flex gap-1'>
+        {actions.map((action) => (
+          <Button key={action} type='button' size='sm' variant='ghost'>
+            {action}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EmptySession({ onPrompt }: { onPrompt: (prompt: string) => void }) {
+  const prompts = [
+    'Review the 4 pending approvals',
+    'Explain the stale backup anomaly',
+    'Summarize recent release memories',
+    'Draft a safe automation plan',
+  ]
+
+  return (
+    <div className='flex min-h-[420px] flex-col items-center justify-center text-center'>
+      <h2 className='text-xl font-semibold'>What should Hermes inspect?</h2>
+      <p className='mt-2 max-w-md text-sm text-muted-foreground'>
+        Start from live context: approvals, anomalies, memories, and automation
+        state.
+      </p>
+      <div className='mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2'>
+        {prompts.map((prompt) => (
+          <Button
+            key={prompt}
+            type='button'
+            variant='outline'
+            className='justify-start text-left'
+            onClick={() => onPrompt(prompt)}
+          >
+            {prompt}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SelectionChip({
+  selection,
+  onQuote,
+  onCopy,
+  onMemory,
+}: {
+  selection: { text: string; x: number; y: number }
+  onQuote: (text: string) => void
+  onCopy: (text: string) => void
+  onMemory: (text: string) => void
+}) {
+  return (
+    <div
+      className='fixed z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-popover p-1 text-xs text-popover-foreground shadow-md'
+      style={{ left: selection.x, top: selection.y }}
+    >
+      <Button
+        type='button'
+        size='sm'
+        variant='ghost'
+        onClick={() => onQuote(selection.text)}
+      >
+        Quote & ask
+      </Button>
+      <Button
+        type='button'
+        size='sm'
+        variant='ghost'
+        onClick={() => onCopy(selection.text)}
+      >
+        Copy
+      </Button>
+      <Button
+        type='button'
+        size='sm'
+        variant='ghost'
+        onClick={() => onMemory(selection.text)}
+      >
+        Add to memory
+      </Button>
+    </div>
+  )
+}
+
+function TraceLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='grid gap-1 sm:grid-cols-[72px_1fr]'>
+      <span className='font-mono text-[11px] text-muted-foreground'>
+        {label}
+      </span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function Composer({
+  chatId,
+  quoteDraft,
+  onQuoteConsumed,
+  isStreaming = false,
+  onSend,
+}: {
+  chatId: string
+  quoteDraft?: string
+  onQuoteConsumed?: () => void
+  isStreaming?: boolean
+  onSend?: () => void
+}) {
+  const [value, setValue] = useState('')
+  const [replyQuote, setReplyQuote] = useState('')
+  const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const [voiceSeconds, setVoiceSeconds] = useState(0)
+  const [levels, setLevels] = useState<number[]>(Array(56).fill(10))
+  const [uiIncognito, setUiIncognito] = useState(true)
+  const [memoryIncognito, setMemoryIncognito] = useState(false)
+  const [reasoning, setReasoning] = useState('medium')
+  const [extendedThinking, setExtendedThinking] = useState(false)
+  const [memoryOn, setMemoryOn] = useState(true)
+  const [webOn, setWebOn] = useState(false)
+  const [toolsOn, setToolsOn] = useState(true)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+
+  useEffect(() => {
+    const forkDraft = sessionStorage.getItem(`agentgate:fork:${chatId}`)
+    if (!forkDraft) return
+
+    try {
+      const parsed = JSON.parse(forkDraft) as { prefill?: string }
+      if (parsed.prefill) setValue(parsed.prefill)
+    } catch {
+      // Ignore malformed local fork state.
+    }
+  }, [chatId])
+
+  useEffect(() => {
+    if (!quoteDraft) return
+    setReplyQuote(quoteDraft)
+    textareaRef.current?.focus()
+    onQuoteConsumed?.()
+  }, [quoteDraft, onQuoteConsumed])
+
+  useEffect(() => {
+    if (!isVoiceMode) return
+    let animationFrame = 0
+    let audioContext: AudioContext | null = null
+    let analyser: AnalyserNode | null = null
+    const timer = window.setInterval(() => {
+      setVoiceSeconds((seconds) => seconds + 1)
+    }, 1000)
+
+    async function startMic() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setLevels(Array(56).fill(10))
+          return
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        })
+        mediaStreamRef.current = stream
+        audioContext = new AudioContext()
+        const source = audioContext.createMediaStreamSource(stream)
+        analyser = audioContext.createAnalyser()
+        analyser.fftSize = 256
+        analyser.smoothingTimeConstant = 0.74
+        source.connect(analyser)
+        const data = new Uint8Array(analyser.frequencyBinCount)
+
+        function tick() {
+          if (!analyser) return
+          analyser.getByteFrequencyData(data)
+          const sample = Array.from(data).slice(4, 60)
+          setLevels(
+            sample.map((value) => Math.max(8, Math.round((value / 255) * 58)))
+          )
+          animationFrame = window.requestAnimationFrame(tick)
+        }
+
+        tick()
+      } catch {
+        setLevels(Array(56).fill(10))
+      }
+    }
+
+    startMic()
+
+    return () => {
+      window.clearInterval(timer)
+      window.cancelAnimationFrame(animationFrame)
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+      void audioContext?.close()
+    }
+  }, [isVoiceMode])
+
+  function startVoiceMode() {
+    setVoiceSeconds(0)
+    setIsVoiceMode(true)
+  }
+
+  function cancelVoiceMode() {
+    setIsVoiceMode(false)
+    setVoiceSeconds(0)
+  }
+
+  return (
+    <div className='z-20 bg-background/95 pt-3 pb-5 backdrop-blur'>
+      <form
+        data-ui='chat-composer'
+        className='overflow-hidden rounded-xl border bg-muted/55 shadow-lg shadow-background'
+        onSubmit={(event) => {
+          event.preventDefault()
+          onSend?.()
+        }}
+      >
+        {!isVoiceMode && replyQuote ? (
+          <QuoteChip
+            label='Replying to Hermes · msg_06'
+            text={replyQuote}
+            onRemove={() => setReplyQuote('')}
+          />
+        ) : null}
+        {isVoiceMode ? (
+          <VoiceCapture
+            levels={levels}
+            seconds={voiceSeconds}
+            onCancel={cancelVoiceMode}
+          />
+        ) : (
+          <Textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder='Message Hermes...'
+            className='max-h-[200px] min-h-14 resize-none overflow-y-auto rounded-none border-0 !bg-transparent px-4 py-3 shadow-none focus-visible:ring-0 dark:!bg-transparent'
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                event.currentTarget.form?.requestSubmit()
+              }
+            }}
+          />
+        )}
+        <div className='flex flex-wrap items-center gap-1 bg-transparent px-2 py-2'>
+          <InlineSelect
+            value='gpt-5.2'
+            items={['gpt-5.2', 'gpt-5.2-mini', 'o4-mini']}
+            label='Model'
+          />
+          <InlineSelect
+            value='Hermes'
+            items={personas.map((persona) => persona.name)}
+            label='Persona'
+          />
+          <CapabilityPopover
+            icon={<Brain />}
+            label='Thinking'
+            active={reasoning !== 'medium' || extendedThinking}
+          >
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <Label className='text-xs text-muted-foreground'>
+                  Reasoning effort
+                </Label>
+                <Select value={reasoning} onValueChange={setReasoning}>
+                  <SelectTrigger size='sm'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='low'>Low</SelectItem>
+                    <SelectItem value='medium'>Medium</SelectItem>
+                    <SelectItem value='high'>High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <SwitchRow
+                id='extended-thinking'
+                label='Extended thinking'
+                checked={extendedThinking}
+                onCheckedChange={setExtendedThinking}
+              />
+            </div>
+          </CapabilityPopover>
+          <CapabilityPopover
+            icon={<SlidersHorizontal />}
+            label='Context'
+            active={!memoryOn || webOn || !toolsOn}
+          >
+            <div className='space-y-4'>
+              <SwitchRow
+                id='context-memory'
+                label='Memory'
+                checked={memoryOn}
+                onCheckedChange={setMemoryOn}
+              />
+              <SwitchRow
+                id='context-web'
+                label='Web search'
+                checked={webOn}
+                onCheckedChange={setWebOn}
+              />
+              <SwitchRow
+                id='context-tools'
+                label='Tools'
+                checked={toolsOn}
+                onCheckedChange={setToolsOn}
+              />
+              <div className='space-y-2'>
+                <ToolToggle icon={<Library />} label='memory.search' />
+                <ToolToggle icon={<Wrench />} label='toolgate.run' />
+                <ToolToggle icon={<Globe />} label='web.lookup' />
+              </div>
+            </div>
+          </CapabilityPopover>
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            aria-label='Attach file'
+          >
+            <Paperclip />
+          </Button>
+          <Button
+            type='button'
+            variant={isVoiceMode ? 'secondary' : 'ghost'}
+            size='icon'
+            aria-label='Start voice input'
+            onClick={startVoiceMode}
+          >
+            <Mic />
+          </Button>
+          <div className='ml-auto flex items-center gap-1'>
+            <CapabilityPopover
+              icon={<EyeOff />}
+              label='Incognito'
+              active={uiIncognito || memoryIncognito}
+            >
+              <div className='space-y-3'>
+                <SwitchRow
+                  id='ui-incognito'
+                  label='UI incognito'
+                  checked={uiIncognito}
+                  onCheckedChange={setUiIncognito}
+                />
+                <SwitchRow
+                  id='memory-incognito'
+                  label='Memory incognito'
+                  checked={memoryIncognito}
+                  onCheckedChange={setMemoryIncognito}
+                />
+              </div>
+            </CapabilityPopover>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              aria-label='Fork session'
+            >
+              <GitFork />
+            </Button>
+            <span className='hidden px-2 text-[10px] text-muted-foreground sm:inline'>
+              Enter sends - Shift Enter adds line
+            </span>
+          </div>
+          <Button
+            type={isStreaming ? 'button' : 'submit'}
+            size='icon'
+            variant={isStreaming ? 'destructive' : 'default'}
+            className='size-9 shrink-0'
+            aria-label={isStreaming ? 'Stop run' : 'Send message'}
+          >
+            {isStreaming ? <Square /> : <ArrowUp />}
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function QuoteChip({
+  label,
+  text,
+  onRemove,
+}: {
+  label: string
+  text: string
+  onRemove: () => void
+}) {
+  return (
+    <div className='px-3 pt-3'>
+      <div className='flex items-center gap-3 rounded-lg bg-background/35 px-3 py-2'>
+        <span className='h-8 w-px shrink-0 rounded-full bg-primary/70' />
+        <div className='min-w-0 flex-1'>
+          <p className='text-[11px] text-muted-foreground'>{label}</p>
+          <p className='truncate text-xs text-foreground/90'>{text}</p>
+        </div>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-6 shrink-0 text-muted-foreground hover:text-foreground'
+          aria-label='Remove quote'
+          onClick={onRemove}
+        >
+          <X className='size-3.5' />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function CapabilityPopover({
+  icon,
+  label,
+  active,
+  children,
+  disabled = false,
+}: {
+  icon: React.ReactNode
+  label: string
+  active: boolean
+  children?: React.ReactNode
+  disabled?: boolean
+}) {
+  const trigger = (
+    <Button
+      type='button'
+      variant='ghost'
+      size='icon'
+      disabled={disabled}
+      aria-label={label}
+      className='relative'
+    >
+      {icon}
+      {active ? (
+        <span className='absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-primary' />
+      ) : null}
+    </Button>
+  )
+
+  if (disabled) {
+    return <span>{trigger}</span>
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent side='top' align='start' className='w-72'>
+        <div className='mb-3 flex items-center gap-2 text-sm font-medium'>
+          {icon}
+          {label}
+        </div>
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function SwitchRow({
+  id,
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  id: string
+  label: string
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <div className='flex items-center justify-between gap-4'>
+      <Label htmlFor={id} className='text-xs font-normal text-muted-foreground'>
+        {label}
+      </Label>
+      <Switch
+        id={id}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        className='scale-90'
+      />
+    </div>
+  )
+}
+
+function ToolToggle({ icon, label }: { icon: React.ReactNode; label: string }) {
+  const [enabled, setEnabled] = useState(true)
+
+  return (
+    <div className='flex items-center justify-between gap-3 rounded-md px-1 py-1'>
+      <div className='flex min-w-0 items-center gap-2'>
+        <span className='text-muted-foreground [&_svg]:size-3.5'>{icon}</span>
+        <code className='truncate font-mono text-xs'>{label}</code>
+      </div>
+      <Switch
+        checked={enabled}
+        onCheckedChange={setEnabled}
+        className='scale-75'
+      />
+    </div>
+  )
+}
+
+function VoiceCapture({
+  levels,
+  seconds,
+  onCancel,
+}: {
+  levels: number[]
+  seconds: number
+  onCancel: () => void
+}) {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = String(seconds % 60).padStart(2, '0')
+
+  return (
+    <div className='flex min-h-20 items-center gap-4 px-4 py-3'>
+      <div className='flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground'>
+        <Volume2 className='size-4' />
+      </div>
+      <div className='flex min-w-0 flex-1 items-center gap-1.5'>
+        {levels.map((level, index) => (
+          <span
+            key={index}
+            className='min-w-0 flex-1 rounded-full bg-primary/80 transition-[height]'
+            style={{ height: `${level}px` }}
+          />
+        ))}
+      </div>
+      <code className='font-mono text-xs text-muted-foreground'>
+        {minutes}:{remainingSeconds}
+      </code>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon'
+        aria-label='Cancel voice input'
+        onClick={onCancel}
+      >
+        <X />
+      </Button>
+    </div>
+  )
+}
+
+function MessageMeta({
+  message,
+  onFork,
+}: {
+  message: ChatMessage
+  onFork: () => void
+}) {
+  const isOwner = message.role === 'owner'
+  const toolCalls = message.trace?.length ?? 0
+  const inputTokens = 1840
+  const outputTokens = 643
+  const latency = '820 ms'
+  const characterCount = message.content.length
+  const data = isOwner
+    ? `${relativeTime(message.created_at)} - ${characterCount} chars`
+    : `${relativeTime(message.created_at)} - gpt-5.2 - ${latency} - ${inputTokens}/${outputTokens} tok - $0.008 - ${toolCalls} tools - 42% ctx`
+
+  return (
+    <Collapsible className='min-w-0 flex-1' title={`message ${message.id}`}>
+      <div className='flex min-w-0 items-center justify-between gap-3'>
+        <span className='min-w-0 truncate px-1.5 font-mono text-[11px] text-muted-foreground'>
+          {isOwner || !message.trace?.length ? (
+            data
+          ) : (
+            <>
+              {`${relativeTime(message.created_at)} - gpt-5.2 - ${latency} - ${inputTokens}/${outputTokens} tok - $0.008 - `}
+              <CollapsibleTrigger asChild>
+                <button
+                  type='button'
+                  className='hover:text-foreground hover:underline'
+                >
+                  {toolCalls} tools
+                </button>
+              </CollapsibleTrigger>
+              {' - 42% ctx'}
+            </>
+          )}
+        </span>
+        <div className='flex shrink-0 items-center gap-0.5'>
+          <MetaAction
+            label='Copy message'
+            onClick={() => navigator.clipboard?.writeText(message.content)}
+          >
+            <Clipboard />
+          </MetaAction>
+          {!isOwner ? (
+            <MetaAction label='Regenerate response'>
+              <RotateCcw />
+            </MetaAction>
+          ) : null}
+          <ForkAction onFork={onFork} />
+          {!isOwner ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <MetaAction label='Share'>
+                    <Share2 />
+                  </MetaAction>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Share</TooltipContent>
+            </Tooltip>
+          ) : null}
+          {message.trace?.length ? (
+            <TraceTrigger trace={message.trace} />
+          ) : null}
+        </div>
+      </div>
+      {message.trace?.length ? <TraceContent trace={message.trace} /> : null}
+    </Collapsible>
+  )
+}
+
+function ForkAction({ onFork }: { onFork: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <MetaAction label='Fork from here' onClick={onFork}>
+            <GitFork />
+          </MetaAction>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Fork</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function MetaAction({
+  label,
+  children,
+  onClick,
+}: {
+  label: string
+  children: React.ReactNode
+  onClick?: () => void
+}) {
+  return (
+    <Button
+      type='button'
+      variant='ghost'
+      size='icon'
+      className='size-6 shrink-0 text-muted-foreground hover:text-foreground'
+      aria-label={label}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+}
+
+function InlineSelect({
+  value,
+  items,
+  label,
+}: {
+  value: string
+  items: string[]
+  label: string
+}) {
+  return (
+    <Select defaultValue={value}>
+      <SelectTrigger
+        size='sm'
+        aria-label={label}
+        className='w-auto gap-1 border-0 bg-transparent px-2 shadow-none hover:bg-muted focus:ring-0 dark:bg-transparent dark:hover:bg-muted'
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((item) => (
+          <SelectItem key={item} value={item}>
+            {item}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function TraceTrigger({ trace }: { trace: NonNullable<ChatMessage['trace']> }) {
+  return (
+    <CollapsibleTrigger asChild>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon'
+        className='size-6 shrink-0 text-muted-foreground hover:text-foreground'
+        aria-label={`Trace ${trace.length} tool calls`}
+      >
+        <FilePenLine className='size-3.5' />
+      </Button>
+    </CollapsibleTrigger>
+  )
+}
+
+function TraceContent({ trace }: { trace: NonNullable<ChatMessage['trace']> }) {
+  return (
+    <CollapsibleContent className='mt-2 space-y-2 rounded-md bg-muted/35 p-3'>
+      {trace.map((item, index) => (
+        <div
+          key={`${item.tool}-${index}`}
+          className='grid gap-1 pb-2 text-xs sm:grid-cols-[140px_1fr_auto]'
+        >
+          <code className='font-mono'>{item.tool}</code>
+          <div className='min-w-0'>
+            <p className='truncate font-mono text-[11px] text-muted-foreground'>
+              {item.args}
+            </p>
+            <p className='text-muted-foreground'>{item.result}</p>
+          </div>
+          <code className='font-mono text-[11px] text-muted-foreground'>
+            {item.duration_ms} ms
+          </code>
+        </div>
+      ))}
+    </CollapsibleContent>
+  )
+}
+
+function SessionActionsMenu() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-7'
+          aria-label='Session actions'
+        >
+          <MoreHorizontal className='size-4' />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        <DropdownMenuItem>
+          <Pencil />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <Download />
+          Export
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant='destructive'>
+          <Trash2 />
+          Delete session
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }

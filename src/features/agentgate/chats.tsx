@@ -1,18 +1,95 @@
-import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, MessageSquare, Plus, Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
-import { AgentGateHeader } from './page-header'
 import { getAgentGate, relativeTime, type ChatSession } from './api'
+import { AgentGateHeader } from './page-header'
 
 export function ChatsPage() {
-  const [search, setSearch] = useState('')
-  const chats = useQuery({ queryKey: ['agentgate', 'chats'], queryFn: () => getAgentGate<{ sessions: ChatSession[] }>('/api/chats') })
-  const rows = useMemo(() => (chats.data?.sessions ?? []).filter((item) => `${item.title} ${item.preview}`.toLowerCase().includes(search.toLowerCase())), [chats.data, search])
-  return <><AgentGateHeader /><Main><div className='mb-6 flex items-center justify-between gap-4'><div><h1 className='text-2xl font-bold tracking-tight'>Chats</h1><p className='text-sm text-muted-foreground'>Start a new conversation or continue a recent session.</p></div><Button><Plus />New chat</Button></div><Card><CardHeader className='flex flex-row items-center justify-between space-y-0'><div><CardTitle>Recent sessions</CardTitle><CardDescription className='mt-1'>Your private conversation history, ordered by latest activity.</CardDescription></div><MessageSquare className='size-5 text-muted-foreground' /></CardHeader><CardContent><div className='mb-4 flex items-center gap-2'><Search className='size-4 text-muted-foreground' /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder='Search sessions' /></div><Table><TableHeader><TableRow><TableHead>Session</TableHead><TableHead>Last message</TableHead><TableHead>Updated</TableHead><TableHead className='w-10' /></TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell className='font-medium'>{row.title}</TableCell><TableCell className='max-w-md truncate text-muted-foreground'>{row.preview}</TableCell><TableCell><code className='font-mono text-xs text-muted-foreground'>{relativeTime(row.updated_at)}</code></TableCell><TableCell><Button asChild variant='ghost' size='icon' aria-label={`Open ${row.title}`}><Link to='/chats/$id' params={{ id: row.id }}><ArrowUpRight /></Link></Button></TableCell></TableRow>)}</TableBody></Table></CardContent></Card></Main></>
+  const chats = useQuery({
+    queryKey: ['agentgate', 'chats'],
+    queryFn: () => getAgentGate<{ sessions: ChatSession[] }>('/api/chats'),
+  })
+  const rows = chats.data?.sessions ?? []
+
+  return (
+    <>
+      <AgentGateHeader />
+      <Main>
+        <div className='mb-6'>
+          <p className='text-sm text-muted-foreground'>
+            Start a new conversation or continue a recent session.
+          </p>
+        </div>
+        <section>
+          <div className='mb-4 border-b pb-3'>
+            <h2 className='text-sm font-medium'>Recent sessions</h2>
+            <p className='text-xs text-muted-foreground'>
+              Your private conversation history, ordered by latest activity.
+            </p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Session</TableHead>
+                <TableHead>Last message</TableHead>
+                <TableHead>Run context</TableHead>
+                <TableHead>Turns</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className='cursor-pointer hover:bg-muted/45'
+                >
+                  <TableCell className='p-0' colSpan={5}>
+                    <Link
+                      to='/chats/$id'
+                      params={{ id: row.id }}
+                      className='grid min-w-0 grid-cols-[minmax(180px,1.2fr)_minmax(240px,2fr)_minmax(160px,1fr)_100px_120px] items-center gap-4 px-2 py-4 text-sm'
+                      aria-label={`Open ${row.title}`}
+                    >
+                      <span className='min-w-0 font-medium'>{row.title}</span>
+                      <span className='min-w-0 truncate text-muted-foreground'>
+                        {row.preview}
+                      </span>
+                      <span className='flex min-w-0 flex-wrap gap-1'>
+                        <Badge variant='outline'>
+                          {row.model ?? 'gpt-5.2'}
+                        </Badge>
+                        <Badge variant='secondary'>
+                          {sessionContextLabel(row.mode)}
+                        </Badge>
+                      </span>
+                      <code className='font-mono text-xs'>
+                        {row.message_count ?? '—'}
+                      </code>
+                      <code className='font-mono text-xs text-muted-foreground'>
+                        {relativeTime(row.updated_at)}
+                      </code>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      </Main>
+    </>
+  )
+}
+
+function sessionContextLabel(mode?: string) {
+  if (mode === 'incognito') return 'deep search'
+  return mode ?? 'operator'
 }

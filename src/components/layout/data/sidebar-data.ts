@@ -1,4 +1,14 @@
-import { Bell, Clock, Command, LayoutDashboard, MessagesSquare, Monitor, Package, ShieldCheck, UserCog } from 'lucide-react'
+import {
+  Bell,
+  Clock,
+  Command,
+  LayoutDashboard,
+  MessagesSquare,
+  Monitor,
+  Package,
+  ShieldCheck,
+  UserCog,
+} from 'lucide-react'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -38,7 +48,7 @@ export const sidebarData: SidebarData = {
         { title: 'Automations', url: '/automations', icon: Clock },
         { title: 'Memory', url: '/memory', icon: Package },
         { title: 'Suggestions', url: '/suggestions', icon: Bell },
-        { title: 'Character', url: '/settings/character', icon: UserCog },
+        { title: 'Character', url: '/character', icon: UserCog },
       ],
     },
   ],
