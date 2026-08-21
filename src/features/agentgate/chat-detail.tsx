@@ -5,6 +5,7 @@ import {
   ArrowUp,
   Ban,
   Brain,
+  Camera,
   Check,
   Clipboard,
   Download,
@@ -18,6 +19,8 @@ import {
   MoreHorizontal,
   Paperclip,
   Pencil,
+  Phone,
+  Radio,
   RotateCcw,
   Share2,
   SlidersHorizontal,
@@ -87,6 +90,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     text: string
     x: number
     y: number
+    chatState: ChatState
   } | null>(null)
   const [memoryCandidate, setMemoryCandidate] = useState('')
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
@@ -105,10 +109,6 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
         `/api/chats/${chatId}/messages`
       ),
   })
-
-  useEffect(() => {
-    setSelectionChip(null)
-  }, [chatState])
 
   const scrollThreadToLatest = useCallback(
     (behavior: ScrollBehavior = 'auto') => {
@@ -163,6 +163,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
       text,
       x: Math.min(rect.left + rect.width / 2, window.innerWidth - 160),
       y: Math.max(rect.top - 42, 72),
+      chatState,
     })
   }
 
@@ -191,7 +192,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
       <Main fixed fluid className='min-h-0 flex-1 overflow-hidden py-0'>
         <div className='grid h-full min-h-0 w-full min-w-0 overflow-hidden'>
           <div className='flex min-h-0 min-w-0 flex-col overflow-hidden'>
-            <div className='mx-auto w-full max-w-[760px] shrink-0 pt-6 pb-4'>
+            <div className='mx-auto w-full max-w-[1200px] shrink-0 px-4 pt-6 pb-4 sm:px-6'>
               <div className='flex min-w-0 items-start justify-between gap-4'>
                 <div className='min-w-0'>
                   <h1 className='truncate text-2xl font-bold tracking-tight'>
@@ -213,11 +214,14 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
               onScroll={handleThreadScroll}
               onMouseUp={handleThreadSelection}
             >
-              <div className='mx-auto flex min-h-full w-full max-w-[760px] min-w-0 flex-col px-0 pt-6 pb-8'>
-                <div className='min-w-0 flex-1 space-y-6'>
+              <div className='mx-auto flex min-h-full w-full max-w-[1200px] min-w-0 flex-col px-4 pt-6 pb-8 sm:px-6'>
+                <div className='min-w-0 flex-1'>
                   {messages.length ? (
                     messages.map((message, index) => (
-                      <div key={message.id} className='min-w-0 space-y-4'>
+                      <div
+                        key={message.id}
+                        className='min-w-0 border-b border-border/45'
+                      >
                         <MessageRow
                           message={message}
                           onFork={handleForkFromMessage}
@@ -251,7 +255,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
             </div>
             <div
               data-ui='chat-composer-slot'
-              className='mx-auto w-full max-w-[760px] shrink-0'
+              className='mx-auto w-full max-w-[1200px] shrink-0 px-4 sm:px-6'
             >
               <Composer
                 chatId={chatId}
@@ -264,7 +268,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
           </div>
         </div>
       </Main>
-      {selectionChip ? (
+      {selectionChip && selectionChip.chatState === chatState ? (
         <SelectionChip
           selection={selectionChip}
           onQuote={(text) => {
@@ -298,35 +302,21 @@ function MessageRow({
   const isOwner = message.role === 'owner'
 
   return (
-    <article
-      className={`group flex py-1 ${isOwner ? 'justify-end' : 'justify-start'}`}
-    >
-      <div
-        className={
-          isOwner
-            ? 'max-w-[65%] min-w-0 max-sm:max-w-[86%]'
-            : 'max-w-[72ch] min-w-0'
-        }
-      >
-        {!isOwner ? (
-          <div className='mb-1.5 text-xs text-muted-foreground'>Hermes</div>
-        ) : null}
+    <article className='group grid min-w-0 gap-2 py-4 sm:grid-cols-[84px_minmax(0,1fr)] sm:gap-5'>
+      <div className='pt-0.5 font-mono text-[11px] tracking-wide text-muted-foreground uppercase'>
+        {isOwner ? 'You' : 'Hermes'}
+      </div>
+      <div className='min-w-0'>
         <div
           className={
             isOwner
-              ? 'rounded-xl bg-muted/55 px-4 py-3 text-sm leading-6 font-normal break-words whitespace-pre-wrap'
+              ? 'rounded-lg bg-muted/40 px-4 py-3 text-sm leading-6 font-normal break-words whitespace-pre-wrap'
               : 'text-sm leading-6 font-normal break-words whitespace-pre-wrap'
           }
         >
           {message.content}
         </div>
-        <div
-          className={`mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap transition-opacity ${
-            isOwner
-              ? 'justify-end opacity-45 group-focus-within:opacity-100 group-hover:opacity-100'
-              : 'justify-start opacity-50 group-focus-within:opacity-100 group-hover:opacity-100'
-          }`}
-        >
+        <div className='mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap opacity-45 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100'>
           <MessageMeta message={message} onFork={() => onFork(message)} />
         </div>
       </div>
@@ -688,6 +678,18 @@ function TraceLine({ label, value }: { label: string; value: string }) {
   )
 }
 
+function getForkPrefill(chatId: string) {
+  const forkDraft = sessionStorage.getItem(`agentgate:fork:${chatId}`)
+  if (!forkDraft) return ''
+
+  try {
+    const parsed = JSON.parse(forkDraft) as { prefill?: string }
+    return parsed.prefill ?? ''
+  } catch {
+    return ''
+  }
+}
+
 function Composer({
   chatId,
   quoteDraft,
@@ -701,9 +703,13 @@ function Composer({
   isStreaming?: boolean
   onSend?: () => void
 }) {
-  const [value, setValue] = useState('')
-  const [replyQuote, setReplyQuote] = useState('')
+  const [value, setValue] = useState(() => getForkPrefill(chatId))
   const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const [presenceMode, setPresenceMode] = useState<'camera' | 'call' | null>(
+    null
+  )
+  const [presenceError, setPresenceError] = useState('')
+  const [wakeEnabled, setWakeEnabled] = useState(true)
   const [voiceSeconds, setVoiceSeconds] = useState(0)
   const [levels, setLevels] = useState<number[]>(Array(56).fill(10))
   const [uiIncognito, setUiIncognito] = useState(true)
@@ -715,25 +721,8 @@ function Composer({
   const [toolsOn, setToolsOn] = useState(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
-
-  useEffect(() => {
-    const forkDraft = sessionStorage.getItem(`agentgate:fork:${chatId}`)
-    if (!forkDraft) return
-
-    try {
-      const parsed = JSON.parse(forkDraft) as { prefill?: string }
-      if (parsed.prefill) setValue(parsed.prefill)
-    } catch {
-      // Ignore malformed local fork state.
-    }
-  }, [chatId])
-
-  useEffect(() => {
-    if (!quoteDraft) return
-    setReplyQuote(quoteDraft)
-    textareaRef.current?.focus()
-    onQuoteConsumed?.()
-  }, [quoteDraft, onQuoteConsumed])
+  const presenceStreamRef = useRef<MediaStream | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (!isVoiceMode) return
@@ -789,7 +778,52 @@ function Composer({
     }
   }, [isVoiceMode])
 
+  useEffect(() => {
+    if (!presenceMode) return
+
+    let cancelled = false
+    const videoElement = videoRef.current
+
+    async function startPresence() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setPresenceError('Camera access needs a secure local connection.')
+          return
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: presenceMode === 'call',
+        })
+
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
+        presenceStreamRef.current = stream
+        if (videoElement) videoElement.srcObject = stream
+      } catch {
+        setPresenceError(
+          presenceMode === 'call'
+            ? 'Camera or microphone permission was not granted.'
+            : 'Camera permission was not granted.'
+        )
+      }
+    }
+
+    void startPresence()
+
+    return () => {
+      cancelled = true
+      presenceStreamRef.current?.getTracks().forEach((track) => track.stop())
+      presenceStreamRef.current = null
+      if (videoElement) videoElement.srcObject = null
+    }
+  }, [presenceMode])
+
   function startVoiceMode() {
+    setPresenceMode(null)
     setVoiceSeconds(0)
     setIsVoiceMode(true)
   }
@@ -797,6 +831,12 @@ function Composer({
   function cancelVoiceMode() {
     setIsVoiceMode(false)
     setVoiceSeconds(0)
+  }
+
+  function togglePresenceMode(mode: 'camera' | 'call') {
+    setIsVoiceMode(false)
+    setPresenceError('')
+    setPresenceMode((current) => (current === mode ? null : mode))
   }
 
   return (
@@ -807,16 +847,24 @@ function Composer({
         onSubmit={(event) => {
           event.preventDefault()
           onSend?.()
+          onQuoteConsumed?.()
         }}
       >
-        {!isVoiceMode && replyQuote ? (
+        {!isVoiceMode && !presenceMode && quoteDraft ? (
           <QuoteChip
             label='Replying to Hermes · msg_06'
-            text={replyQuote}
-            onRemove={() => setReplyQuote('')}
+            text={quoteDraft}
+            onRemove={() => onQuoteConsumed?.()}
           />
         ) : null}
-        {isVoiceMode ? (
+        {presenceMode ? (
+          <PresenceCapture
+            mode={presenceMode}
+            videoRef={videoRef}
+            error={presenceError}
+            onCancel={() => setPresenceMode(null)}
+          />
+        ) : isVoiceMode ? (
           <VoiceCapture
             levels={levels}
             seconds={voiceSeconds}
@@ -924,6 +972,36 @@ function Composer({
             onClick={startVoiceMode}
           >
             <Mic />
+          </Button>
+          <Button
+            type='button'
+            variant={presenceMode === 'camera' ? 'secondary' : 'ghost'}
+            size='icon'
+            aria-label='Start camera conversation'
+            onClick={() => togglePresenceMode('camera')}
+          >
+            <Camera />
+          </Button>
+          <Button
+            type='button'
+            variant={presenceMode === 'call' ? 'secondary' : 'ghost'}
+            size='icon'
+            aria-label='Start live call'
+            onClick={() => togglePresenceMode('call')}
+          >
+            <Phone />
+          </Button>
+          <Button
+            type='button'
+            variant={wakeEnabled ? 'secondary' : 'ghost'}
+            size='sm'
+            className='gap-1.5 px-2.5'
+            aria-label='Toggle Call Hermes wake phrase'
+            aria-pressed={wakeEnabled}
+            onClick={() => setWakeEnabled((enabled) => !enabled)}
+          >
+            <Radio />
+            <span className='hidden lg:inline'>Call Hermes</span>
           </Button>
           <div className='ml-auto flex items-center gap-1'>
             <CapabilityPopover
@@ -1134,6 +1212,49 @@ function VoiceCapture({
       >
         <X />
       </Button>
+    </div>
+  )
+}
+
+function PresenceCapture({
+  mode,
+  videoRef,
+  error,
+  onCancel,
+}: {
+  mode: 'camera' | 'call'
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  error: string
+  onCancel: () => void
+}) {
+  return (
+    <div className='relative min-h-48 overflow-hidden bg-background/70'>
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className='absolute inset-0 size-full object-cover opacity-80'
+      />
+      <div className='absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-background/90 to-transparent p-3'>
+        <div className='flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase'>
+          {mode === 'call' ? <Phone /> : <Camera />}
+          {mode === 'call' ? 'Live call preview' : 'Camera context preview'}
+        </div>
+        <Button type='button' variant='secondary' size='sm' onClick={onCancel}>
+          <X />
+          End preview
+        </Button>
+      </div>
+      {error ? (
+        <div className='pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center'>
+          <Camera className='size-6 text-muted-foreground' />
+          <p className='max-w-sm text-sm text-muted-foreground'>{error}</p>
+        </div>
+      ) : null}
+      <div className='absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-3 font-mono text-[10px] text-muted-foreground'>
+        Local preview - media is attached only when you send or start the call
+      </div>
     </div>
   )
 }

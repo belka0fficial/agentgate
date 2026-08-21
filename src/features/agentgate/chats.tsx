@@ -23,20 +23,15 @@ export function ChatsPage() {
   return (
     <>
       <AgentGateHeader />
-      <Main>
-        <div className='mb-6'>
-          <p className='text-sm text-muted-foreground'>
-            Start a new conversation or continue a recent session.
-          </p>
-        </div>
-        <section>
+      <Main fluid className='px-4 sm:px-6'>
+        <section className='w-full overflow-x-auto'>
           <div className='mb-4 border-b pb-3'>
             <h2 className='text-sm font-medium'>Recent sessions</h2>
             <p className='text-xs text-muted-foreground'>
               Your private conversation history, ordered by latest activity.
             </p>
           </div>
-          <Table>
+          <Table className='min-w-[900px]'>
             <TableHeader>
               <TableRow>
                 <TableHead>Session</TableHead>

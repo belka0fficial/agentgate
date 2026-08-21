@@ -32,3 +32,10 @@ dist-ssr
 # Vitest artifacts (browser screenshots/attachments)
 **/__screenshots__/
 .vitest-attachments/
+
+# Local QA / router cache artifacts
+.playwright-cli/
+.tanstack/tmp/
+
+# Local host helper
+.agentgate-lan-proxy.cjs

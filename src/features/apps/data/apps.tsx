@@ -3,7 +3,6 @@ import {
   IconNotion,
   IconFigma,
   IconTrello,
-  IconSlack,
   IconZoom,
   IconStripe,
   IconGmail,
@@ -40,12 +39,6 @@ export const apps = [
     logo: <IconTrello />,
     connected: false,
     desc: 'Sync Trello cards for streamlined project management.',
-  },
-  {
-    name: 'Slack',
-    logo: <IconSlack />,
-    connected: false,
-    desc: 'Integrate Slack for efficient team communication',
   },
   {
     name: 'Zoom',

@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
-  Activity,
+  type LucideIcon,
   ArrowRight,
   Check,
+  ChevronDown,
   CircleAlert,
   HardDrive,
   MemoryStick,
@@ -74,12 +75,13 @@ export function CommandPage() {
   return (
     <>
       <AgentGateHeader />
-      <Main>
-        <section className='grid min-h-[calc(100dvh-7rem)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center'>
-          <div className='relative overflow-hidden rounded-2xl bg-card p-6 shadow-sm sm:p-10'>
-            <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent' />
-            <div className='grid gap-8 md:grid-cols-[minmax(0,1fr)_220px] md:items-center'>
-              <div className='max-w-3xl'>
+      <Main fluid className='px-4 sm:px-6'>
+        <section className='relative isolate min-h-[calc(100dvh-6rem)] overflow-hidden pb-16'>
+          <div className='pointer-events-none absolute top-1/2 right-[4%] -z-10 size-[min(62vw,760px)] -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(117,139,176,0.07),transparent_64%)] blur-2xl' />
+          <div className='grid min-h-[calc(100dvh-10rem)] items-center gap-6 lg:grid-cols-[minmax(380px,0.72fr)_minmax(520px,1.28fr)]'>
+            <div className='z-10 flex max-w-xl flex-col gap-4 py-8 lg:pl-[clamp(0rem,3vw,3rem)]'>
+              <div className='relative overflow-hidden rounded-2xl border bg-card/85 p-6 shadow-2xl shadow-black/20 backdrop-blur-sm sm:p-8'>
+                <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent' />
                 <div className='mb-4 flex flex-wrap items-center gap-2'>
                   <Badge variant='secondary' className='rounded-full'>
                     <span className='mr-1.5 size-1.5 rounded-full bg-emerald-500' />
@@ -89,10 +91,10 @@ export function CommandPage() {
                     local · private · owner-gated
                   </span>
                 </div>
-                <h1 className='max-w-2xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl'>
+                <h1 className='max-w-lg text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl'>
                   Command is quiet until something needs you.
                 </h1>
-                <p className='mt-4 max-w-2xl text-sm leading-6 text-muted-foreground'>
+                <p className='mt-4 max-w-lg text-sm leading-6 text-muted-foreground'>
                   AgentGate is watching the active work, holding context, and
                   keeping the operational noise below the fold until you want
                   it.
@@ -112,32 +114,54 @@ export function CommandPage() {
                   </Button>
                 </div>
               </div>
-              <div className='mx-auto flex flex-col items-center gap-4'>
-                <Core />
-                <p className='max-w-44 text-center font-mono text-[11px] leading-5 text-muted-foreground'>
-                  core static · motion locked until approved
+
+              <Card className='rounded-2xl bg-card/70 backdrop-blur-sm'>
+                <CardContent className='grid items-center gap-5 p-5 sm:grid-cols-[auto_1fr]'>
+                  <div>
+                    <p className='font-mono text-[11px] tracking-wide text-muted-foreground uppercase'>
+                      Today
+                    </p>
+                    <p className='mt-2 max-w-44 text-xs leading-5 text-muted-foreground'>
+                      {isCalm
+                        ? 'Nothing is pressing.'
+                        : 'A few things are waiting.'}
+                    </p>
+                  </div>
+                  <div className='grid grid-cols-3 gap-2 text-center'>
+                    <SoftNumber value={pending.length} label='decisions' />
+                    <SoftNumber value={anomalies.length} label='watching' />
+                    <SoftNumber value={recent.length} label='recent' />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className='relative flex min-h-[440px] items-center justify-center lg:min-h-0'>
+              <div className='pointer-events-none absolute h-px w-[76%] bg-gradient-to-r from-transparent via-border/45 to-transparent' />
+              <div className='pointer-events-none absolute h-[76%] w-px bg-gradient-to-b from-transparent via-border/35 to-transparent' />
+              <div className='flex flex-col items-center gap-2'>
+                <Core className='size-[340px] sm:size-[420px] lg:size-[500px]' />
+                <p className='text-center font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase'>
+                  specimen live · non-repeating drift
                 </p>
               </div>
             </div>
           </div>
 
-          <Card className='rounded-2xl'>
-            <CardContent className='p-6'>
-              <p className='font-mono text-[11px] tracking-wide text-muted-foreground uppercase'>
-                Today
-              </p>
-              <div className='mt-5 grid grid-cols-3 gap-3 text-center'>
-                <SoftNumber value={pending.length} label='decisions' />
-                <SoftNumber value={anomalies.length} label='watching' />
-                <SoftNumber value={recent.length} label='recent' />
-              </div>
-              <p className='mt-6 text-sm leading-6 text-muted-foreground'>
-                {isCalm
-                  ? 'Nothing is pressing. Hermes is ready when you are.'
-                  : 'A few things are waiting, but none need to crowd the whole screen.'}
-              </p>
-            </CardContent>
-          </Card>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            className='absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full text-muted-foreground hover:text-foreground'
+            onClick={() =>
+              document
+                .getElementById('command-deck')
+                ?.scrollIntoView({ behavior: 'smooth' })
+            }
+          >
+            Open command deck
+            <ChevronDown />
+          </Button>
         </section>
 
         <section id='command-deck' className='mt-10 scroll-mt-6'>
@@ -295,7 +319,7 @@ function StatCard({
   title: string
   value: string
   note: string
-  icon: typeof Activity
+  icon: LucideIcon
   history: number[]
 }) {
   return (

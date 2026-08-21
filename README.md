@@ -1,119 +1,85 @@
-# Shadcn Admin Dashboard
+# AgentGate Dashboard
 
-Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and accessibility in mind.
+AgentGate is the private dashboard layer for a local personal-agent stack. This repository contains the presentation layer only: a high-contrast desktop/mobile UI for command, approvals, chats, system visibility, gates, character settings, and supporting agent surfaces.
 
-![alt text](public/images/shadcn-admin.png)
+The main work currently represented here is the UI overhaul completed in August 2026: a denser command center, a lab-style animated core, wider chat layouts with built-in voice/camera/live-call controls, and a cleaned dark visual language shaped around AgentGate instead of the original template baseline.
 
-[![Sponsored by Clerk](https://img.shields.io/badge/Sponsored%20by-Clerk-5b6ee1?logo=clerk)](https://go.clerk.com/GttUAaK)
+## Scope
 
-I've been creating dashboard UIs at work and for my personal projects. I always wanted to make a reusable collection of dashboard UI for future projects; and here it is now. While I've created a few custom components, some of the code is directly adapted from ShadcnUI examples.
+This repo includes:
 
-> This is not a starter project (template) though. I'll probably make one in the future.
+- Command screen UI and animated core surface
+- Approval and verification review flows
+- Chat surfaces with rich composer controls
+- System, gates, cron, and settings screens
+- Responsive layouts for desktop and Android-sized mobile views
 
-## Features
+This repo does not own:
 
-- Light/dark mode
-- Responsive
-- Accessible
-- With built-in Sidebar component
-- Global search command
-- 10+ pages
-- Extra custom components
-- RTL support
+- Hermes runtime orchestration
+- Tool execution policy enforcement
+- Memory storage or retrieval backends
+- Host provisioning or infrastructure automation
 
-<details>
-<summary>Customized Components (click to expand)</summary>
+Those systems are expected to exist beside this UI. AgentGate is the operator-facing shell that talks to them through the backend contract.
 
-This project uses Shadcn UI components, but some have been slightly modified for better RTL (Right-to-Left) support and other improvements. These customized components differ from the original Shadcn UI versions.
+## Stack
 
-If you want to update components using the Shadcn CLI (e.g., `npx shadcn@latest add <component>`), it's generally safe for non-customized components. For the listed customized ones, you may need to manually merge changes to preserve the project's modifications and avoid overwriting RTL support or other updates.
-
-> If you don't require RTL support, you can safely update the 'RTL Updated Components' via the Shadcn CLI, as these changes are primarily for RTL compatibility. The 'Modified Components' may have other customizations to consider.
-
-### Modified Components
-
-- scroll-area
-- sonner
-- separator
-
-### RTL Updated Components
-
-- alert-dialog
-- calendar
-- command
-- dialog
-- dropdown-menu
-- select
-- table
-- sheet
-- sidebar
-- switch
-
-**Notes:**
-
-- **Modified Components**: These have general updates, potentially including RTL adjustments.
-- **RTL Updated Components**: These have specific changes for RTL language support (e.g., layout, positioning).
-- For implementation details, check the source files in `src/components/ui/`.
-- All other Shadcn UI components in the project are standard and can be safely updated via the CLI.
-
-</details>
-
-## Tech Stack
-
-**UI:** [ShadcnUI](https://ui.shadcn.com) (TailwindCSS + RadixUI)
-
-**Build Tool:** [Vite](https://vitejs.dev/)
-
-**Routing:** [TanStack Router](https://tanstack.com/router/latest)
-
-**Type Checking:** [TypeScript](https://www.typescriptlang.org/)
-
-**Linting/Formatting:** [ESLint](https://eslint.org/) & [Prettier](https://prettier.io/)
-
-**Icons:** [Lucide Icons](https://lucide.dev/icons/), [Tabler Icons](https://tabler.io/icons) (Brand icons only)
-
-**Auth (partial):** [Clerk](https://go.clerk.com/GttUAaK)
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS 4
+- Radix UI
+- TanStack Router
+- TanStack Query
 
 ## Run Locally
 
-Clone the project
-
 ```bash
-  git clone https://github.com/satnaing/shadcn-admin.git
+pnpm install
+pnpm dev
 ```
 
-Go to the project directory
+Default dev server:
+
+- `http://localhost:5173`
+
+## Quality Checks
 
 ```bash
-  cd shadcn-admin
+pnpm format:check
+pnpm lint
+pnpm build
+pnpm test
 ```
 
-Install dependencies
+For the current UI pass, the working release gate has been:
 
-```bash
-  pnpm install
-```
+- Prettier check
+- ESLint
+- TypeScript build
+- Vite production build
+- Browser QA screenshots for desktop and mobile
 
-Start the server
+## UI References
 
-```bash
-  pnpm run dev
-```
+Current captured UI references live under [docs/ui/current](docs/ui/current).
 
-## Sponsoring this project ❤️
+Desktop screenshots currently included:
 
-If you find this project helpful or use this in your own work, consider [sponsoring me](https://github.com/sponsors/satnaing) to support development and maintenance. You can [buy me a coffee](https://buymeacoffee.com/satnaing) as well. Don’t worry, every penny helps. Thank you! 🙏
+- `character-detail-route.png`
+- `character-list-route.png`
+- `character-persona-list-cards.png`
+- `character-studio-fork-step.png`
+- `character-studio-mid-flow.png`
+- `character-studio-preview-chat.png`
 
-For questions or sponsorship inquiries, feel free to reach out at [satnaingdev@gmail.com](mailto:satnaingdev@gmail.com).
+## GitHub Cleanup Notes
 
-### Current Sponsor
-
-- [Clerk](https://go.clerk.com/GttUAaK) - authentication and user management for the modern web
-
-## Author
-
-Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
+- Local-only QA artifacts such as `.playwright-cli/`, `.tanstack/tmp/`, and `.agentgate-lan-proxy.cjs` are intentionally ignored.
+- Service credentials, private API keys, and machine-specific scripts should stay outside this repository.
+- The main story of this branch is the AgentGate UI overhaul, not backend contract changes.
 
 ## License
 
-Licensed under the [MIT License](https://choosealicense.com/licenses/mit/)
+Licensed under the [MIT License](LICENSE).
