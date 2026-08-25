@@ -1,7 +1,9 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -11,16 +13,34 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
-import { getAgentGate, postAgentGate, relativeTime, type ChatSession } from './api'
+import {
+  getAgentGate,
+  loginAgentGateOwner,
+  postAgentGate,
+  relativeTime,
+  type ChatSession,
+} from './api'
 import { AgentGateHeader } from './page-header'
 
 export function ChatsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [ownerToken, setOwnerToken] = useState('')
   const chats = useQuery({
     queryKey: ['agentgate', 'chats'],
     queryFn: () => getAgentGate<{ sessions: ChatSession[] }>('/api/chats'),
   })
   const rows = chats.data?.sessions ?? []
+  const needsOwnerLogin =
+    chats.error instanceof Error &&
+    chats.error.message.toLowerCase().includes('owner authentication')
+  const loginOwner = useMutation({
+    mutationFn: () => loginAgentGateOwner(ownerToken),
+    onSuccess: async () => {
+      setOwnerToken('')
+      await queryClient.invalidateQueries({ queryKey: ['agentgate', 'chats'] })
+    },
+  })
   const createChat = useMutation({
     mutationFn: () =>
       postAgentGate<ChatSession>('/api/sessions', {
@@ -60,11 +80,52 @@ export function ChatsPage() {
                 : 'Could not create chat'}
             </div>
           ) : null}
-          {rows.length === 0 ? (
+          {needsOwnerLogin ? (
+            <form
+              className='mb-4 grid gap-3 rounded-xl border bg-card p-4 text-sm'
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (ownerToken.trim()) loginOwner.mutate()
+              }}
+            >
+              <div>
+                <h3 className='font-medium'>Owner login required</h3>
+                <p className='text-xs text-muted-foreground'>
+                  AgentGate is connected to the Pi adapter. Enter the owner token
+                  once to receive the adapter httpOnly session cookie. The token
+                  is sent only to <code>/api/auth/login</code> and is not stored in
+                  localStorage or bundled into the app.
+                </p>
+              </div>
+              <div className='flex gap-2'>
+                <Input
+                  type='password'
+                  value={ownerToken}
+                  onChange={(event) => setOwnerToken(event.target.value)}
+                  placeholder='Owner token'
+                  autoComplete='off'
+                />
+                <Button
+                  type='submit'
+                  disabled={!ownerToken.trim() || loginOwner.isPending}
+                >
+                  Connect
+                </Button>
+              </div>
+              {loginOwner.error ? (
+                <p className='text-xs text-destructive'>
+                  {loginOwner.error instanceof Error
+                    ? loginOwner.error.message
+                    : 'Owner login failed'}
+                </p>
+              ) : null}
+            </form>
+          ) : null}
+          {!needsOwnerLogin && rows.length === 0 ? (
             <div className='rounded-xl border bg-card p-8 text-sm text-muted-foreground'>
               No Pi sessions yet. Start a new chat to create one.
             </div>
-          ) : (
+          ) : !needsOwnerLogin ? (
           <Table className='min-w-[900px]'>
             <TableHeader>
               <TableRow>
@@ -112,7 +173,7 @@ export function ChatsPage() {
               ))}
             </TableBody>
           </Table>
-          )}
+          ) : null}
         </section>
       </Main>
     </>

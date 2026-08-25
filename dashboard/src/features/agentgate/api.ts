@@ -80,6 +80,14 @@ export async function postAgentGate<T>(
   return parseResponse<T>(response)
 }
 
+export async function loginAgentGateOwner(ownerToken: string) {
+  return postAgentGate<{
+    status: string
+    owner_authenticated: boolean
+    csrf_token?: string | null
+  }>('/api/auth/login', { owner_token: ownerToken })
+}
+
 export async function deleteAgentGate<T>(path: string): Promise<T> {
   const response = await fetch(path, {
     method: 'DELETE',
