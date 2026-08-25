@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Command, Settings as SettingsIcon } from 'lucide-react'
@@ -45,6 +46,7 @@ type SystemInfo = {
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
@@ -59,14 +61,17 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
           <ThemeSwitch className='size-10 scale-100 rounded-md' />
-          <SettingsDialog
-            trigger={
-              <Button variant='ghost' size='icon' className='size-10' aria-label='Settings'>
-                <SettingsIcon />
-                <span className='sr-only'>Settings</span>
-              </Button>
-            }
-          />
+          <Button
+            variant='ghost'
+            size='icon'
+            className='size-10'
+            aria-label='Settings'
+            onClick={() => setSettingsOpen(true)}
+          >
+            <SettingsIcon />
+            <span className='sr-only'>Settings</span>
+          </Button>
+          <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
           <SidebarTrigger aria-label='Toggle sidebar' className='size-10' />
         </div>
       </SidebarFooter>
