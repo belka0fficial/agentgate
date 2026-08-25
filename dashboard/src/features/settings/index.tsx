@@ -1,29 +1,41 @@
 import { Outlet } from '@tanstack/react-router'
-import { Monitor, Bell, Palette, Router, Wrench, UserCog } from 'lucide-react'
+import {
+  Bell,
+  Monitor,
+  Palette,
+  Router,
+  Settings2,
+  ShieldCheck,
+  UserCog,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { SidebarNav } from './components/sidebar-nav'
 
 const sidebarNavItems = [
   {
-    title: 'Profile',
+    title: 'General',
     href: '/settings',
-    icon: <UserCog size={18} />,
-  },
-  {
-    title: 'Account',
-    href: '/settings/account',
-    icon: <Wrench size={18} />,
+    icon: <Settings2 size={18} />,
   },
   {
     title: 'Gateways',
     href: '/settings/gateways',
     icon: <Router size={18} />,
+  },
+  {
+    title: 'Safety',
+    href: '/settings/account',
+    icon: <ShieldCheck size={18} />,
+  },
+  {
+    title: 'Profile',
+    href: '/settings/character',
+    icon: <UserCog size={18} />,
   },
   {
     title: 'Appearance',
@@ -45,31 +57,45 @@ const sidebarNavItems = [
 export function Settings() {
   return (
     <>
-      {/* ===== Top Heading ===== */}
       <Header>
         <Search className='me-auto' />
         <ThemeSwitch />
-        <ConfigDrawer />
-        <ProfileDropdown />
       </Header>
 
-      <Main fixed>
-        <div className='space-y-0.5'>
-          <h1 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            Settings
-          </h1>
-          <p className='text-muted-foreground'>
-            Manage your account settings and set e-mail preferences.
-          </p>
-        </div>
-        <Separator className='my-4 lg:my-6' />
-        <div className='flex flex-1 flex-col space-y-2 overflow-hidden md:space-y-2 lg:flex-row lg:space-y-0 lg:space-x-12'>
-          <aside className='top-0 lg:sticky lg:w-1/5'>
-            <SidebarNav items={sidebarNavItems} />
+      <Main fixed fluid className='px-0 py-0'>
+        <div className='grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)]'>
+          <aside className='min-h-0 border-r bg-muted/10'>
+            <div className='border-b px-5 py-5'>
+              <div className='flex items-center justify-between gap-3'>
+                <div>
+                  <h1 className='text-xl font-semibold tracking-tight'>Settings</h1>
+                  <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                    Configure AgentGate as a local owner control plane.
+                  </p>
+                </div>
+                <Badge variant='outline' className='hidden shrink-0 xl:inline-flex'>
+                  local
+                </Badge>
+              </div>
+            </div>
+            <div className='p-3'>
+              <SidebarNav items={sidebarNavItems} />
+            </div>
           </aside>
-          <div className='flex w-full overflow-y-hidden p-1'>
-            <Outlet />
-          </div>
+
+          <section className='min-h-0 overflow-y-auto'>
+            <div className='mx-auto w-full max-w-6xl px-5 py-6 lg:px-8'>
+              <div className='mb-6'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Badge variant='secondary'>owner gated</Badge>
+                  <Badge variant='outline'>source-bound metadata</Badge>
+                  <Badge variant='outline'>no browser secrets</Badge>
+                </div>
+                <Separator className='mt-5' />
+              </div>
+              <Outlet />
+            </div>
+          </section>
         </div>
       </Main>
     </>

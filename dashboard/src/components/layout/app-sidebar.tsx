@@ -59,7 +59,7 @@ export function AppSidebar() {
         <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
           <ThemeSwitch className='size-10 scale-100 rounded-md' />
           <Button asChild variant='ghost' size='icon' className='size-10'>
-            <Link to='/settings/character' aria-label='Settings'>
+            <Link to='/settings' aria-label='Settings'>
               <Settings />
               <span className='sr-only'>Settings</span>
             </Link>
