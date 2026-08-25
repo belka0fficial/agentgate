@@ -66,6 +66,19 @@ export async function getAgentGate<T>(path: string): Promise<T> {
   return parseResponse<T>(response)
 }
 
+export type OwnerSession = {
+  status: string
+  owner_authenticated: boolean
+  auth_mode?: string
+  token_storage?: string
+  csrf_required?: boolean
+  csrf_token?: string | null
+  session_expires_at?: string | null
+  metadata_only?: boolean
+  credentials_included?: boolean
+  token_included?: boolean
+}
+
 let cachedCsrfToken: string | null = null
 
 async function getCsrfToken() {
@@ -103,11 +116,96 @@ export async function postAgentGate<T>(
 }
 
 export async function loginAgentGateOwner(ownerToken: string) {
-  return postAgentGate<{
-    status: string
-    owner_authenticated: boolean
-    csrf_token?: string | null
-  }>('/api/auth/login', { owner_token: ownerToken })
+  return postAgentGate<OwnerSession>('/api/auth/login', { owner_token: ownerToken })
+}
+
+export async function logoutAgentGateOwner() {
+  const result = await postAgentGate<OwnerSession>('/api/auth/logout')
+  cachedCsrfToken = null
+  return result
+}
+
+export type GatewayHealth = {
+  status: string
+  service: string
+  pi?: string
+  owner_auth?: string
+}
+
+export type ModelProvider = {
+  id: string
+  name: string
+  kind: string
+  status: string
+  configured: boolean
+  models_visible: boolean
+  model_count?: number
+  models_status?: string | null
+  risk?: string
+  policy?: string
+  privacy?: string
+  setup_hint?: string
+}
+
+export type ModelGatewayCandidates = {
+  gateway?: ModelProvider & {
+    auth_status?: string
+    setup_hint?: string
+  }
+  candidates?: {
+    id: string
+    name?: string
+    provider?: string
+    model?: string
+    status?: string
+    policy?: string
+    risk?: string
+    note?: string
+  }[]
+  candidate_count?: number
+  setup?: {
+    schema?: string
+    provider?: string
+    required_env?: string[]
+    accepted_key_env?: string[]
+    configured?: Record<string, boolean | string | number>
+    next_steps?: string[]
+    blockers?: string[]
+    safety?: Record<string, boolean | string>
+  }
+  runtime_note?: string
+}
+
+export type ModelSummary = {
+  runtime?: { id: string; status: string; provider_count: number }
+  default_route?: {
+    agent_id: string
+    agent_name: string
+    primary_provider: string
+    primary_model: string
+    fallback_provider: string
+    fallback_model: string
+  }
+  providers?: Pick<
+    ModelProvider,
+    'id' | 'name' | 'kind' | 'status' | 'configured' | 'models_visible' | 'model_count' | 'models_status'
+  >[]
+}
+
+export async function getOwnerSession() {
+  return getAgentGate<OwnerSession>('/api/auth/session')
+}
+
+export async function getGatewayHealth() {
+  return getAgentGate<GatewayHealth>('/health/detailed')
+}
+
+export async function getModelProviders() {
+  return getAgentGate<{ providers: ModelProvider[] }>('/api/model/providers')
+}
+
+export async function getModelGatewayCandidates() {
+  return getAgentGate<ModelGatewayCandidates>('/api/model/gateway-candidates')
 }
 
 export async function deleteAgentGate<T>(path: string): Promise<T> {

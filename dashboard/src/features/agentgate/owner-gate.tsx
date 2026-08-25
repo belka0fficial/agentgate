@@ -2,14 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getAgentGate, loginAgentGateOwner } from './api'
-
-type OwnerSession = {
-  status: string
-  owner_authenticated: boolean
-  auth_mode?: string
-  csrf_token?: string | null
-}
+import { getOwnerSession, loginAgentGateOwner } from './api'
 
 type OwnerGateProps = {
   children: ReactNode
@@ -20,7 +13,7 @@ export function OwnerGate({ children }: OwnerGateProps) {
   const [ownerToken, setOwnerToken] = useState('')
   const session = useQuery({
     queryKey: ['agentgate', 'owner-session'],
-    queryFn: () => getAgentGate<OwnerSession>('/api/auth/session'),
+    queryFn: getOwnerSession,
     retry: false,
   })
   const login = useMutation({
