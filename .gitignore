@@ -1,5 +1,7 @@
 .env
 .venv/
+.codex/
+.playwright-cli/
 api/Lib/
 api/Scripts/
 api/Include/
@@ -9,6 +11,9 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 data/
+output/
 dashboard/node_modules/
 dashboard/dist/
 dashboard/.vite/
+dashboard/.tanstack/
+dashboard/.playwright-cli/

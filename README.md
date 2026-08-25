@@ -58,6 +58,14 @@ cd ../conker
 docker compose up -d --build agentgate
 ```
 
+## Repo Layout
+
+- `api/` is the AgentGate backend service.
+- `dashboard/` is the current AgentGate frontend workspace.
+- `docs/ui/current/` holds the official latest screenshot register for review.
+- `docs/ui/archive/` holds earlier UI passes, experiments, and calibration captures.
+- `docs/refs/` holds visual and motion references used during the redesign process.
+
 ## Brain MCP Output Bridge
 
 The bundled MCP bridge lets the brain runtime create suggestions and register apps without direct database access.
