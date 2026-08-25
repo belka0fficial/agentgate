@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Cable,
   CheckCircle2,
@@ -22,16 +22,22 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 import {
+  checkModelRoute,
   getAgentGate,
   getGatewayHealth,
   getModelGatewayCandidates,
   getModelProviders,
   getOwnerSession,
+  saveModelRoute,
   type GatewayHealth,
   type ModelGatewayCandidates,
   type ModelProvider,
+  type ModelRouteProbe,
+  type ModelRouteSaveResult,
   type OwnerSession,
 } from '@/features/agentgate/api'
 import { ContentSection } from '../components/content-section'
@@ -147,10 +153,52 @@ export function GatewaySettings() {
 }
 
 function GatewaySettingsBody({ block }: { block: QueryBlock }) {
+  const queryClient = useQueryClient()
   const defaultAgent = useMemo(
     () => block.agents?.find((agent) => agent.id === 'agent_pi_operator') ?? block.agents?.[0],
     [block.agents]
   )
+  const [routeForm, setRouteForm] = useState({
+    primary_provider: '',
+    primary_model: '',
+    fallback_provider: '',
+    fallback_model: '',
+    reason: '',
+  })
+  const [routeCheck, setRouteCheck] = useState<ModelRouteProbe | null>(null)
+  const [routeSaveResult, setRouteSaveResult] = useState<ModelRouteSaveResult | null>(null)
+
+  useEffect(() => {
+    if (!defaultAgent) return
+    setRouteForm({
+      primary_provider: defaultAgent.primary_provider || '',
+      primary_model: defaultAgent.primary_model || '',
+      fallback_provider: defaultAgent.fallback_provider || '',
+      fallback_model: defaultAgent.fallback_model || '',
+      reason: '',
+    })
+    setRouteCheck(null)
+    setRouteSaveResult(null)
+  }, [defaultAgent])
+
+  const checkRoute = useMutation({
+    mutationFn: () => checkModelRoute(routeForm.primary_provider, routeForm.primary_model),
+    onSuccess: setRouteCheck,
+  })
+  const saveRoute = useMutation({
+    mutationFn: () =>
+      saveModelRoute(defaultAgent?.id || 'agent_pi_operator', {
+        primary_provider: routeForm.primary_provider,
+        primary_model: routeForm.primary_model,
+        fallback_provider: routeForm.fallback_provider,
+        fallback_model: routeForm.fallback_model,
+        reason: routeForm.reason,
+      }),
+    onSuccess: async (result) => {
+      setRouteSaveResult(result)
+      await queryClient.invalidateQueries({ queryKey: ['agentgate', 'agents'] })
+    },
+  })
   const gateway = block.gateway?.gateway
   const blockers = block.gateway?.setup?.blockers ?? []
 
@@ -241,8 +289,29 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
 
       <section className='grid gap-3'>
         <SectionTitle
+          icon={Router}
+          title='Edit active model route'
+          desc='Change the provider/model labels the Pi operator uses. Save either applies immediately or queues a ToolGate approval when the route is risky.'
+        />
+        <ModelRouteEditor
+          form={routeForm}
+          setForm={setRouteForm}
+          checkResult={routeCheck}
+          saveResult={routeSaveResult}
+          onCheck={() => checkRoute.mutate()}
+          onSave={() => saveRoute.mutate()}
+          checking={checkRoute.isPending}
+          saving={saveRoute.isPending}
+          checkError={checkRoute.error}
+          saveError={saveRoute.error}
+          disabled={!defaultAgent}
+        />
+      </section>
+
+      <section className='grid gap-3'>
+        <SectionTitle
           icon={Cable}
-          title='Providers and default route'
+          title='Providers and current route'
           desc='Provider keys and upstream URLs stay server-side. This page only shows safe labels and readiness metadata.'
         />
         <div className='grid gap-4 xl:grid-cols-[1fr_320px]'>
@@ -313,6 +382,145 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
       ) : null}
     </div>
   )
+}
+
+function ModelRouteEditor({
+  form,
+  setForm,
+  checkResult,
+  saveResult,
+  onCheck,
+  onSave,
+  checking,
+  saving,
+  checkError,
+  saveError,
+  disabled,
+}: {
+  form: {
+    primary_provider: string
+    primary_model: string
+    fallback_provider: string
+    fallback_model: string
+    reason: string
+  }
+  setForm: Dispatch<SetStateAction<{
+    primary_provider: string
+    primary_model: string
+    fallback_provider: string
+    fallback_model: string
+    reason: string
+  }>>
+  checkResult: ModelRouteProbe | null
+  saveResult: ModelRouteSaveResult | null
+  onCheck: () => void
+  onSave: () => void
+  checking: boolean
+  saving: boolean
+  checkError: Error | null
+  saveError: Error | null
+  disabled: boolean
+}) {
+  const canCheck = Boolean(form.primary_provider.trim() && form.primary_model.trim())
+  const canSave = canCheck && !saving && !disabled
+  return (
+    <Card>
+      <CardContent className='grid gap-4 pt-6'>
+        <div className='grid gap-4 md:grid-cols-2'>
+          <LabeledInput
+            label='Primary provider'
+            value={form.primary_provider}
+            placeholder='openai-codex, pi, openrouter...'
+            disabled={disabled}
+            onChange={(value) => setForm((current) => ({ ...current, primary_provider: value }))}
+          />
+          <LabeledInput
+            label='Primary model'
+            value={form.primary_model}
+            placeholder='model label from provider metadata'
+            disabled={disabled}
+            onChange={(value) => setForm((current) => ({ ...current, primary_model: value }))}
+          />
+          <LabeledInput
+            label='Fallback provider'
+            value={form.fallback_provider}
+            placeholder='optional; leave blank to disable'
+            disabled={disabled}
+            onChange={(value) => setForm((current) => ({ ...current, fallback_provider: value }))}
+          />
+          <LabeledInput
+            label='Fallback model'
+            value={form.fallback_model}
+            placeholder='optional; leave blank to disable'
+            disabled={disabled}
+            onChange={(value) => setForm((current) => ({ ...current, fallback_model: value }))}
+          />
+        </div>
+        <div className='grid gap-2'>
+          <label className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Reason</label>
+          <Textarea
+            value={form.reason}
+            disabled={disabled}
+            placeholder='Why this route should be saved. Required for approval context when a route is risky.'
+            onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
+          />
+        </div>
+        <div className='flex flex-wrap gap-2'>
+          <Button type='button' variant='outline' onClick={onCheck} disabled={!canCheck || checking || disabled}>
+            {checking ? 'Checking...' : 'Check route'}
+          </Button>
+          <Button type='button' onClick={onSave} disabled={!canSave}>
+            {saving ? 'Saving...' : 'Save route'}
+          </Button>
+        </div>
+        {checkError ? <Message tone='bad'>{checkError.message}</Message> : null}
+        {saveError ? <Message tone='bad'>{saveError.message}</Message> : null}
+        {checkResult ? (
+          <Message tone={checkResult.status === 'ready' ? 'good' : 'warn'}>
+            Route check: {checkResult.status}. {checkResult.note}
+          </Message>
+        ) : null}
+        {saveResult ? (
+          <Message tone={saveResult.status === 'applied' || saveResult.status === 'unchanged' ? 'good' : 'warn'}>
+            Save result: {saveResult.status}
+            {saveResult.request_id ? ` · ToolGate request ${saveResult.request_id}` : ''}
+            {saveResult.approval_reasons?.length ? ` · ${saveResult.approval_reasons.join('; ')}` : ''}
+          </Message>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function LabeledInput({
+  label,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: string
+  placeholder: string
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className='grid gap-2'>
+      <label className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>{label}</label>
+      <Input value={value} placeholder={placeholder} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  )
+}
+
+function Message({ tone, children }: { tone: 'good' | 'warn' | 'bad'; children: ReactNode }) {
+  const className =
+    tone === 'good'
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+      : tone === 'warn'
+        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+        : 'border-destructive/40 bg-destructive/10 text-destructive'
+  return <div className={`rounded-lg border p-3 text-sm leading-6 ${className}`}>{children}</div>
 }
 
 function StatusCard({

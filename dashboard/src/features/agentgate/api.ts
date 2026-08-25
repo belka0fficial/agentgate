@@ -176,6 +176,47 @@ export type ModelGatewayCandidates = {
   runtime_note?: string
 }
 
+export type ModelRouteProbe = {
+  provider: string
+  model: string
+  status: string
+  model_visible: boolean
+  provider_status: string
+  configured: boolean
+  risk: string
+  policy: string
+  note: string
+  label?: string
+}
+
+export type ModelRoutePlan = {
+  agent_id: string
+  schema: string
+  routes: ModelRouteProbe[]
+  fallback_policy?: {
+    status: string
+    automatic_fallback: boolean
+    max_hops?: number
+    trigger_classes?: string[]
+    blocked_reasons?: string[]
+    note?: string
+  }
+  safe_metadata_only: boolean
+  automatic_fallback_enabled: boolean
+}
+
+export type ModelRouteSaveResult = {
+  status: 'applied' | 'unchanged' | 'pending_approval' | string
+  request_id?: string
+  proposal_id?: string
+  approval_reasons?: string[]
+  requires_approval: boolean
+  safe_metadata_only: boolean
+  route_plan?: ModelRoutePlan
+  route_summary?: unknown
+  agent?: unknown
+}
+
 export type ModelSummary = {
   runtime?: { id: string; status: string; provider_count: number }
   default_route?: {
@@ -206,6 +247,30 @@ export async function getModelProviders() {
 
 export async function getModelGatewayCandidates() {
   return getAgentGate<ModelGatewayCandidates>('/api/model/gateway-candidates')
+}
+
+export async function checkModelRoute(provider: string, model: string) {
+  return postAgentGate<ModelRouteProbe>('/api/model/route-check', { provider, model })
+}
+
+export async function planModelRoute(payload: {
+  agent_id?: string
+  primary_provider: string
+  primary_model: string
+  fallback_provider: string
+  fallback_model: string
+}) {
+  return postAgentGate<ModelRoutePlan>('/api/model/route-plan', payload)
+}
+
+export async function saveModelRoute(agentId: string, payload: {
+  primary_provider: string
+  primary_model: string
+  fallback_provider: string
+  fallback_model: string
+  reason: string
+}) {
+  return postAgentGate<ModelRouteSaveResult>(`/api/model/routes/${encodeURIComponent(agentId)}/save`, payload)
 }
 
 export async function deleteAgentGate<T>(path: string): Promise<T> {
