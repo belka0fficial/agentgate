@@ -7,6 +7,9 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { playwright } from '@vitest/browser-playwright'
 
 // https://vite.dev/config/
+const agentGateApiTarget = process.env.AGENTGATE_API_TARGET || 'http://127.0.0.1:8644'
+const ownerToken = process.env.AGENTGATE_OWNER_TOKEN || ''
+
 export default defineConfig({
   plugins: [
     tanstackRouter({
@@ -16,6 +19,27 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: agentGateApiTarget,
+        changeOrigin: true,
+        secure: false,
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyReq) => {
+            if (ownerToken) {
+              proxyReq.setHeader('Authorization', `Bearer ${ownerToken}`)
+            }
+          })
+        },
+      },
+      '/health': {
+        target: agentGateApiTarget,
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

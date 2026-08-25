@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUp,
@@ -98,6 +98,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
   const threadEndRef = useRef<HTMLDivElement>(null)
   const isPinnedToLatestRef = useRef(true)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const locationHref = useLocation({
     select: (location) => location.href,
   })
@@ -167,10 +168,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     })
   }
 
-  const messages =
-    conversation.data?.messages && chatState !== 'empty'
-      ? getStateMessages(conversation.data.messages, chatState)
-      : []
+  const messages = conversation.data?.messages && chatState !== 'empty' ? conversation.data.messages : []
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -196,10 +194,10 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
               <div className='flex min-w-0 items-start justify-between gap-4'>
                 <div className='min-w-0'>
                   <h1 className='truncate text-2xl font-bold tracking-tight'>
-                    Release readiness review
+                    AgentGate conversation
                   </h1>
                   <p className='truncate font-mono text-xs text-muted-foreground'>
-                    {chatId} - private session - 6 turns
+                    {chatId} - private Pi session - {messages.length} turns
                   </p>
                 </div>
                 <div className='flex shrink-0 items-center gap-1'>
@@ -262,7 +260,12 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
                 quoteDraft={quoteDraft}
                 onQuoteConsumed={() => setQuoteDraft('')}
                 isStreaming={chatState === 'streaming'}
-                onSend={() => scrollThreadToLatest('smooth')}
+                onSend={async () => {
+                  await queryClient.invalidateQueries({
+                    queryKey: ['agentgate', 'chats', chatId, 'messages'],
+                  })
+                  scrollThreadToLatest('smooth')
+                }}
               />
             </div>
           </div>
@@ -332,45 +335,6 @@ function getChatStateFromHref(href: string): ChatState {
   return chatStates.includes(value as ChatState)
     ? (value as ChatState)
     : 'default'
-}
-
-function getStateMessages(messages: ChatMessage[], state: ChatState) {
-  if (state === 'streaming')
-    return [
-      ...messages.slice(0, 5),
-      {
-        id: 'msg_stream',
-        role: 'agent' as const,
-        content:
-          'I am preparing the release summary now. The verified blocker is still the changelog publication, and I am keeping the draft local',
-        created_at: new Date().toISOString(),
-      },
-    ]
-  if (state === 'stopped')
-    return [
-      ...messages.slice(0, 5),
-      {
-        id: 'msg_stopped',
-        role: 'agent' as const,
-        content:
-          'Prepared the first half of the readiness summary: release checks are green, owner approval remains required for public changelog publication.',
-        created_at: new Date().toISOString(),
-      },
-    ]
-  if (state === 'failed' || state === 'lost')
-    return [
-      ...messages.slice(0, 4),
-      {
-        id: `msg_${state}`,
-        role: 'agent' as const,
-        content:
-          state === 'failed'
-            ? 'I could not finish the readiness summary.'
-            : 'The stream paused before I could finish the summary.',
-        created_at: new Date().toISOString(),
-      },
-    ]
-  return messages
 }
 
 function StateInlineSurface({
@@ -690,6 +654,48 @@ function getForkPrefill(chatId: string) {
   }
 }
 
+async function streamChatTurn(
+  sessionId: string,
+  input: string,
+  options: {
+    memoryOn: boolean
+    toolsOn: boolean
+    reasoning: string
+    extendedThinking: boolean
+  }
+) {
+  const response = await fetch(`/api/sessions/${sessionId}/chat/stream`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    body: JSON.stringify({
+      input,
+      memory_enabled: options.memoryOn,
+      tools_enabled: options.toolsOn,
+      model_options: {
+        reasoning_effort: options.reasoning,
+        extended_thinking: options.extendedThinking,
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(detail || `Chat request failed: ${response.status}`)
+  }
+
+  if (!response.body) return
+  const reader = response.body.getReader()
+  try {
+    while (true) {
+      const { done } = await reader.read()
+      if (done) break
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 function Composer({
   chatId,
   quoteDraft,
@@ -719,6 +725,8 @@ function Composer({
   const [memoryOn, setMemoryOn] = useState(true)
   const [webOn, setWebOn] = useState(false)
   const [toolsOn, setToolsOn] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const presenceStreamRef = useRef<MediaStream | null>(null)
@@ -846,7 +854,23 @@ function Composer({
         className='overflow-hidden rounded-xl border bg-muted/55 shadow-lg shadow-background'
         onSubmit={(event) => {
           event.preventDefault()
-          onSend?.()
+          const input = value.trim()
+          if (!input || sending) return
+          setSending(true)
+          setSendError('')
+          setValue('')
+          streamChatTurn(chatId, input, {
+            memoryOn: memoryOn && !memoryIncognito,
+            toolsOn,
+            reasoning,
+            extendedThinking,
+          })
+            .then(() => onSend?.())
+            .catch((error: unknown) => {
+              setSendError(error instanceof Error ? error.message : 'Chat request failed')
+              setValue(input)
+            })
+            .finally(() => setSending(false))
           onQuoteConsumed?.()
         }}
       >
@@ -856,6 +880,14 @@ function Composer({
             text={quoteDraft}
             onRemove={() => onQuoteConsumed?.()}
           />
+        ) : null}
+        {sendError ? (
+          <div className='border-b px-4 py-2 text-xs text-destructive'>{sendError}</div>
+        ) : null}
+        {sendError ? (
+          <div className='border-b px-4 py-2 text-xs text-destructive'>
+            {sendError}
+          </div>
         ) : null}
         {presenceMode ? (
           <PresenceCapture
@@ -1041,9 +1073,10 @@ function Composer({
             size='icon'
             variant={isStreaming ? 'destructive' : 'default'}
             className='size-9 shrink-0'
-            aria-label={isStreaming ? 'Stop run' : 'Send message'}
+            aria-label={isStreaming || sending ? 'Stop run' : 'Send message'}
+            disabled={sending}
           >
-            {isStreaming ? <Square /> : <ArrowUp />}
+            {isStreaming || sending ? <Square /> : <ArrowUp />}
           </Button>
         </div>
       </form>
@@ -1268,13 +1301,11 @@ function MessageMeta({
 }) {
   const isOwner = message.role === 'owner'
   const toolCalls = message.trace?.length ?? 0
-  const inputTokens = 1840
-  const outputTokens = 643
-  const latency = '820 ms'
   const characterCount = message.content.length
+  const speaker = message.agent_id ? ` - ${message.agent_id}` : ''
   const data = isOwner
     ? `${relativeTime(message.created_at)} - ${characterCount} chars`
-    : `${relativeTime(message.created_at)} - gpt-5.2 - ${latency} - ${inputTokens}/${outputTokens} tok - $0.008 - ${toolCalls} tools - 42% ctx`
+    : `${relativeTime(message.created_at)}${speaker} - ${characterCount} chars - ${toolCalls} tools`
 
   return (
     <Collapsible className='min-w-0 flex-1' title={`message ${message.id}`}>
@@ -1284,7 +1315,7 @@ function MessageMeta({
             data
           ) : (
             <>
-              {`${relativeTime(message.created_at)} - gpt-5.2 - ${latency} - ${inputTokens}/${outputTokens} tok - $0.008 - `}
+              {`${relativeTime(message.created_at)}${speaker} - ${characterCount} chars - `}
               <CollapsibleTrigger asChild>
                 <button
                   type='button'
@@ -1293,7 +1324,6 @@ function MessageMeta({
                   {toolCalls} tools
                 </button>
               </CollapsibleTrigger>
-              {' - 42% ctx'}
             </>
           )}
         </span>

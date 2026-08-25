@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -10,27 +11,60 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
-import { getAgentGate, relativeTime, type ChatSession } from './api'
+import { getAgentGate, postAgentGate, relativeTime, type ChatSession } from './api'
 import { AgentGateHeader } from './page-header'
 
 export function ChatsPage() {
+  const navigate = useNavigate()
   const chats = useQuery({
     queryKey: ['agentgate', 'chats'],
     queryFn: () => getAgentGate<{ sessions: ChatSession[] }>('/api/chats'),
   })
   const rows = chats.data?.sessions ?? []
+  const createChat = useMutation({
+    mutationFn: () =>
+      postAgentGate<ChatSession>('/api/sessions', {
+        title: 'New AgentGate conversation',
+        agent_id: 'agent_pi_operator',
+      }),
+    onSuccess: (session) => {
+      void navigate({ to: '/chats/$id', params: { id: session.id } })
+    },
+  })
 
   return (
     <>
       <AgentGateHeader />
       <Main fluid className='px-4 sm:px-6'>
         <section className='w-full overflow-x-auto'>
-          <div className='mb-4 border-b pb-3'>
-            <h2 className='text-sm font-medium'>Recent sessions</h2>
-            <p className='text-xs text-muted-foreground'>
-              Your private conversation history, ordered by latest activity.
-            </p>
+          <div className='mb-4 flex items-end justify-between gap-4 border-b pb-3'>
+            <div>
+              <h2 className='text-sm font-medium'>Recent sessions</h2>
+              <p className='text-xs text-muted-foreground'>
+                Private Pi adapter conversations, ordered by latest activity.
+              </p>
+            </div>
+            <Button
+              type='button'
+              size='sm'
+              onClick={() => createChat.mutate()}
+              disabled={createChat.isPending}
+            >
+              New chat
+            </Button>
           </div>
+          {createChat.error ? (
+            <div className='mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive'>
+              {createChat.error instanceof Error
+                ? createChat.error.message
+                : 'Could not create chat'}
+            </div>
+          ) : null}
+          {rows.length === 0 ? (
+            <div className='rounded-xl border bg-card p-8 text-sm text-muted-foreground'>
+              No Pi sessions yet. Start a new chat to create one.
+            </div>
+          ) : (
           <Table className='min-w-[900px]'>
             <TableHeader>
               <TableRow>
@@ -60,7 +94,7 @@ export function ChatsPage() {
                       </span>
                       <span className='flex min-w-0 flex-wrap gap-1'>
                         <Badge variant='outline'>
-                          {row.model ?? 'gpt-5.2'}
+                          {row.model ?? 'provider pending'}
                         </Badge>
                         <Badge variant='secondary'>
                           {sessionContextLabel(row.mode)}
@@ -78,6 +112,7 @@ export function ChatsPage() {
               ))}
             </TableBody>
           </Table>
+          )}
         </section>
       </Main>
     </>
