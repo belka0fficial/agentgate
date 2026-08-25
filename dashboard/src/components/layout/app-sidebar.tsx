@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Command, Settings } from 'lucide-react'
+import { Command, Settings as SettingsIcon } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { SettingsDialog } from '@/features/settings/settings-dialog'
 import { getAgentGate } from '@/features/agentgate/api'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
@@ -58,12 +59,14 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
           <ThemeSwitch className='size-10 scale-100 rounded-md' />
-          <Button asChild variant='ghost' size='icon' className='size-10'>
-            <Link to='/settings' aria-label='Settings'>
-              <Settings />
-              <span className='sr-only'>Settings</span>
-            </Link>
-          </Button>
+          <SettingsDialog
+            trigger={
+              <Button variant='ghost' size='icon' className='size-10' aria-label='Settings'>
+                <SettingsIcon />
+                <span className='sr-only'>Settings</span>
+              </Button>
+            }
+          />
           <SidebarTrigger aria-label='Toggle sidebar' className='size-10' />
         </div>
       </SidebarFooter>
