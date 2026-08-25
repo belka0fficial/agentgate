@@ -66,18 +66,40 @@ export async function getAgentGate<T>(path: string): Promise<T> {
   return parseResponse<T>(response)
 }
 
+let cachedCsrfToken: string | null = null
+
+async function getCsrfToken() {
+  if (cachedCsrfToken) return cachedCsrfToken
+  const session = await getAgentGate<{ csrf_token?: string | null }>(
+    '/api/auth/session'
+  )
+  cachedCsrfToken = session.csrf_token ?? null
+  return cachedCsrfToken
+}
+
 export async function postAgentGate<T>(
   path: string,
   body?: unknown,
   headers: Record<string, string> = {}
 ): Promise<T> {
+  const csrfToken = path === '/api/auth/login' ? null : await getCsrfToken()
   const response = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrfToken ? { 'x-agentgate-csrf': csrfToken } : {}),
+      ...headers,
+    },
     body: JSON.stringify(body ?? {}),
   })
-  return parseResponse<T>(response)
+  const parsed = await parseResponse<T>(response)
+  if (path === '/api/auth/login') {
+    const maybeSession = parsed as { csrf_token?: string | null }
+    cachedCsrfToken = maybeSession.csrf_token ?? null
+  }
+  return parsed
 }
 
 export async function loginAgentGateOwner(ownerToken: string) {
