@@ -243,6 +243,7 @@ def verification_view(source: str, item: dict[str, Any]) -> dict[str, Any]:
         "run_id": redact_sensitive(item.get("run_id")),
         "binding": safe_binding,
         "action": action if isinstance(action, dict) else {},
+        "action_payload_withheld": True,
     }
 
 
@@ -353,7 +354,7 @@ def browser_unsafe_string(value: str) -> bool:
         "token=", "token:", "password=", "password:", "secret=", "secret:",
         "api key:", "api_key:", "api-key", "x-api-key", "x_goog_api_key", "x-goog-api-key",
         "auth_headers", "aiza",
-        "hidden prompt", "system prompt", "private instruction", "private owner", "owner instruction",
+        "hidden prompt", "system prompt", "raw_owner_prompt", "raw owner prompt", "private instruction", "private owner", "owner instruction",
         "internal decision", "private detail", "private output", "private stdout", "private stderr",
         "meet owner", "meet at", "meet bank",
     )
@@ -497,6 +498,59 @@ def safe_memory_search_response(value: Any) -> Any:
     return safe_browser_value(value)
 
 
+def source_status_from(result: dict[str, Any], source: str) -> dict[str, Any]:
+    accepted = {"live", "ok", "online", "healthy", "success", "empty", "planned", "degraded", "offline", "stale", "unknown", "blocked"}
+    if not result.get("ok"):
+        error = result.get("error")
+        status_hint = ""
+        if isinstance(error, dict):
+            status_hint = str(error.get("status") or error.get("code") or error.get("message") or "").lower()
+        elif error is not None:
+            status_hint = str(error).lower()
+        failed_status = "blocked" if any(part in status_hint for part in ("auth_required", "unauthorized", "forbidden", "permission", "401", "403")) else "degraded"
+        return {"status": failed_status, "source": source, "detail": safe_browser_error(error, source)}
+    payload = result.get("data")
+    raw_status = payload.get("status") if isinstance(payload, dict) else None
+    status = safe_browser_string(raw_status, "live").lower()
+    if status in {"ok", "online", "healthy", "success"}:
+        status = "live"
+    elif status in {"auth_required", "unauthorized", "forbidden", "permission_denied"}:
+        status = "blocked"
+    elif status not in accepted:
+        status = "unknown"
+    return {"status": status, "source": source}
+
+
+def safe_health_view(result: dict[str, Any], source: str) -> dict[str, Any]:
+    view = source_status_from(result, source)
+    view.pop("detail", None)
+    view["metadata_only"] = True
+    return view
+
+
+def safe_suggestion_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [safe_suggestion(item) for item in rows[:3] if isinstance(item, dict)]
+
+
+def safe_app_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    safe: list[dict[str, Any]] = []
+    for index, item in enumerate(rows[:8]):
+        if not isinstance(item, dict):
+            continue
+        safe.append({
+            "id": safe_browser_string(item.get("id"), f"app-{index + 1}"),
+            "name": safe_browser_string(item.get("name"), "Pinned app"),
+            "url": safe_browser_string(item.get("url"), "reference withheld"),
+            "pinned": bool(item.get("pinned", True)),
+            "metadata_only": True,
+        })
+    return safe
+
+
+def safe_brain_verification_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [verification_view("brain", item) for item in rows if isinstance(item, dict)]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -611,25 +665,112 @@ async def dependency_health(up: Upstream = Depends(upstream)):
 
 @app.get("/api/home", dependencies=[Depends(require_auth)])
 async def home(request: Request, up: Upstream = Depends(upstream), store: Database = Depends(db)):
+    agent = request.app.state.settings.memorygate_agent_id
+
     async def optional(name: str, path: str):
         try:
-            return await up.request(name, "GET", path)
+            return {"ok": True, "data": await up.request(name, "GET", path)}
         except HTTPException as exc:
-            return {"error": safe_browser_error(exc.detail)}
-    brain, toolgate, memorygate, chats, jobs, requests = await asyncio.gather(
-        optional("brain", "/health/detailed"), optional("toolgate", "/v2/status"), optional("memorygate", "/health"),
-        optional("brain", "/api/sessions"), optional("brain", "/api/jobs"), optional("toolgate", "/v2/requests"),
+            return {"ok": False, "error": safe_browser_error(exc.detail, name)}
+
+    def data(result: dict[str, Any], fallback: Any) -> Any:
+        return result.get("data") if result.get("ok") else fallback
+
+    (
+        brain_health,
+        toolgate_health,
+        memorygate_health,
+        chats,
+        jobs,
+        requests,
+        memory_briefing,
+        memory_observations,
+        memory_patterns,
+    ) = await asyncio.gather(
+        optional("brain", "/health/detailed"),
+        optional("toolgate", "/v2/status"),
+        optional("memorygate", "/health"),
+        optional("brain", "/api/sessions"),
+        optional("brain", "/api/jobs"),
+        optional("toolgate", "/v2/requests"),
+        optional("memorygate", f"/briefing/{agent}"),
+        optional("memorygate", "/observation/active"),
+        optional("memorygate", f"/pattern/active/{agent}"),
     )
-    suggestions = [safe_suggestion(store.decode(item)) for item in store.rows("SELECT * FROM suggestions WHERE status = 'new' ORDER BY created_at DESC LIMIT 3")]
-    apps = store.rows("SELECT * FROM apps WHERE pinned = 1 ORDER BY position, name LIMIT 8")
-    toolgate_pending = [item for item in requests if isinstance(item, dict) and item.get("kind") == "verification" and item.get("status") == "pending"] if isinstance(requests, list) else []
-    brain_pending = [store.decode(item) for item in store.rows("SELECT * FROM verification_refs WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10")]
-    chat_rows = chats if isinstance(chats, list) else chats.get("sessions", chats.get("items", [])) if isinstance(chats, dict) else []
-    job_rows = jobs if isinstance(jobs, list) else jobs.get("jobs", []) if isinstance(jobs, dict) else []
+
+    suggestions = safe_suggestion_rows([store.decode(item) for item in store.rows("SELECT * FROM suggestions WHERE status = 'new' ORDER BY created_at DESC LIMIT 3")])
+    apps = safe_app_rows(store.rows("SELECT * FROM apps WHERE pinned = 1 ORDER BY position, name LIMIT 8"))
+    request_rows = data(requests, [])
+    toolgate_pending = [
+        verification_view("toolgate", item)
+        for item in request_rows
+        if isinstance(item, dict) and item.get("kind") == "verification" and item.get("status") == "pending"
+    ] if isinstance(request_rows, list) else []
+    brain_pending = safe_brain_verification_rows([store.decode(item) for item in store.rows("SELECT * FROM verification_refs WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10")])
+
+    chat_rows = safe_chat_rows(data(chats, {}))
+    job_rows = safe_automation_rows(data(jobs, {}), "brain")
+    active_jobs = [item for item in job_rows if not item.get("paused", False) and item.get("status") != "paused"][:5]
+
+    briefing = data(memory_briefing, {})
+    observations = data(memory_observations, [])
+    patterns = data(memory_patterns, [])
+    memory_counts_available = memorygate_health.get("ok") and (memory_briefing.get("ok") or memory_observations.get("ok") or memory_patterns.get("ok"))
+    memory_status = "degraded" if not memory_counts_available else source_status_from(memorygate_health, "memorygate")["status"]
+    if memory_status == "ok":
+        memory_status = "live"
+    active_observations = len(observations) if isinstance(observations, list) else 0
+    active_patterns = len(patterns) if isinstance(patterns, list) else 0
+    briefing_summary = safe_browser_string(briefing.get("summary") or briefing.get("briefing"), "unavailable") if isinstance(briefing, dict) else "unavailable"
+    if briefing_summary == "reference withheld":
+        briefing_summary = "details withheld"
+    if not (memory_briefing.get("ok") and memory_observations.get("ok") and memory_patterns.get("ok")):
+        memory_status = "degraded"
+    if memory_status == "live" and briefing_summary == "unavailable" and active_observations == 0 and active_patterns == 0:
+        memory_status = "empty"
+
+    pending_verifications = toolgate_pending + brain_pending
+    source_status = {
+        "brain": source_status_from(brain_health, "brain"),
+        "brain_chats": source_status_from(chats, "brain"),
+        "brain_jobs": source_status_from(jobs, "brain"),
+        "toolgate": source_status_from(toolgate_health, "toolgate"),
+        "toolgate_requests": source_status_from(requests, "toolgate"),
+        "memorygate": source_status_from(memorygate_health, "memorygate"),
+        "memorygate_briefing": source_status_from(memory_briefing, "memorygate"),
+        "memorygate_observations": source_status_from(memory_observations, "memorygate"),
+        "memorygate_patterns": source_status_from(memory_patterns, "memorygate"),
+    }
     return {
-        "health": {"brain": safe_browser_payload(brain), "toolgate": safe_browser_payload(toolgate), "memorygate": safe_browser_payload(memorygate)}, "suggestions": safe_browser_payload(suggestions),
-        "pinned_apps": safe_browser_payload(apps), "pending_verifications": [verification_view("toolgate", item) for item in toolgate_pending] + [verification_view("brain", item) for item in brain_pending],
-        "recent_chats": safe_chat_rows(chat_rows), "active_jobs": safe_automation_rows([item for item in job_rows if not item.get("paused", False)][:5], "brain"),
+        "source_status": source_status,
+        "health": {"brain": safe_health_view(brain_health, "brain"), "toolgate": safe_health_view(toolgate_health, "toolgate"), "memorygate": safe_health_view(memorygate_health, "memorygate")},
+        "summary": {
+            "pending_approvals": len(pending_verifications),
+            "recent_chats": len(chat_rows[:5]),
+            "active_jobs": len(active_jobs),
+            "pinned_apps": len(apps),
+            "suggestions": len(suggestions),
+        },
+        "empty_states": {
+            "pending_verifications": "empty" if not pending_verifications and requests.get("ok") else "degraded" if not requests.get("ok") else "live",
+            "recent_chats": "empty" if not chat_rows and chats.get("ok") else "degraded" if not chats.get("ok") else "live",
+            "active_jobs": "empty" if not active_jobs and jobs.get("ok") else "degraded" if not jobs.get("ok") else "live",
+            "pinned_apps": "empty" if not apps else "live",
+            "suggestions": "empty" if not suggestions else "live",
+        },
+        "memory_status": {
+            "status": memory_status,
+            "source": "memorygate",
+            "briefing": briefing_summary,
+            "active_observations": active_observations,
+            "active_patterns": active_patterns,
+        },
+        "suggestions": suggestions,
+        "pinned_apps": apps,
+        "pending_verifications": pending_verifications,
+        "recent_chats": chat_rows[:5],
+        "active_jobs": active_jobs,
+        "activity": [],
     }
 
 

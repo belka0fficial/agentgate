@@ -63,6 +63,7 @@ def test_verification_views_keep_action_context_without_secrets():
 
     assert "arguments" not in item["action"]
     assert item["action"]["binding"]["args_digest"] == "digest"
+    assert item["action_payload_withheld"] is True
     assert redact_sensitive({"password": "hidden"}) == {}
 
 
