@@ -1552,3 +1552,295 @@ def test_browser_redaction_drops_common_output_env_path_aliases():
     redacted = redact_sensitive(payload)
 
     assert redacted == {"safe": "kept"}
+
+
+def test_capabilities_are_source_bound_and_metadata_only(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if (name, path) == ("brain", "/v1/capabilities"):
+            return {"status": "ok", "provider_url": "https://api.openai.com/v1"}
+        if (name, path) == ("toolgate", "/v2/status"):
+            return {"status": "ok", "docker_socket": "/var/run/docker.sock"}
+        if (name, path) == ("toolgate", "/v2/tools"):
+            return {"tools": [{"id": "shell", "name": "Shell", "status": "connected", "args": {"cmd": "cat /home/alexey/.env"}, "env": {"TOKEN": "sk-test"}}]}
+        if (name, path) == ("brain", "/v1/toolsets"):
+            return {"toolsets": [{"id": "web", "name": "Web", "prompt": "hidden prompt"}]}
+        if (name, path) == ("brain", "/v1/skills"):
+            return {"skills": [{"id": "skill-1", "name": "Research", "path": "/home/alexey/skills/research"}]}
+        if (name, path) == ("toolgate", "/v2/automations"):
+            return [{"id": "auto-1", "name": "Lights", "command": "curl https://api.anthropic.com"}]
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert body["metadata_only"] is True
+    assert body["counts"] == {"tools": 1, "toolsets": 1, "skills": 1, "automations": 1}
+    assert body["tools"][0] == {"id": "tools-0", "name": "Shell", "status": "live", "source": "toolgate", "kind": "tools", "metadata_only": True, "details_withheld": True}
+    encoded = str(body)
+    for unsafe in ("api.openai.com", "api.anthropic.com", "/home/alexey", "/var/run/docker.sock", "TOKEN", "sk-test", "hidden prompt", "cmd", "args", "env", "command", "provider_url"):
+        assert unsafe not in encoded
+
+
+def test_capabilities_do_not_invent_live_status_from_empty_source(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        return {}
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert body["sources"]["brain"]["status"] == "unknown"
+    assert body["sources"]["toolgate"]["status"] == "unknown"
+
+
+def test_capabilities_withhold_path_like_item_identity_fields(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if (name, path) == ("brain", "/v1/capabilities"):
+            return {"status": "ok"}
+        if (name, path) == ("toolgate", "/v2/status"):
+            return {"status": "ok"}
+        if (name, path) == ("toolgate", "/v2/tools"):
+            return {"tools": [{"id": r"D:\agentgate\logs\stdout.log", "name": r"D:\agentgate\prompts\owner.txt", "status": "connected"}]}
+        if (name, path) == ("brain", "/v1/toolsets"):
+            return {"toolsets": []}
+        if (name, path) == ("brain", "/v1/skills"):
+            return {"skills": []}
+        if (name, path) == ("toolgate", "/v2/automations"):
+            return []
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert body["tools"][0]["id"] == "tools-0"
+    assert body["tools"][0]["name"] == "reference withheld"
+    encoded = str(body)
+    assert "D:" not in encoded
+    assert "stdout.log" not in encoded
+    assert "owner.txt" not in encoded
+
+
+def test_capabilities_degrade_when_inventory_endpoint_fails(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from fastapi import HTTPException
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path in {"/v1/capabilities", "/v2/status"}:
+            return {"status": "ok"}
+        raise HTTPException(status_code=503, detail="raw upstream failure")
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert body["sources"]["brain"]["status"] == "degraded"
+    assert body["sources"]["toolgate"]["status"] == "degraded"
+    assert body["section_statuses"] == {"tools": "degraded", "toolsets": "degraded", "skills": "degraded", "automations": "degraded"}
+    assert "raw upstream failure" not in str(body)
+
+
+def test_capabilities_withhold_provider_hosts_and_secret_shaped_identity_fields(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    bad_names = [
+        "api.mistral.ai/v1",
+        "AKIAIOSFODNN7EXAMPLE",
+        "github_pat_1234567890abcdef",
+        "glpat-1234567890abcdef",
+        "hf_1234567890abcdef",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+        "AIzaSyDUMMYDUMMYDUMMYDUMMY",
+        "glpat-...cdef",
+        "AKIAIO...MPLE",
+        "github...cdef",
+        "eyJhbG...ture",
+        "sk-...test",
+    ]
+
+    async def fake_request(name, method, path, **kwargs):
+        if path in {"/v1/capabilities", "/v2/status"}:
+            return {"status": "ok"}
+        if (name, path) == ("toolgate", "/v2/tools"):
+            return {"tools": [{"id": value, "name": value, "status": "offline"} for value in bad_names]}
+        if (name, path) == ("brain", "/v1/toolsets"):
+            return {"toolsets": [{"id": "stale-toolset", "name": "Stale Toolset", "status": "stale"}]}
+        if (name, path) == ("brain", "/v1/skills"):
+            return {"skills": [{"id": "planned-skill", "name": "Planned Skill", "status": "planned"}]}
+        if (name, path) == ("toolgate", "/v2/automations"):
+            return []
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    encoded = str(body)
+    for bad in bad_names:
+        assert bad not in encoded
+    assert {item["name"] for item in body["tools"]} == {"reference withheld"}
+    assert {item["status"] for item in body["tools"]} == {"offline"}
+    assert body["toolsets"][0]["status"] == "stale"
+    assert body["skills"][0]["status"] == "planned"
+
+
+def test_capabilities_withheld_item_ids_are_unique_surrogates(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path in {"/v1/capabilities", "/v2/status"}:
+            return {"status": "ok"}
+        if (name, path) == ("toolgate", "/v2/tools"):
+            return {"tools": [{"id": r"D:\logs\stdout.log", "name": r"D:\prompts\owner.txt"}, {"id": "api.mistral.ai/v1", "name": "api.mistral.ai/v1"}]}
+        if (name, path) == ("brain", "/v1/toolsets"):
+            return {"toolsets": []}
+        if (name, path) == ("brain", "/v1/skills"):
+            return {"skills": []}
+        if (name, path) == ("toolgate", "/v2/automations"):
+            return []
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert [item["id"] for item in body["tools"]] == ["tools-0", "tools-1"]
+    assert len({item["id"] for item in body["tools"]}) == 2
+
+
+def test_capabilities_section_statuses_distinguish_empty_from_degraded(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from fastapi import HTTPException
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path in {"/v1/capabilities", "/v2/status"}:
+            return {"status": "ok"}
+        if (name, path) == ("toolgate", "/v2/tools"):
+            raise HTTPException(status_code=503, detail="tool source down")
+        if (name, path) == ("brain", "/v1/toolsets"):
+            return {"toolsets": []}
+        if (name, path) == ("brain", "/v1/skills"):
+            return {"skills": [{"id": "planned-skill", "name": "Planned Skill", "status": "planned"}]}
+        if (name, path) == ("toolgate", "/v2/automations"):
+            return []
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert body["section_statuses"]["tools"] == "degraded"
+    assert body["section_statuses"]["toolsets"] == "empty"
+    assert body["section_statuses"]["skills"] == "live"
+    assert body["skills"][0]["status"] == "planned"
+    assert "tool source down" not in str(body)
+
+
+def test_capabilities_duplicate_upstream_ids_get_unique_surrogates(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path in {"/v1/capabilities", "/v2/status"}:
+            return {"status": "ok"}
+        if (name, path) == ("toolgate", "/v2/tools"):
+            return {"tools": [{"id": "shell", "name": "Shell"}, {"id": "shell", "name": "Shell"}]}
+        if (name, path) == ("brain", "/v1/toolsets"):
+            return {"toolsets": [], "items": [{"id": "fallback", "name": "Should not appear"}]}
+        if (name, path) == ("brain", "/v1/skills"):
+            return {"skills": []}
+        if (name, path) == ("toolgate", "/v2/automations"):
+            return []
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert [item["id"] for item in body["tools"]] == ["tools-0", "tools-1"]
+    assert body["toolsets"] == []
+
+
+def test_capabilities_section_status_honors_explicit_collection_status(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path == "/v1/capabilities":
+            return {"status": "ok"}
+        if path == "/v2/status":
+            return {"status": "ok"}
+        if path == "/v2/tools":
+            return {"status": "degraded", "tools": [{"id": "safe", "name": "Safe", "status": "degraded"}]}
+        if path == "/v1/toolsets":
+            return {"status": "offline", "toolsets": [{"id": "safe", "name": "Safe", "status": "offline"}]}
+        if path == "/v1/skills":
+            return {"status": "stale", "skills": [{"id": "safe", "name": "Safe", "status": "stale"}]}
+        if path == "/v2/automations":
+            return {"status": "blocked", "automations": [{"id": "safe", "name": "Safe", "status": "blocked"}]}
+        raise AssertionError((name, method, path))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        body = client.get("/api/capabilities").json()
+
+    assert body["section_statuses"] == {"tools": "degraded", "toolsets": "offline", "skills": "stale", "automations": "blocked"}

@@ -69,6 +69,135 @@ class CharacterInput(BaseModel):
     avatar_url: str | None = Field(default=None, max_length=2_000)
 
 
+
+def browser_unsafe_string(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    text = value
+    lowered = text.lower()
+    if re.search(r"\b(sk-[A-Za-z0-9_-]{8,}|sk-proj-[A-Za-z0-9_-]+|ghp_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|glpat-[A-Za-z0-9_-]+|hf_[A-Za-z0-9_-]+|xox[baprs]-[A-Za-z0-9-]+|AKIA[0-9A-Z]{12,}|AIza[0-9A-Za-z_-]{10,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b", text):
+        return True
+    unsafe = (
+        "http://", "https://", "file://", "/home/", "/users/", "/var/", "/etc/", "/root/", "/run/", "/tmp/",
+        "c:/users/", "c:\\users\\", "\\users\\", ".sock", ".log", ".out", ".err", "stdout", "stderr", "log path",
+        "bearer ", "authorization:", "api key:", "api_key:", "token=", "token:", "password=", "password:", "secret=", "secret:",
+        "prompt", "memory", "owner.txt", "hidden prompt", "system prompt", "api.openai.com", "api.anthropic.com",
+        "generativelanguage.googleapis.com", "chatgpt.com/backend-api", "openrouter.ai/api", "raw_owner_prompt",
+    )
+    if re.search(r"(^|[^A-Za-z])[A-Za-z]:[\\/]", text):
+        return True
+    if "\\" in text or re.search(r"(^|\s)/(?:[A-Za-z0-9._-]+/){1,}", text):
+        return True
+    return any(part in lowered for part in unsafe)
+
+
+def safe_browser_string(value: Any, fallback: str = "unknown") -> str:
+    if value is None:
+        return fallback
+    text = str(value)
+    return "reference withheld" if browser_unsafe_string(text) else text
+
+
+def safe_capability_label(value: Any, fallback: str) -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    if not text:
+        return fallback
+    lowered = text.lower()
+    token_prefixes = ("glpat", "github", "github_pat", "ghp_", "hf_", "akia", "aiza", "eyj", "sk-", "xox", "bearer")
+    if browser_unsafe_string(text) or lowered.startswith(token_prefixes) or "..." in text:
+        return "reference withheld"
+    if any(mark in text for mark in ("/", "\\", ":", "=", "@")):
+        return "reference withheld"
+    if "." in text and re.search(r"[A-Za-z0-9-]+\.[A-Za-z]{2,}", text):
+        return "reference withheld"
+    if len(text) >= 24 and " " not in text and re.search(r"[A-Za-z]", text) and re.search(r"[0-9]", text):
+        return "reference withheld"
+    if not re.fullmatch(r"[A-Za-z0-9 _.,()#:+-]{1,80}", text):
+        return "reference withheld"
+    return text
+
+
+def capability_item_status(value: Any) -> str:
+    return normalized_status(value)
+
+
+def collection_status(payload: Any, rows: list[dict[str, Any]], kind: str) -> str:
+    if isinstance(payload, dict) and payload.get("error"):
+        return "degraded"
+    if isinstance(payload, dict):
+        explicit = normalized_status(payload.get("status") or payload.get("state"))
+        if explicit != "unknown":
+            return explicit
+        if kind in payload:
+            return "live" if rows else "empty"
+    if isinstance(payload, list):
+        return "live" if rows else "empty"
+    return "unknown"
+
+
+def safe_capability_error(source: str) -> dict[str, str]:
+    return {"source": source, "message": "source unavailable"}
+
+
+ALLOWED_SOURCE_STATUSES = {"live", "degraded", "offline", "stale", "blocked", "empty", "planned", "unknown"}
+
+
+def normalized_status(value: Any, *, absent: str = "unknown") -> str:
+    if value is None or value == "":
+        return absent
+    raw = str(value).strip().lower()
+    aliases = {
+        "ok": "live",
+        "healthy": "live",
+        "online": "live",
+        "ready": "live",
+        "connected": "live",
+        "auth_required": "blocked",
+        "unauthorized": "blocked",
+        "forbidden": "blocked",
+        "permission_denied": "blocked",
+    }
+    raw = aliases.get(raw, raw)
+    return raw if raw in ALLOWED_SOURCE_STATUSES else "unknown"
+
+
+def source_status(payload: Any, source: str) -> dict[str, str]:
+    if isinstance(payload, dict) and payload.get("error"):
+        return {"source": source, "status": "degraded", "message": "source unavailable"}
+    if isinstance(payload, dict):
+        return {"source": source, "status": normalized_status(payload.get("status") or payload.get("state"), absent="unknown")}
+    if isinstance(payload, list):
+        return {"source": source, "status": "live" if payload else "empty"}
+    return {"source": source, "status": "empty"}
+
+
+def safe_items(payload: Any, *, source: str, kind: str) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        rows = payload
+    elif isinstance(payload, dict):
+        if kind in payload:
+            rows = payload.get(kind) or []
+        else:
+            rows = payload.get("items") or payload.get("results") or []
+    else:
+        rows = []
+    safe: list[dict[str, Any]] = []
+    for index, item in enumerate(rows):
+        if not isinstance(item, dict):
+            continue
+        safe.append({
+            "id": f"{kind}-{index}",
+            "name": safe_capability_label(item.get("name") or item.get("title") or item.get("id"), f"{kind.title()} item"),
+            "status": capability_item_status(item.get("status") or item.get("state")),
+            "source": source,
+            "kind": kind,
+            "metadata_only": True,
+            "details_withheld": True,
+        })
+    return safe
+
 def character_context(item: dict[str, Any]) -> str:
     """Make the local character settings inspectable before any broader sync exists."""
     name = item.get("name") or "Brain"
@@ -989,12 +1118,67 @@ async def agents(up: Upstream = Depends(upstream)):
 
 @app.get("/api/capabilities", dependencies=[Depends(require_auth)])
 async def capabilities(up: Upstream = Depends(upstream)):
-    return await up.request("brain", "GET", "/v1/capabilities")
+    async def optional(source: str, path: str):
+        try:
+            return await up.request(source, "GET", path)
+        except HTTPException:
+            return {"error": True}
+
+    brain_caps, toolgate_status, tools, toolsets, skills, automations = await asyncio.gather(
+        optional("brain", "/v1/capabilities"),
+        optional("toolgate", "/v2/status"),
+        optional("toolgate", "/v2/tools"),
+        optional("brain", "/v1/toolsets"),
+        optional("brain", "/v1/skills"),
+        optional("toolgate", "/v2/automations"),
+    )
+    tool_rows = safe_items(tools, source="toolgate", kind="tools")
+    toolset_rows = safe_items(toolsets, source="brain", kind="toolsets")
+    skill_rows = safe_items(skills, source="brain", kind="skills")
+    automation_rows = safe_items(automations, source="toolgate", kind="automations")
+    brain_status = source_status(brain_caps, "brain")
+    toolgate_state = source_status(toolgate_status, "toolgate")
+    if isinstance(toolsets, dict) and toolsets.get("error") or isinstance(skills, dict) and skills.get("error"):
+        brain_status = {"source": "brain", "status": "degraded", "message": "source unavailable"}
+    if isinstance(tools, dict) and tools.get("error") or isinstance(automations, dict) and automations.get("error"):
+        toolgate_state = {"source": "toolgate", "status": "degraded", "message": "source unavailable"}
+    return {
+        "metadata_only": True,
+        "sources": {
+            "brain": brain_status,
+            "toolgate": toolgate_state,
+        },
+        "section_statuses": {
+            "tools": collection_status(tools, tool_rows, "tools"),
+            "toolsets": collection_status(toolsets, toolset_rows, "toolsets"),
+            "skills": collection_status(skills, skill_rows, "skills"),
+            "automations": collection_status(automations, automation_rows, "automations"),
+        },
+        "tools": tool_rows,
+        "toolsets": toolset_rows,
+        "skills": skill_rows,
+        "automations": automation_rows,
+        "counts": {
+            "tools": len(tool_rows),
+            "toolsets": len(toolset_rows),
+            "skills": len(skill_rows),
+            "automations": len(automation_rows),
+        },
+    }
 
 
 @app.get("/api/capabilities/{kind}", dependencies=[Depends(require_auth)])
 async def capability_kind(kind: Literal["skills", "toolsets"], up: Upstream = Depends(upstream)):
-    return await up.request("brain", "GET", f"/v1/{kind}")
+    try:
+        payload = await up.request("brain", "GET", f"/v1/{kind}")
+    except HTTPException:
+        return {kind: [], "source": "brain", "status": "degraded", "error": safe_capability_error("brain"), "metadata_only": True}
+    rows = safe_items(payload, source="brain", kind=kind)
+    explicit_status = source_status(payload, "brain")["status"]
+    status = explicit_status
+    if status == "unknown" and isinstance(payload, dict) and kind in payload:
+        status = "live" if rows else "empty"
+    return {kind: rows, "source": "brain", "status": status, "metadata_only": True}
 
 
 @app.get("/api/verifications", dependencies=[Depends(require_auth)])
