@@ -30,6 +30,7 @@ import {
   buildMemoryDetail,
   memoryOverviewErrors,
   memoryOverviewState,
+  memorySectionSummaries,
   normalizeMemoryRecords,
   type MemoryRecord,
   type MemoryState,
@@ -68,6 +69,10 @@ export function MemoryPage() {
   )
   const memoryErrors = useMemo(
     () => memoryOverviewErrors(query.data),
+    [query.data]
+  )
+  const sectionSummaries = useMemo(
+    () => memorySectionSummaries(query.data),
     [query.data]
   )
   const records = useMemo(
@@ -113,13 +118,45 @@ export function MemoryPage() {
             {query.error?.message ?? memoryErrors.join('; ')}
           </div>
         ) : null}
+        <div className='mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6'>
+          {sectionSummaries.map((section) => (
+            <Card key={section.id}>
+              <CardHeader className='space-y-2 pb-2'>
+                <div className='flex items-start justify-between gap-2'>
+                  <CardTitle className='text-sm'>{section.title}</CardTitle>
+                  <Badge
+                    variant={
+                      section.status === 'live'
+                        ? 'secondary'
+                        : section.status === 'degraded' ||
+                            section.status === 'offline' ||
+                            section.status === 'blocked'
+                          ? 'destructive'
+                          : 'outline'
+                    }
+                  >
+                    {section.status}
+                  </Badge>
+                </div>
+                <CardDescription>{section.source}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className='text-2xl font-semibold'>{section.count}</p>
+                <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                  {section.detail}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
         <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <section>
             <div className='mb-4 flex items-end justify-between gap-3 border-b pb-3'>
               <div>
                 <h2 className='text-sm font-medium'>Stored context</h2>
                 <p className='text-xs text-muted-foreground'>
-                  Records shown only when returned by MemoryGate overview.
+                  Records shown only when returned by MemoryGate overview/search
+                  metadata contracts.
                 </p>
               </div>
               <Badge

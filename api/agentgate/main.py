@@ -575,53 +575,35 @@ def safe_browser_payload(value: Any) -> Any:
 
 
 def safe_memory_evidence(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
+    if not isinstance(value, list) or not value:
         return []
-    rows: list[dict[str, Any]] = []
-    for item in value:
-        if isinstance(item, str):
-            rows.append({"label": safe_browser_string(item)})
-        elif isinstance(item, dict):
-            row: dict[str, Any] = {}
-            for key in ("label", "source", "kind", "ref", "id", "title"):
-                if key in item:
-                    row[key] = safe_browser_string(item.get(key), "")
-            if row:
-                rows.append(row)
-    return rows
+    return [{"count": len(value), "details_withheld": True}]
 
 
 def safe_memory_record(item: Any, index: int) -> dict[str, Any]:
     if not isinstance(item, dict):
-        return {"id": f"memory-{index + 1}", "title": "Untitled memory", "kind": "unknown", "confidence": "unknown"}
-    row = {
-        "id": safe_browser_string(item.get("id") or item.get("memory_id"), f"memory-{index + 1}"),
-        "title": safe_browser_string(item.get("title") or item.get("claim") or item.get("summary"), "Untitled memory"),
-        "kind": safe_browser_string(item.get("kind") or item.get("type"), "unknown"),
-        "confidence": safe_browser_string(item.get("confidence") or item.get("state"), "unknown"),
+        item = {}
+    kind = str(item.get("kind") or item.get("type") or "unknown").lower()
+    if kind not in {"fact", "pattern", "theory", "context", "observation", "watch", "watch_item", "unknown"}:
+        kind = "unknown"
+    confidence = str(item.get("confidence") or item.get("state") or "unknown").lower()
+    if confidence not in {"low", "medium", "high", "unknown", "stale", "unconfirmed"}:
+        confidence = "unknown"
+    row: dict[str, Any] = {
+        "id": f"memory-{index + 1}",
+        "title": f"Memory record {index + 1}",
+        "kind": kind,
+        "confidence": confidence,
+        "metadata_only": True,
+        "content_withheld": True,
+        "evidence": safe_memory_evidence(item.get("evidence") or item.get("sources") or item.get("source_refs")),
+        "linked_entity_count": len(item.get("entities") or item.get("linked_entities") or []) if isinstance(item.get("entities") or item.get("linked_entities") or [], list) else 0,
     }
-    for key in ("updated_at", "created_at", "state"):
+    for key in ("updated_at", "created_at"):
         if isinstance(item.get(key), str):
-            row[key] = safe_browser_string(item.get(key), "")
+            row[key] = safe_browser_string(item[key], "")
     if isinstance(item.get("source"), str):
-        row["source"] = safe_browser_string(item.get("source"), "unknown")
-    evidence = safe_memory_evidence(item.get("evidence") or item.get("sources") or item.get("source_refs"))
-    if evidence:
-        row["evidence"] = evidence
-    entities = item.get("entities") or item.get("linked_entities")
-    if isinstance(entities, list):
-        safe_entities: list[dict[str, str]] = []
-        for entity in entities:
-            if not isinstance(entity, dict):
-                continue
-            safe_entity: dict[str, str] = {}
-            for key in ("id", "name", "label", "kind", "type"):
-                if isinstance(entity.get(key), str):
-                    safe_entity[key] = safe_browser_string(entity.get(key), "")
-            if safe_entity:
-                safe_entities.append(safe_entity)
-        if safe_entities:
-            row["entities"] = safe_entities
+        row["source"] = "memorygate"
     return row
 
 
@@ -1532,17 +1514,36 @@ async def app_lifecycle_action(app_id: str, action: Literal["start", "stop", "re
 @app.get("/api/gates/toolgate", dependencies=[Depends(require_auth)])
 async def toolgate_gate(up: Upstream = Depends(upstream)):
     async def optional(path: str):
-        try: return await up.request("toolgate", "GET", path)
-        except HTTPException as exc: return {"error": safe_browser_error(exc.detail)}
-    status, tools, automations, services, events = await asyncio.gather(optional("/v2/status"), optional("/v2/tools"), optional("/v2/automations"), optional("/v2/services"), optional("/v2/events?limit=12"))
+        try:
+            return await up.request("toolgate", "GET", path)
+        except HTTPException as exc:
+            return {"error": safe_browser_error(exc.detail, "toolgate")}
+
+    status, tools, automations, services, events = await asyncio.gather(
+        optional("/v2/status"),
+        optional("/v2/tools"),
+        optional("/v2/automations"),
+        optional("/v2/services"),
+        optional("/v2/events?limit=12"),
+    )
     safe_status = safe_browser_payload(status)
     if isinstance(status, dict) and "error" in status:
-        safe_status = {**safe_status, "error": safe_browser_error(status.get("error"), "toolgate")} if isinstance(safe_status, dict) else {"error": safe_browser_error(status.get("error"), "toolgate")}
+        safe_status = {"error": safe_browser_error(status.get("error"), "toolgate")}
+    source_statuses = {
+        "status": toolgate_source_status(status),
+        "tools": toolgate_source_status(tools),
+        "automations": toolgate_source_status(automations),
+        "services": toolgate_source_status(services),
+        "events": toolgate_source_status(events),
+    }
     return {
+        "metadata_only": True,
+        "safe_fields": ["id", "name", "status", "source", "kind", "schedule", "next_run", "last_run", "approval_request_id", "approval_href", "actions"],
+        "source_status": source_statuses,
         "status": safe_status,
-        "tools": safe_browser_payload(tools) if isinstance(tools, list) else [],
-        "automations": safe_automation_rows(automations, "toolgate"),
-        "services": safe_browser_payload(services) if isinstance(services, list) else [],
+        "tools": safe_items(tools, source="toolgate", kind="tools"),
+        "automations": safe_toolgate_automation_rows(automations),
+        "services": safe_items(services, source="toolgate", kind="services"),
         "events": safe_toolgate_events(events),
         "error": safe_status.get("error") if isinstance(safe_status, dict) else None,
     }
@@ -1551,12 +1552,18 @@ async def toolgate_gate(up: Upstream = Depends(upstream)):
 @app.get("/api/gates/memorygate", dependencies=[Depends(require_auth)])
 async def memorygate_gate(request: Request, up: Upstream = Depends(upstream)):
     agent = request.app.state.settings.memorygate_agent_id
+
     async def optional(method: str, path: str):
-        try: return await up.request("memorygate", method, path)
-        except HTTPException as exc: return {"error": safe_browser_error(exc.detail)}
+        try:
+            return await up.request("memorygate", method, path)
+        except HTTPException as exc:
+            return {"error": safe_browser_error(exc.detail, "memorygate")}
+
     briefing, memories, observations, patterns = await asyncio.gather(
-        optional("GET", f"/briefing/{agent}"), optional("GET", "/memory"),
-        optional("GET", "/observation/active"), optional("GET", f"/pattern/active/{agent}"),
+        optional("GET", f"/briefing/{agent}"),
+        optional("GET", "/memory"),
+        optional("GET", "/observation/active"),
+        optional("GET", f"/pattern/active/{agent}"),
     )
     errors = {
         "briefing": briefing.get("error") if isinstance(briefing, dict) else None,
@@ -1565,6 +1572,22 @@ async def memorygate_gate(request: Request, up: Upstream = Depends(upstream)):
         "patterns": patterns.get("error") if isinstance(patterns, dict) else None,
     }
     return {
+        "metadata_only": True,
+        "safe_fields": ["id", "title", "kind", "confidence", "updated_at", "created_at", "state", "source", "evidence", "entities"],
+        "source_status": {
+            "briefing": source_status(briefing, "memorygate"),
+            "memories": source_status(memories, "memorygate"),
+            "observations": source_status(observations, "memorygate"),
+            "patterns": source_status(patterns, "memorygate"),
+        },
+        "search": {
+            "status": "planned",
+            "source": "memorygate",
+            "route": "/api/gates/memorygate/search",
+            "method": "POST",
+            "metadata_only": True,
+            "content_withheld": True,
+        },
         "briefing": safe_briefing_view(briefing),
         "memories": safe_memory_records(memories),
         "observations": safe_memory_records(observations),
@@ -1716,8 +1739,8 @@ def safe_toolgate_events(value: Any) -> list[dict[str, Any]]:
             continue
         row: dict[str, Any] = {
             "id": safe_browser_string(item.get("id") or item.get("event_id"), f"event-{index + 1}"),
-            "kind": safe_browser_string(item.get("kind") or item.get("type"), "event"),
-            "status": safe_browser_string(item.get("status") or item.get("state"), "unknown"),
+            "kind": (item.get("kind") or item.get("type")) if str(item.get("kind") or item.get("type") or "").lower() in {"tool", "approval", "run", "action", "event", "error"} else "event",
+            "status": normalized_status(item.get("status") or item.get("state")),
             "source": "toolgate",
             "metadata_only": True,
             "details_withheld": True,
@@ -1732,6 +1755,44 @@ def safe_toolgate_events(value: Any) -> list[dict[str, Any]]:
         safe_rows.append(row)
     return safe_rows
 
+
+
+def safe_toolgate_automation_rows(value: Any) -> list[dict[str, Any]]:
+    rows = value if isinstance(value, list) else value.get("automations", value.get("items", [])) if isinstance(value, dict) else []
+    safe_rows: list[dict[str, Any]] = []
+    for index, item in enumerate(rows):
+        if not isinstance(item, dict):
+            continue
+        row: dict[str, Any] = {
+            "id": safe_browser_string(item.get("id") or item.get("automation_id"), f"automation-{index + 1}"),
+            "name": "toolgate automation",
+            "status": normalized_status(item.get("status") or item.get("state")),
+            "source": "toolgate",
+            "owner": "user",
+            "editable": False,
+            "kind": "automation",
+            "metadata_only": True,
+            "details_withheld": True,
+            "output": {"status": "unavailable", "raw_withheld": True},
+            "actions": [{"name": "run", "status": "planned", "requires_approval": True}],
+        }
+        for key in ("schedule", "next_run", "next", "last_run"):
+            if isinstance(item.get(key), str):
+                row[key] = safe_browser_string(item.get(key), "")
+        approval_id = item.get("approval_request_id") or item.get("approval_id") or item.get("request_id")
+        if isinstance(approval_id, str):
+            safe_approval_id = safe_browser_string(approval_id, "reference withheld")
+            row["approval_request_id"] = safe_approval_id
+            if safe_approval_id != "reference withheld":
+                row["approval_href"] = f"/approvals?source_id={quote(safe_approval_id, safe='')}"
+        safe_rows.append(row)
+    return safe_rows
+
+
+def toolgate_source_status(payload: Any) -> dict[str, str]:
+    status = source_status(payload, "toolgate")
+    return {"status": status["status"], "source": "toolgate"}
+
 @app.get("/api/automations", dependencies=[Depends(require_auth)])
 async def automations(up: Upstream = Depends(upstream)):
     async def optional(name: str, path: str):
@@ -1745,7 +1806,7 @@ async def automations(up: Upstream = Depends(upstream)):
     )
     return {
         "jobs": system_builtin_job_rows() + safe_automation_rows(jobs, "brain"),
-        "toolgate_automations": safe_automation_rows(toolgate_automations, "toolgate"),
+        "toolgate_automations": safe_toolgate_automation_rows(toolgate_automations),
         "errors": {
             "brain": jobs.get("error") if isinstance(jobs, dict) else None,
             "toolgate": toolgate_automations.get("error") if isinstance(toolgate_automations, dict) else None,

@@ -4,6 +4,7 @@ import {
   jobStatus,
   isLockedSystemJob,
   normalizeJobsResponse,
+  normalizeToolGateOverview,
   safeJobHistoryLabel,
 } from './automations-model'
 
@@ -65,4 +66,64 @@ describe('Jobs and Automations helpers', () => {
     expect(JSON.stringify(jobs)).not.toContain('stdout')
     expect(JSON.stringify(jobs)).not.toContain('tool_args')
   })
+})
+
+it('normalizes ToolGate overview into safe catalog, automation, event and approval summaries', () => {
+  const overview = normalizeToolGateOverview({
+    source_status: {
+      status: { status: 'degraded', source: 'toolgate' },
+      tools: { status: 'unknown', source: 'toolgate' },
+      automations: { status: 'live', source: 'toolgate' },
+      events: { status: 'stale', source: 'toolgate' },
+    },
+    tools: [
+      {
+        id: 'shell',
+        name: 'Shell',
+        status: 'connected',
+        args: { command: 'cat /etc/passwd' },
+      },
+    ],
+    automations: [
+      {
+        id: 'auto-1',
+        status: 'planned',
+        schedule: 'manual',
+        requires_approval: true,
+        approval_request_id: 'approve-1',
+      },
+    ],
+    events: [
+      {
+        id: 'evt-1',
+        kind: 'approval_requested',
+        status: 'pending',
+        args_digest: 'digest',
+      },
+    ],
+  })
+
+  expect(overview.sources.map((source) => source.status)).toEqual([
+    'degraded',
+    'unknown',
+    'live',
+    'stale',
+  ])
+  expect(overview.tools[0]).toEqual({
+    id: 'tools-0',
+    name: 'Shell',
+    status: 'unknown',
+    source: 'toolgate',
+    kind: 'tools',
+    metadata_only: true,
+    details_withheld: true,
+  })
+  expect(overview.automations[0].approvalHref).toBe(
+    '/approvals?source_id=approve-1'
+  )
+  expect(overview.automations[0].actionsEnabled).toBe(false)
+  expect(overview.events[0].args_digest).toBe('digest')
+  expect(JSON.stringify(overview)).not.toContain('cat /etc/passwd')
+  expect(JSON.stringify(overview)).not.toContain('private')
+  expect(JSON.stringify(overview)).not.toContain('cat /etc/passwd')
 })

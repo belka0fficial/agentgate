@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { Lock, Pause, Play } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -12,7 +14,11 @@ import {
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
 import { getAgentGate, postAgentGate } from './api'
-import { jobActionsEnabled, safeJobHistoryLabel } from './automations-model'
+import {
+  jobActionsEnabled,
+  normalizeToolGateOverview,
+  safeJobHistoryLabel,
+} from './automations-model'
 import { AgentGateHeader } from './page-header'
 
 type Job = {
@@ -54,6 +60,10 @@ export function JobsPage() {
     queryKey: ['agentgate', 'automations'],
     queryFn: () => getAgentGate<AutomationOverviewResponse>('/api/automations'),
   })
+  const toolgateQuery = useQuery({
+    queryKey: ['agentgate', 'toolgate-detail'],
+    queryFn: () => getAgentGate('/api/gates/toolgate'),
+  })
   const action = useMutation({
     mutationFn: ({
       jobId,
@@ -70,9 +80,13 @@ export function JobsPage() {
   })
 
   const jobs = query.data?.jobs ?? []
-  const toolgateAutomations = query.data?.toolgate_automations ?? []
   const brainError = errorMessage(query.data?.errors?.brain)
   const toolgateError = errorMessage(query.data?.errors?.toolgate)
+  const toolgateOverview = normalizeToolGateOverview(
+    (toolgateQuery.data ?? {}) as Parameters<
+      typeof normalizeToolGateOverview
+    >[0]
+  )
 
   return (
     <>
@@ -84,6 +98,38 @@ export function JobsPage() {
             ToolGate Automations live under Capabilities.
           </p>
         </div>
+
+        <section className='mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+          {toolgateOverview.sources.map((source) => (
+            <Card key={source.id}>
+              <CardHeader className='pb-2'>
+                <CardTitle className='flex items-center justify-between gap-2 text-sm'>
+                  <span>ToolGate {source.id}</span>
+                  <Badge
+                    variant={
+                      source.status === 'live'
+                        ? 'secondary'
+                        : source.status === 'degraded' ||
+                            source.status === 'offline' ||
+                            source.status === 'blocked'
+                          ? 'destructive'
+                          : 'outline'
+                    }
+                  >
+                    {source.status}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className='text-xs text-muted-foreground'>
+                  {source.source} metadata only; no raw args, results, logs,
+                  commands, provider URLs, or host paths.
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+
         <section>
           <div className='mb-2 border-b pb-3'>
             <h2 className='text-sm font-medium'>Runtime jobs</h2>
@@ -127,9 +173,7 @@ export function JobsPage() {
                   return (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <p className='font-medium'>
-                          {item.name ?? item.title ?? item.id}
-                        </p>
+                        <p className='font-medium'>{item.name}</p>
                         <p className='max-w-sm text-xs text-muted-foreground'>
                           {item.owner === 'system'
                             ? 'Built-in system job; locked metadata only.'
@@ -235,7 +279,8 @@ export function JobsPage() {
             <h2 className='text-sm font-medium'>ToolGate automations</h2>
             <p className='text-xs text-muted-foreground'>
               Sanitized automation metadata only. Tool arguments stay inside
-              ToolGate.
+              ToolGate; execution actions remain planned until approval
+              contracts exist.
             </p>
           </div>
           {toolgateError ? (
@@ -252,7 +297,7 @@ export function JobsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {toolgateAutomations.length === 0 ? (
+              {toolgateOverview.automations.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={3}
@@ -262,24 +307,95 @@ export function JobsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                toolgateAutomations.map((item) => (
+                toolgateOverview.automations.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
-                      <p className='font-medium'>
-                        {item.name ?? item.title ?? item.id}
-                      </p>
+                      <p className='font-medium'>{item.name}</p>
                       <p className='max-w-sm text-xs text-muted-foreground'>
-                        Arguments withheld from overview.
+                        Arguments/results withheld. Actions planned pending
+                        ToolGate approval contract.
                       </p>
                     </TableCell>
                     <TableCell>
-                      <Badge variant='outline'>
-                        {item.status ?? 'unknown'}
-                      </Badge>
+                      <div className='space-y-1'>
+                        <Badge variant='outline'>{item.status}</Badge>
+                        {item.approvalHref ? (
+                          <Button
+                            asChild
+                            size='sm'
+                            variant='link'
+                            className='h-auto p-0 text-xs'
+                          >
+                            <Link
+                              to='/approvals'
+                              search={{
+                                source_id:
+                                  item.approvalHref.split('source_id=')[1],
+                              }}
+                            >
+                              Approval
+                            </Link>
+                          </Button>
+                        ) : (
+                          <p className='text-xs text-muted-foreground'>
+                            No approval link
+                          </p>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <code className='font-mono text-xs'>
                         {item.schedule ?? '—'}
+                      </code>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </section>
+
+        <section className='mt-6'>
+          <div className='mb-2 border-b pb-3'>
+            <h2 className='text-sm font-medium'>ToolGate events</h2>
+            <p className='text-xs text-muted-foreground'>
+              Recent event metadata from ToolGate. Args, stdout, stderr, logs,
+              command lines, and results are withheld.
+            </p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Event</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Binding</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {toolgateOverview.events.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className='py-8 text-sm text-muted-foreground'
+                  >
+                    No ToolGate events reported.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                toolgateOverview.events.map((event) => (
+                  <TableRow key={event.id}>
+                    <TableCell>
+                      <p className='font-medium'>{event.kind}</p>
+                      <code className='text-xs text-muted-foreground'>
+                        {event.id}
+                      </code>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant='outline'>{event.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <code className='text-xs'>
+                        {event.args_digest ?? 'digest withheld/not provided'}
                       </code>
                     </TableCell>
                   </TableRow>

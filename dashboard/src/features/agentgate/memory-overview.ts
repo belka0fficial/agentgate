@@ -9,6 +9,8 @@ export type MemoryRecord = {
   source?: string
   evidence: string[]
   linkedEntities: string[]
+  evidenceCount?: number
+  contentWithheld?: boolean
   state: MemoryState
 }
 
@@ -19,7 +21,37 @@ export type MemoryDetail = {
   linkedEntities: string[]
 }
 
-export type MemoryOverviewState = 'live' | 'degraded' | 'empty' | 'unknown'
+export type MemoryOverviewState =
+  | 'live'
+  | 'degraded'
+  | 'offline'
+  | 'stale'
+  | 'blocked'
+  | 'empty'
+  | 'planned'
+  | 'unknown'
+
+export type SourceStatus = { status?: string; source?: string }
+
+export type MemorySectionSummary = {
+  id: 'facts' | 'theories' | 'context' | 'watch' | 'evidence' | 'search'
+  title: string
+  status: MemoryOverviewState
+  count: number
+  source: string
+  detail: string
+}
+
+const allowedStatuses = new Set<MemoryOverviewState>([
+  'live',
+  'degraded',
+  'offline',
+  'stale',
+  'blocked',
+  'empty',
+  'planned',
+  'unknown',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -86,38 +118,18 @@ function safeSourceText(value: unknown, fallback = 'not provided') {
   return looksSensitiveReference(value) ? 'reference withheld' : value
 }
 
-function evidenceLine(value: unknown): string | null {
-  if (typeof value === 'string' && value.trim()) return safeSourceText(value)
-  if (!isRecord(value)) return null
-  const label = safeSourceText(
-    value.label ?? value.name ?? value.source ?? value.kind,
-    'source'
-  )
-  const ref = safeSourceText(value.ref ?? value.id ?? value.title, '')
-  return ref ? `${label}: ${ref}` : label
-}
-
-function listStrings(value: unknown): string[] {
-  return asArray(value)
-    .map(evidenceLine)
-    .filter((item): item is string => Boolean(item))
-}
-
 export function normalizeMemoryRecords(payload: unknown): MemoryRecord[] {
   return asArray(payload)
     .filter(isRecord)
     .map((item, index) => {
-      const title = safeSourceText(
-        item.title ?? item.claim ?? item.summary,
-        'Untitled memory'
-      )
+      const title = `Memory record ${index + 1}`
       const kind = safeSourceText(item.kind ?? item.type, 'unknown')
       const confidence = safeSourceText(
         item.confidence ?? item.state,
         'unknown'
       )
       return {
-        id: safeSourceText(item.id ?? item.memory_id, `memory-${index + 1}`),
+        id: `memory-${index + 1}`,
         title,
         kind,
         confidence,
@@ -126,12 +138,15 @@ export function normalizeMemoryRecords(payload: unknown): MemoryRecord[] {
             ? safeSourceText(item.updated_at)
             : undefined,
         source: safeSourceText(item.source ?? item.source_uri, 'unknown'),
-        evidence: [
-          ...listStrings(item.evidence),
-          ...listStrings(item.sources),
-          ...listStrings(item.source_refs),
-        ],
-        linkedEntities: listStrings(item.entities ?? item.linked_entities),
+        evidence: [],
+        evidenceCount:
+          typeof item.evidence_count === 'number'
+            ? item.evidence_count
+            : Array.isArray(item.evidence)
+              ? item.evidence.length
+              : 0,
+        linkedEntities: [],
+        contentWithheld: true,
         state: deriveState(kind, confidence),
       }
     })
@@ -140,9 +155,9 @@ export function normalizeMemoryRecords(payload: unknown): MemoryRecord[] {
 export function buildMemoryDetail(memory: MemoryRecord): MemoryDetail {
   return {
     claim: memory.title,
-    evidence: memory.evidence.length
-      ? memory.evidence
-      : ['Source detail not provided by MemoryGate overview.'],
+    evidence: memory.evidenceCount
+      ? [`${memory.evidenceCount} evidence references; details withheld.`]
+      : ['Evidence details withheld by MemoryGate.'],
     source: memory.source ?? 'unknown',
     linkedEntities: memory.linkedEntities,
   }
@@ -171,11 +186,143 @@ export function memoryOverviewErrors(payload: unknown): string[] {
     .filter((item): item is string => Boolean(item))
 }
 
+function normalizeSourceStatus(value: unknown): MemoryOverviewState {
+  if (!isRecord(value)) return 'unknown'
+  const raw = typeof value.status === 'string' ? value.status.toLowerCase() : ''
+  if (raw === 'ok') return 'live'
+  if (raw === 'connected' || raw === 'healthy' || raw === 'online')
+    return 'unknown'
+  return allowedStatuses.has(raw as MemoryOverviewState)
+    ? (raw as MemoryOverviewState)
+    : 'unknown'
+}
+
+function sourceStatusFor(
+  payload: unknown,
+  key: string
+): SourceStatus | undefined {
+  if (!isRecord(payload) || !isRecord(payload.source_status)) return undefined
+  const value = payload.source_status[key]
+  return isRecord(value) ? (value as SourceStatus) : undefined
+}
+
+function sectionStatus(payload: unknown, key: string): MemoryOverviewState {
+  const explicit = sourceStatusFor(payload, key)
+  return explicit ? normalizeSourceStatus(explicit) : 'unknown'
+}
+
+function sectionSource(payload: unknown, key: string) {
+  const explicit = sourceStatusFor(payload, key)
+  return safeSourceText(explicit?.source, 'memorygate')
+}
+
+export function memorySectionSummaries(
+  payload: unknown
+): MemorySectionSummary[] {
+  const records = normalizeMemoryRecords(payload)
+  const facts = records.filter((record) => record.state === 'fact')
+  const theories = records.filter((record) => record.state === 'theory')
+  const context = records.filter(
+    (record) =>
+      record.kind.toLowerCase() === 'context' ||
+      record.kind.toLowerCase() === 'observation'
+  )
+  const watch = records.filter(
+    (record) =>
+      record.kind.toLowerCase() === 'watch' ||
+      record.kind.toLowerCase() === 'watch_item'
+  )
+  const evidenceCount = records.reduce(
+    (count, record) => count + (record.evidenceCount ?? 0),
+    0
+  )
+
+  return [
+    {
+      id: 'facts',
+      title: 'Facts',
+      status: sectionStatus(payload, 'memories'),
+      count: facts.length,
+      source: sectionSource(payload, 'memories'),
+      detail: facts.length
+        ? `${facts.length} fact records · metadata only`
+        : 'No fact records returned by MemoryGate overview.',
+    },
+    {
+      id: 'theories',
+      title: 'Theories',
+      status: sectionStatus(payload, 'memories'),
+      count: theories.length,
+      source: sectionSource(payload, 'memories'),
+      detail: theories.length
+        ? `${theories.length} theory records · metadata only`
+        : 'No theory records returned by MemoryGate overview.',
+    },
+    {
+      id: 'context',
+      title: 'Context',
+      status: sectionStatus(payload, 'observations'),
+      count: context.length,
+      source: sectionSource(payload, 'observations'),
+      detail: context.length
+        ? `${context.length} context records · metadata only`
+        : 'No context records returned by MemoryGate overview.',
+    },
+    {
+      id: 'watch',
+      title: 'Watch items',
+      status: sectionStatus(payload, 'patterns'),
+      count: watch.length,
+      source: sectionSource(payload, 'patterns'),
+      detail: watch.length
+        ? `${watch.length} watch records · metadata only`
+        : 'No watch records returned by MemoryGate overview.',
+    },
+    {
+      id: 'evidence',
+      title: 'Evidence lineage',
+      status: sectionStatus(payload, 'memories'),
+      count: evidenceCount,
+      source: 'memorygate',
+      detail: evidenceCount
+        ? `${evidenceCount} evidence references · raw evidence withheld`
+        : 'No evidence references returned by MemoryGate overview.',
+    },
+    {
+      id: 'search',
+      title: 'Search contract',
+      status:
+        isRecord(payload) && isRecord(payload.search)
+          ? normalizeSourceStatus(payload.search)
+          : 'planned',
+      count: 0,
+      source: 'memorygate',
+      detail:
+        'Search route available: POST /api/gates/memorygate/search returns sanitized metadata only.',
+    },
+  ]
+}
+
 export function memoryOverviewState(
   payload: unknown,
   records: MemoryRecord[]
 ): MemoryOverviewState {
   if (memoryOverviewErrors(payload).length) return 'degraded'
+  if (isRecord(payload) && isRecord(payload.source_status)) {
+    const statuses = Object.values(payload.source_status).map(
+      normalizeSourceStatus
+    )
+    if (statuses.includes('blocked')) return 'blocked'
+    if (statuses.includes('offline')) return 'offline'
+    if (statuses.includes('degraded')) return 'degraded'
+    if (statuses.includes('stale')) return 'stale'
+    if (statuses.includes('unknown')) return 'unknown'
+    if (statuses.includes('planned')) return 'planned'
+    if (statuses.length && statuses.every((status) => status === 'empty'))
+      return 'empty'
+    if (statuses.length && statuses.every((status) => status === 'live'))
+      return records.length ? 'live' : 'empty'
+  }
   if (records.length) return 'live'
   if (payload === undefined) return 'unknown'
   return 'empty'

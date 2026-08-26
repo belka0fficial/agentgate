@@ -158,15 +158,16 @@ def test_memorygate_overview_redacts_browser_payload(monkeypatch, tmp_path):
         assert unsafe not in encoded
     assert payload["briefing"] == {"available": False, "source": "memorygate", "error": {"source": "memorygate", "message": "source unavailable"}, "metadata_only": True, "content_withheld": True}
     assert payload["errors"] == {"briefing": {"source": "memorygate", "message": "source unavailable"}}
-    assert payload["memories"] == [
-        {
-            "id": "m1",
-            "title": "Safe title",
-            "kind": "fact",
-            "confidence": "high",
-            "evidence": [{"label": "provider"}, {"label": "safe-note", "ref": "memory-note-1"}],
-        }
-    ]
+    assert payload["memories"] == [{
+        "id": "memory-1",
+        "title": "Memory record 1",
+        "kind": "fact",
+        "confidence": "high",
+        "metadata_only": True,
+        "content_withheld": True,
+        "evidence": [{"count": 2, "details_withheld": True}],
+        "linked_entity_count": 0,
+    }]
 
 
 
@@ -367,7 +368,7 @@ def test_memory_search_redacts_browser_payload(monkeypatch, tmp_path):
     encoded = str(response.json())
     for unsafe in ("api.anthropic.com", "/home/alexeybe1kin", "file://", "raw_args", "cat /etc/passwd", "sk-test", "api_key"):
         assert unsafe not in encoded
-    assert response.json()["results"][0]["title"] == "Safe memory"
+    assert response.json()["results"][0]["title"] == "Memory record 1"
 
 
 
@@ -412,9 +413,9 @@ def test_memorygate_overview_omits_raw_content_entities_and_secret_shaped_string
     encoded = str(payload)
     for unsafe in ("RAW MEMORY BODY", "private episode", "private_note", "full raw memory narrative", standalone_key):
         assert unsafe not in encoded
-    assert payload["memories"][0]["title"] == "Untitled memory"
-    assert payload["memories"][0]["entities"] == [{"name": "owner"}]
-    assert payload["memories"][0]["evidence"] == [{"label": "reference withheld", "ref": "safe-ref"}]
+    assert payload["memories"][0]["title"] == "Memory record 1"
+    assert payload["memories"][0]["linked_entity_count"] == 1
+    assert payload["memories"][0]["evidence"] == [{"count": 1, "details_withheld": True}]
 
 
 def test_memorygate_search_omits_raw_content_and_entities(monkeypatch, tmp_path):
@@ -439,7 +440,7 @@ def test_memorygate_search_omits_raw_content_and_entities(monkeypatch, tmp_path)
     encoded = str(response.json())
     assert "RAW SEARCH MEMORY" not in encoded
     assert "private" not in encoded
-    assert response.json()["results"][0]["title"] == "Untitled memory"
+    assert response.json()["results"][0]["title"] == "Memory record 1"
 
 
 
@@ -489,7 +490,8 @@ def test_browser_redaction_catches_provider_hosts_without_scheme_and_colon_secre
         "confidence": "high",
         "evidence": [{"label": "api.anthropic.com/v1/messages", "ref": "safe-ref"}],
     }, 0)
-    assert str(record).count("reference withheld") >= 2
+    assert record["content_withheld"] is True
+    assert record["evidence"][0]["details_withheld"] is True
     assert "SECRET123" not in str(record)
     assert "api.anthropic.com" not in str(record)
 
@@ -661,7 +663,7 @@ def test_safe_memory_records_accepts_wrapped_result_shapes():
 
     for key in ("results", "items", "memories", "observations", "patterns", "matches"):
         records = safe_memory_records({key: [{"id": key, "title": "Safe", "kind": "fact", "confidence": "high"}]})
-        assert records and records[0]["id"] == key
+        assert records and records[0]["id"] == "memory-1"
 
 
 
@@ -905,7 +907,7 @@ def test_automations_endpoint_uses_metadata_only_rows(monkeypatch, tmp_path):
     assert user_job["output"] == {"status": "unavailable", "raw_withheld": True}
     assert response.json()["toolgate_automations"][0]["name"] == "toolgate automation"
     assert response.json()["toolgate_automations"][0]["owner"] == "user"
-    assert response.json()["toolgate_automations"][0]["editable"] is True
+    assert response.json()["toolgate_automations"][0]["editable"] is False
     assert response.json()["toolgate_automations"][0]["metadata_only"] is True
     assert response.json()["toolgate_automations"][0]["output"] == {"status": "unavailable", "raw_withheld": True}
 
@@ -1928,3 +1930,90 @@ def test_capabilities_section_status_honors_explicit_collection_status(monkeypat
         body = client.get("/api/capabilities").json()
 
     assert body["section_statuses"] == {"tools": "degraded", "toolsets": "offline", "skills": "stale", "automations": "blocked"}
+
+
+
+def test_memorygate_gate_reports_truthful_section_statuses_and_search_contract(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        assert name == "memorygate"
+        if path.startswith("/briefing/"):
+            return {"status": "stale", "summary": "private briefing should be withheld"}
+        if path == "/memory":
+            return {"status": "unknown", "memories": [{"id": "fact-1", "title": "Safe fact", "kind": "fact", "confidence": "high", "content": "RAW BODY"}]}
+        if path == "/observation/active":
+            return {"status": "empty", "observations": []}
+        if path.startswith("/pattern/active"):
+            return {"status": "planned", "patterns": []}
+        raise AssertionError((name, method, path, kwargs))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/gates/memorygate")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata_only"] is True
+    assert body["safe_fields"] == ["id", "title", "kind", "confidence", "updated_at", "created_at", "state", "source", "evidence", "entities"]
+    assert body["source_status"]["memories"]["status"] == "unknown"
+    assert body["source_status"]["observations"]["status"] == "empty"
+    assert body["source_status"]["patterns"]["status"] == "planned"
+    assert body["search"]["status"] == "planned"
+    assert body["search"]["route"] == "/api/gates/memorygate/search"
+    encoded = str(body)
+    for unsafe in ("private briefing", "RAW BODY"):
+        assert unsafe not in encoded
+
+
+def test_toolgate_gate_reports_safe_catalog_statuses_and_approval_links(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        assert name == "toolgate"
+        if path == "/v2/status":
+            return {"status": "degraded", "base_url": "https://api.openai.com/v1"}
+        if path == "/v2/tools":
+            return {"status": "unknown", "tools": [{"id": "shell", "name": "Shell", "status": "connected", "args": {"cmd": "cat /etc/passwd"}}]}
+        if path == "/v2/automations":
+            return {"status": "live", "automations": [{"id": "auto-1", "status": "planned", "approval_request_id": "approve-1", "args": {"body": "private"}}]}
+        if path == "/v2/services":
+            return {"status": "empty", "services": []}
+        if path.startswith("/v2/events"):
+            return {"status": "stale", "events": [{"id": "evt-1", "kind": "approval", "binding": {"args_digest": "digest"}, "stdout": "private stdout"}]}
+        raise AssertionError((name, method, path, kwargs))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/gates/toolgate")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["metadata_only"] is True
+    assert body["source_status"] == {
+        "status": {"status": "degraded", "source": "toolgate"},
+        "tools": {"status": "unknown", "source": "toolgate"},
+        "automations": {"status": "live", "source": "toolgate"},
+        "services": {"status": "empty", "source": "toolgate"},
+        "events": {"status": "stale", "source": "toolgate"},
+    }
+    assert body["tools"] == [{"id": "tools-0", "name": "Shell", "status": "unknown", "source": "toolgate", "kind": "tools", "metadata_only": True, "details_withheld": True}]
+    assert body["automations"][0]["approval_request_id"] == "approve-1"
+    assert body["automations"][0]["approval_href"] == "/approvals?source_id=approve-1"
+    assert body["automations"][0]["actions"][0]["status"] == "planned"
+    assert body["events"][0]["args_digest"] == "digest"
+    encoded = str(body)
+    for unsafe in ("api.openai.com", "cat /etc/passwd", "private", "stdout", "cmd", "base_url"):
+        assert unsafe not in encoded
