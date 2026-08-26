@@ -1648,6 +1648,209 @@ async def memory_search(payload: dict[str, Any], up: Upstream = Depends(upstream
     return safe_memory_search_response(result)
 
 
+def flow_loop_runtime_planned() -> dict[str, Any]:
+    return {
+        "flow_execution": {
+            "status": "planned",
+            "source": "pi-runtime",
+            "reason": "No versioned Pi-native Flow execution definition contract is available through AgentGate yet.",
+        },
+        "loop_execution": {
+            "status": "planned",
+            "source": "pi-runtime",
+            "reason": "No versioned Pi-native bounded Loop execution definition contract is available through AgentGate yet.",
+        },
+    }
+
+
+RUN_HISTORY_LABELS = {
+    "ok": "success",
+    "success": "success",
+    "completed": "success",
+    "failed": "failed",
+    "error": "failed",
+    "blocked": "blocked",
+    "pending_approval": "blocked",
+    "stopped": "stopped",
+    "cancelled": "stopped",
+    "canceled": "stopped",
+    "running": "running",
+    "stopping": "stopping",
+    "planned": "planned",
+    "unavailable": "unavailable",
+    "unknown": "unknown",
+}
+
+
+def safe_run_history_label(value: Any) -> str:
+    status = safe_browser_string(value, "unknown").lower()
+    return RUN_HISTORY_LABELS.get(status, "unknown")
+
+
+def safe_run_history_rows(value: Any) -> list[dict[str, Any]]:
+    rows = value if isinstance(value, list) else []
+    safe_rows: list[dict[str, Any]] = []
+    for item in rows[:12]:
+        if not isinstance(item, dict):
+            continue
+        status = safe_browser_string(item.get("status"), "unknown").lower()
+        row = {
+            "status": status,
+            "label": safe_run_history_label(status),
+            "details_withheld": True,
+        }
+        completed_at = safe_browser_string(item.get("completed_at"), "")
+        if completed_at:
+            row["completed_at"] = completed_at
+        safe_rows.append(row)
+    return safe_rows
+
+
+def has_active_runtime(item: dict[str, Any]) -> bool:
+    active = item.get("active_run")
+    if isinstance(active, dict):
+        active_status = str(active.get("status") or active.get("state") or "").lower()
+        return active_status in {"running", "active", "stopping"}
+    status = str(item.get("status") or item.get("state") or "").lower()
+    return status in {"running", "active", "stopping"}
+
+
+def flow_execution_kind(item: dict[str, Any]) -> str:
+    raw = str(item.get("kind") or item.get("type") or "").strip().lower()
+    if raw in {"flow", "loop", "cron", "job"}:
+        return "cron" if raw == "job" else raw
+    identifier = str(item.get("id") or item.get("job_id") or "").lower()
+    if "loop" in identifier:
+        return "loop"
+    if "flow" in identifier:
+        return "flow"
+    return "cron"
+
+
+def safe_flow_execution_definition(item: dict[str, Any], *, system: bool = False) -> dict[str, Any]:
+    definition_id = safe_browser_string(item.get("id") or item.get("job_id"), "unknown")
+    kind = flow_execution_kind(item)
+    status = safe_browser_string(item.get("status") or item.get("last_status"), "planned" if system else "unknown").lower()
+    if status not in ALLOWED_SOURCE_STATUSES and status not in {"running", "paused", "active", "stopping", "pending_approval"}:
+        status = "unknown"
+    run_history = safe_run_history_rows(item.get("run_history"))
+    active = item.get("active_run") if isinstance(item.get("active_run"), dict) else None
+    active_status = safe_browser_string(active.get("status") if active else None, "running" if status == "running" else "")
+    is_active = has_active_runtime(item)
+    row: dict[str, Any] = {
+        "id": definition_id,
+        "kind": kind,
+        "source": "agentgate" if system else "brain",
+        "owner": "system" if system else "user",
+        "editable": not system,
+        "status": status,
+        "metadata_only": True,
+        "execution": {
+            "status": "planned",
+            "available": False,
+            "source": "pi-runtime",
+            "details_withheld": True,
+        },
+        "runs": item.get("runs", 0) if isinstance(item.get("runs", 0), int) else 0,
+        "history_labels": [row["label"] for row in run_history],
+        "run_history": run_history,
+        "output": {"status": "unavailable", "raw_withheld": True},
+        "actions": [],
+    }
+    for key in ("schedule", "next_run_at", "next", "last_run_at", "last_run"):
+        if isinstance(item.get(key), str):
+            public_key = "next_run" if key in {"next_run_at", "next"} else "last_run" if key in {"last_run_at", "last_run"} else key
+            row[public_key] = safe_browser_string(item.get(key), "")
+    if is_active:
+        row["active_run"] = {
+            "status": active_status or "running",
+            "started_at": safe_browser_string(active.get("started_at") if active else None, "unknown"),
+            "cancellable": not system,
+        }
+    else:
+        row["active_run"] = None
+    if not system and is_active:
+        row["actions"] = [{"name": "cancel", "enabled": True, "route": f"/api/cron/jobs/{quote(definition_id, safe='')}/stop", "method": "POST"}]
+    return row
+
+
+def job_items(payload: Any) -> list[dict[str, Any]]:
+    rows = payload if isinstance(payload, list) else payload.get("jobs", payload.get("automations", [])) if isinstance(payload, dict) else []
+    return [item for item in rows if isinstance(item, dict)]
+
+
+def flow_execution_unavailable_payload(exc: HTTPException) -> dict[str, Any]:
+    return {
+        "metadata_only": True,
+        "source_status": source_status_from({"ok": False, "error": exc.detail}, "brain"),
+        "runtime": {
+            "source": "brain",
+            "execution_source_bound": False,
+            "flow_loop_engine": "planned",
+            "supported_actions": [],
+            "details_withheld": True,
+        },
+        "definitions_status": "planned",
+        "definitions": [],
+        "planned": flow_loop_runtime_planned(),
+        "cancellation": {
+            "status": "blocked",
+            "source": "brain",
+            "route": "/api/cron/jobs/{job_id}/stop",
+            "reason": "Cancellation is available only through a real scoped upstream stop route for an active runtime job.",
+        },
+        "error": safe_browser_error(exc.detail, "brain"),
+    }
+
+
+@app.get("/api/flow-execution", dependencies=[Depends(require_auth)])
+async def flow_execution(up: Upstream = Depends(upstream)):
+    try:
+        jobs = await up.request("brain", "GET", "/api/jobs")
+    except HTTPException as exc:
+        return flow_execution_unavailable_payload(exc)
+    definitions = [
+        safe_flow_execution_definition(item)
+        for item in job_items(jobs)
+        if not (isinstance(item.get("id") or item.get("job_id"), str) and str(item.get("id") or item.get("job_id")) in SYSTEM_BUILTIN_JOB_IDS)
+    ]
+    return {
+        "metadata_only": True,
+        "source_status": source_status_from({"ok": True, "data": jobs}, "brain"),
+        "runtime": {
+            "source": "brain",
+            "execution_source_bound": True,
+            "flow_loop_engine": "planned",
+            "supported_actions": ["job.stop"] if any(has_active_runtime(item) for item in job_items(jobs)) else [],
+            "details_withheld": True,
+        },
+        "definitions_status": "live" if definitions else "empty",
+        "definitions": definitions,
+        "planned": flow_loop_runtime_planned(),
+        "cancellation": {
+            "status": "live" if any(has_active_runtime(item) for item in job_items(jobs)) else "planned",
+            "source": "brain",
+            "route": "/api/cron/jobs/{job_id}/stop",
+            "reason": "Only active runtime jobs can be stopped through the scoped Pi adapter route.",
+        },
+    }
+
+
+@app.get("/api/flow-execution/{definition_id:path}", dependencies=[Depends(require_auth)])
+async def flow_execution_detail(definition_id: str, up: Upstream = Depends(upstream)):
+    if is_system_builtin_job(definition_id):
+        item = next((row for row in SYSTEM_BUILTIN_JOBS if row["id"] == definition_id), {"id": definition_id})
+        return {"definition": safe_flow_execution_definition(item, system=True), "metadata_only": True}
+    try:
+        jobs = await up.request("brain", "GET", "/api/jobs")
+    except HTTPException as exc:
+        return JSONResponse(status_code=503, content=flow_execution_unavailable_payload(exc))
+    for item in job_items(jobs):
+        if str(item.get("id") or item.get("job_id") or "") == definition_id:
+            return {"definition": safe_flow_execution_definition(item), "metadata_only": True, "source_status": source_status_from({"ok": True, "data": jobs}, "brain")}
+    raise HTTPException(404, "Flow execution definition not found")
+
+
 @app.get("/api/cron/jobs", dependencies=[Depends(require_auth)])
 async def cron_jobs(up: Upstream = Depends(upstream)):
     try:
@@ -1907,14 +2110,37 @@ async def delete_cron(job_id: str, up: Upstream = Depends(upstream)):
 
 
 @app.post("/api/cron/jobs/{job_id}/{action}", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def cron_action(job_id: str, action: Literal["pause", "resume", "run"], up: Upstream = Depends(upstream)):
+async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "stop"], up: Upstream = Depends(upstream)):
     if is_system_builtin_job(job_id):
         return JSONResponse(status_code=423, content=locked_system_job_response(job_id, action))
+    upstream_id = quote(job_id, safe="")
+    if action == "stop":
+        try:
+            jobs = await up.request("brain", "GET", "/api/jobs")
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": "stop", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True})
+        matching = next((item for item in job_items(jobs) if str(item.get("id") or item.get("job_id") or "") == job_id), None)
+        active = isinstance(matching, dict) and has_active_runtime(matching)
+        if not matching:
+            raise HTTPException(404, "Job not found")
+        if not active:
+            raise HTTPException(409, "Job has no active run")
     try:
-        result = await up.request("brain", "POST", f"/api/jobs/{job_id}/{action}")
+        result = await up.request("brain", "POST", f"/api/jobs/{upstream_id}/{action}")
     except HTTPException as exc:
+        if action == "stop" and exc.status_code in {404, 405, 410, 501}:
+            return JSONResponse(status_code=501, content={
+                "id": safe_browser_string(job_id, "unknown"),
+                "source": "brain",
+                "status": "planned",
+                "action": "stop_unavailable",
+                "requested_action": "stop",
+                "error": safe_browser_error(exc.detail, "brain"),
+                "metadata_only": True,
+                "raw_response_withheld": True,
+            })
         return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": safe_browser_string(action, "updated"), "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
-    return safe_action_result("brain", result, action)
+    return safe_action_result("brain", result, "stopping" if action == "stop" and isinstance(result, dict) and str(result.get("status") or result.get("state") or "").lower() == "stopping" else "stopped" if action == "stop" else action)
 
 
 @app.get("/api/character", dependencies=[Depends(require_auth)])
