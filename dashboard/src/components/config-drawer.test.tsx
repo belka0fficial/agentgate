@@ -84,6 +84,8 @@ describe('ConfigDrawer (integration)', () => {
     })
 
     it('applies dark theme to <html> and cookie', async () => {
+      setCookie('vite-ui-theme', 'light')
+
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
       await userEvent.click(screen.getByRole('radio', { name: /select dark/i }))
@@ -170,19 +172,21 @@ describe('ConfigDrawer (integration)', () => {
   })
 
   describe('section reset buttons', () => {
-    it('resets theme via section control after choosing dark', async () => {
+    it('resets theme via section control after choosing light', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
-      await userEvent.click(screen.getByRole('radio', { name: /select dark/i }))
-      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('dark'))
+      await userEvent.click(
+        screen.getByRole('radio', { name: /select light/i })
+      )
+      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('light'))
 
       await userEvent.click(
         screen.getByRole('button', {
           name: /reset theme preference to default/i,
         })
       )
-      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('system'))
+      await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('dark'))
     })
 
     it('resets direction via section control after choosing RTL', async () => {
@@ -279,6 +283,8 @@ describe('ConfigDrawer (integration)', () => {
   })
 
   it('reset restores defaults across sidebar/theme/layout/direction', async () => {
+    setCookie('vite-ui-theme', 'light')
+
     const screen = await renderConfigDrawer({ sidebarDefaultOpen: true })
 
     await openDrawer(screen)

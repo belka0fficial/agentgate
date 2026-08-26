@@ -46,15 +46,18 @@ type ToolbarAction =
     }
 
 const titles: Record<string, { title: string; eyebrow: string }> = {
-  '/': { title: 'Command', eyebrow: 'Live console' },
+  '/': { title: 'Command', eyebrow: 'Source-bound console' },
+  '/companion': { title: 'Companion', eyebrow: 'Conker Journal' },
   '/chats': { title: 'Chats', eyebrow: 'Sessions' },
   '/approvals': { title: 'Approvals', eyebrow: 'Owner gate' },
-  '/system': { title: 'System', eyebrow: 'Runtime' },
-  '/automations': { title: 'Automations', eyebrow: 'Scheduled work' },
+  '/orchestration': { title: 'Orchestration', eyebrow: 'Flows and runs' },
+  '/workforce': { title: 'Workforce', eyebrow: 'Agents and teams' },
+  '/jobs': { title: 'Jobs', eyebrow: 'Scheduled agent work' },
+  '/capabilities': { title: 'Capabilities', eyebrow: 'Tools and skills' },
   '/memory': { title: 'Memory', eyebrow: 'Context store' },
-  '/suggestions': { title: 'Suggestions', eyebrow: 'Next moves' },
-  '/character': { title: 'Character', eyebrow: 'Personas' },
-  '/settings/character': { title: 'Character', eyebrow: 'Hermes voice' },
+  '/apps': { title: 'Apps', eyebrow: 'Hosted outputs' },
+  '/system': { title: 'System', eyebrow: 'Runtime' },
+  '/settings/character': { title: 'Character', eyebrow: 'Metadata only' },
 }
 
 export function AgentGateHeader({
@@ -141,7 +144,7 @@ function getActions(
           primary: true,
         },
         { label: 'Memory', icon: <MemoryStick />, to: '/memory' },
-        { label: 'Character', icon: <Bot />, to: '/character' },
+        { label: 'Settings', icon: <Bot />, to: '/settings/character' },
       ],
       more: [
         { label: 'Approvals', icon: <ShieldCheck />, to: '/approvals' },
@@ -178,7 +181,7 @@ function getActions(
           onClick: refresh,
           primary: true,
         },
-        { label: 'Run history', icon: <History />, to: '/automations' },
+        { label: 'Jobs', icon: <History />, to: '/jobs' },
         {
           label: 'Backups',
           icon: <CheckCircle2 />,
@@ -192,11 +195,11 @@ function getActions(
     }
   }
 
-  if (path.startsWith('/automations')) {
+  if (path.startsWith('/jobs')) {
     return {
       primary: [
         {
-          label: 'New automation',
+          label: 'New job',
           icon: <Plus />,
           onClick: openSearch,
           primary: true,
@@ -209,6 +212,7 @@ function getActions(
         },
       ],
       more: [
+        { label: 'Capabilities', icon: <Sparkles />, to: '/capabilities' },
         { label: 'System health', icon: <Activity />, to: '/system' },
         ...commonMore,
       ],
@@ -226,22 +230,22 @@ function getActions(
         { label: 'Ask agent', icon: <Send />, to: '/chats' },
       ],
       more: [
-        { label: 'Suggestions', icon: <Sparkles />, to: '/suggestions' },
+        { label: 'Companion', icon: <Sparkles />, to: '/companion' },
         ...commonMore,
       ],
     }
   }
 
-  if (path.startsWith('/suggestions')) {
+  if (path.startsWith('/companion')) {
     return {
       primary: [
-        { label: 'Ask agent', icon: <Send />, to: '/chats', primary: true },
+        { label: 'Ask Conker', icon: <Send />, to: '/chats', primary: true },
         { label: 'Approvals', icon: <ShieldCheck />, to: '/approvals' },
         { label: 'Memory', icon: <MemoryStick />, to: '/memory' },
       ],
       more: [
         {
-          label: 'Refresh suggestions',
+          label: 'Refresh journal',
           icon: <RefreshCcw />,
           onClick: refresh,
         },
@@ -270,7 +274,7 @@ function getActions(
     ],
     more: [
       { label: 'Memory', icon: <MemoryStick />, to: '/memory' },
-      { label: 'Suggestions', icon: <Sparkles />, to: '/suggestions' },
+      { label: 'Companion', icon: <Sparkles />, to: '/companion' },
       ...commonMore,
     ],
   }

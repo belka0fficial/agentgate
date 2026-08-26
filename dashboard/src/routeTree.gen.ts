@@ -11,9 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedWorkforceRouteImport } from './routes/_authenticated/workforce'
 import { Route as AuthenticatedSystemRouteImport } from './routes/_authenticated/system'
 import { Route as AuthenticatedSuggestionsRouteImport } from './routes/_authenticated/suggestions'
+import { Route as AuthenticatedOrchestrationRouteImport } from './routes/_authenticated/orchestration'
 import { Route as AuthenticatedMemoryRouteImport } from './routes/_authenticated/memory'
+import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
+import { Route as AuthenticatedCompanionRouteImport } from './routes/_authenticated/companion'
+import { Route as AuthenticatedCapabilitiesRouteImport } from './routes/_authenticated/capabilities'
 import { Route as AuthenticatedAutomationsRouteImport } from './routes/_authenticated/automations'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
@@ -53,6 +58,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWorkforceRoute = AuthenticatedWorkforceRouteImport.update({
+  id: '/workforce',
+  path: '/workforce',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSystemRoute = AuthenticatedSystemRouteImport.update({
   id: '/system',
   path: '/system',
@@ -64,11 +74,33 @@ const AuthenticatedSuggestionsRoute =
     path: '/suggestions',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedOrchestrationRoute =
+  AuthenticatedOrchestrationRouteImport.update({
+    id: '/orchestration',
+    path: '/orchestration',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMemoryRoute = AuthenticatedMemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedJobsRoute = AuthenticatedJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCompanionRoute = AuthenticatedCompanionRouteImport.update({
+  id: '/companion',
+  path: '/companion',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCapabilitiesRoute =
+  AuthenticatedCapabilitiesRouteImport.update({
+    id: '/capabilities',
+    path: '/capabilities',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAutomationsRoute =
   AuthenticatedAutomationsRouteImport.update({
     id: '/automations',
@@ -243,9 +275,14 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/automations': typeof AuthenticatedAutomationsRoute
+  '/capabilities': typeof AuthenticatedCapabilitiesRoute
+  '/companion': typeof AuthenticatedCompanionRoute
+  '/jobs': typeof AuthenticatedJobsRoute
   '/memory': typeof AuthenticatedMemoryRoute
+  '/orchestration': typeof AuthenticatedOrchestrationRoute
   '/suggestions': typeof AuthenticatedSuggestionsRoute
   '/system': typeof AuthenticatedSystemRoute
+  '/workforce': typeof AuthenticatedWorkforceRoute
   '/character/$id': typeof AuthenticatedCharacterIdRoute
   '/chats/$id': typeof AuthenticatedChatsIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -276,9 +313,14 @@ export interface FileRoutesByTo {
   '/503': typeof errors503Route
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/automations': typeof AuthenticatedAutomationsRoute
+  '/capabilities': typeof AuthenticatedCapabilitiesRoute
+  '/companion': typeof AuthenticatedCompanionRoute
+  '/jobs': typeof AuthenticatedJobsRoute
   '/memory': typeof AuthenticatedMemoryRoute
+  '/orchestration': typeof AuthenticatedOrchestrationRoute
   '/suggestions': typeof AuthenticatedSuggestionsRoute
   '/system': typeof AuthenticatedSystemRoute
+  '/workforce': typeof AuthenticatedWorkforceRoute
   '/': typeof AuthenticatedIndexRoute
   '/character/$id': typeof AuthenticatedCharacterIdRoute
   '/chats/$id': typeof AuthenticatedChatsIdRoute
@@ -313,9 +355,14 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
   '/_authenticated/automations': typeof AuthenticatedAutomationsRoute
+  '/_authenticated/capabilities': typeof AuthenticatedCapabilitiesRoute
+  '/_authenticated/companion': typeof AuthenticatedCompanionRoute
+  '/_authenticated/jobs': typeof AuthenticatedJobsRoute
   '/_authenticated/memory': typeof AuthenticatedMemoryRoute
+  '/_authenticated/orchestration': typeof AuthenticatedOrchestrationRoute
   '/_authenticated/suggestions': typeof AuthenticatedSuggestionsRoute
   '/_authenticated/system': typeof AuthenticatedSystemRoute
+  '/_authenticated/workforce': typeof AuthenticatedWorkforceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/character/$id': typeof AuthenticatedCharacterIdRoute
   '/_authenticated/chats/$id': typeof AuthenticatedChatsIdRoute
@@ -351,9 +398,14 @@ export interface FileRouteTypes {
     | '/503'
     | '/approvals'
     | '/automations'
+    | '/capabilities'
+    | '/companion'
+    | '/jobs'
     | '/memory'
+    | '/orchestration'
     | '/suggestions'
     | '/system'
+    | '/workforce'
     | '/character/$id'
     | '/chats/$id'
     | '/errors/$error'
@@ -384,9 +436,14 @@ export interface FileRouteTypes {
     | '/503'
     | '/approvals'
     | '/automations'
+    | '/capabilities'
+    | '/companion'
+    | '/jobs'
     | '/memory'
+    | '/orchestration'
     | '/suggestions'
     | '/system'
+    | '/workforce'
     | '/'
     | '/character/$id'
     | '/chats/$id'
@@ -420,9 +477,14 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/_authenticated/approvals'
     | '/_authenticated/automations'
+    | '/_authenticated/capabilities'
+    | '/_authenticated/companion'
+    | '/_authenticated/jobs'
     | '/_authenticated/memory'
+    | '/_authenticated/orchestration'
     | '/_authenticated/suggestions'
     | '/_authenticated/system'
+    | '/_authenticated/workforce'
     | '/_authenticated/'
     | '/_authenticated/character/$id'
     | '/_authenticated/chats/$id'
@@ -472,6 +534,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/workforce': {
+      id: '/_authenticated/workforce'
+      path: '/workforce'
+      fullPath: '/workforce'
+      preLoaderRoute: typeof AuthenticatedWorkforceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/system': {
       id: '/_authenticated/system'
       path: '/system'
@@ -486,11 +555,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuggestionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/orchestration': {
+      id: '/_authenticated/orchestration'
+      path: '/orchestration'
+      fullPath: '/orchestration'
+      preLoaderRoute: typeof AuthenticatedOrchestrationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/memory': {
       id: '/_authenticated/memory'
       path: '/memory'
       fullPath: '/memory'
       preLoaderRoute: typeof AuthenticatedMemoryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/jobs': {
+      id: '/_authenticated/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AuthenticatedJobsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/companion': {
+      id: '/_authenticated/companion'
+      path: '/companion'
+      fullPath: '/companion'
+      preLoaderRoute: typeof AuthenticatedCompanionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/capabilities': {
+      id: '/_authenticated/capabilities'
+      path: '/capabilities'
+      fullPath: '/capabilities'
+      preLoaderRoute: typeof AuthenticatedCapabilitiesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/automations': {
@@ -730,9 +827,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
   AuthenticatedAutomationsRoute: typeof AuthenticatedAutomationsRoute
+  AuthenticatedCapabilitiesRoute: typeof AuthenticatedCapabilitiesRoute
+  AuthenticatedCompanionRoute: typeof AuthenticatedCompanionRoute
+  AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
   AuthenticatedMemoryRoute: typeof AuthenticatedMemoryRoute
+  AuthenticatedOrchestrationRoute: typeof AuthenticatedOrchestrationRoute
   AuthenticatedSuggestionsRoute: typeof AuthenticatedSuggestionsRoute
   AuthenticatedSystemRoute: typeof AuthenticatedSystemRoute
+  AuthenticatedWorkforceRoute: typeof AuthenticatedWorkforceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedCharacterIdRoute: typeof AuthenticatedCharacterIdRoute
   AuthenticatedChatsIdRoute: typeof AuthenticatedChatsIdRoute
@@ -749,9 +851,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
   AuthenticatedAutomationsRoute: AuthenticatedAutomationsRoute,
+  AuthenticatedCapabilitiesRoute: AuthenticatedCapabilitiesRoute,
+  AuthenticatedCompanionRoute: AuthenticatedCompanionRoute,
+  AuthenticatedJobsRoute: AuthenticatedJobsRoute,
   AuthenticatedMemoryRoute: AuthenticatedMemoryRoute,
+  AuthenticatedOrchestrationRoute: AuthenticatedOrchestrationRoute,
   AuthenticatedSuggestionsRoute: AuthenticatedSuggestionsRoute,
   AuthenticatedSystemRoute: AuthenticatedSystemRoute,
+  AuthenticatedWorkforceRoute: AuthenticatedWorkforceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedCharacterIdRoute: AuthenticatedCharacterIdRoute,
   AuthenticatedChatsIdRoute: AuthenticatedChatsIdRoute,

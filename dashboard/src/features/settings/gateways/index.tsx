@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  type LucideIcon,
   Cable,
   CheckCircle2,
   CircleAlert,
   KeyRound,
   LockKeyhole,
-  Network,
   RadioTower,
   RefreshCw,
   Router,
@@ -131,8 +138,18 @@ export function GatewaySettings() {
     gateway: gateway.data,
     agents: agents.data?.agents,
     loading:
-      session.isLoading || health.isLoading || providers.isLoading || gateway.isLoading || agents.isLoading,
-    error: firstError(session.error, health.error, providers.error, gateway.error, agents.error),
+      session.isLoading ||
+      health.isLoading ||
+      providers.isLoading ||
+      gateway.isLoading ||
+      agents.isLoading,
+    error: firstError(
+      session.error,
+      health.error,
+      providers.error,
+      gateway.error,
+      agents.error
+    ),
     refresh: () => {
       void session.refetch()
       void health.refetch()
@@ -155,7 +172,9 @@ export function GatewaySettings() {
 function GatewaySettingsBody({ block }: { block: QueryBlock }) {
   const queryClient = useQueryClient()
   const defaultAgent = useMemo(
-    () => block.agents?.find((agent) => agent.id === 'agent_pi_operator') ?? block.agents?.[0],
+    () =>
+      block.agents?.find((agent) => agent.id === 'agent_pi_operator') ??
+      block.agents?.[0],
     [block.agents]
   )
   const [routeForm, setRouteForm] = useState({
@@ -166,10 +185,13 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
     reason: '',
   })
   const [routeCheck, setRouteCheck] = useState<ModelRouteProbe | null>(null)
-  const [routeSaveResult, setRouteSaveResult] = useState<ModelRouteSaveResult | null>(null)
+  const [routeSaveResult, setRouteSaveResult] =
+    useState<ModelRouteSaveResult | null>(null)
 
   useEffect(() => {
     if (!defaultAgent) return
+    // Reset the editable route form when the source-bound default agent changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRouteForm({
       primary_provider: defaultAgent.primary_provider || '',
       primary_model: defaultAgent.primary_model || '',
@@ -182,7 +204,8 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
   }, [defaultAgent])
 
   const checkRoute = useMutation({
-    mutationFn: () => checkModelRoute(routeForm.primary_provider, routeForm.primary_model),
+    mutationFn: () =>
+      checkModelRoute(routeForm.primary_provider, routeForm.primary_model),
     onSuccess: setRouteCheck,
   })
   const saveRoute = useMutation({
@@ -212,7 +235,8 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         <div>
           <p className='text-sm font-medium'>Gateway control plane</p>
           <p className='text-xs leading-5 text-muted-foreground'>
-            One owner-facing settings surface for the shared local channel. Secrets stay server-side; the browser only receives metadata.
+            One owner-facing settings surface for the shared local channel.
+            Secrets stay server-side; the browser only receives metadata.
           </p>
         </div>
         <Button variant='outline' size='sm' onClick={block.refresh}>
@@ -230,7 +254,9 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         <StatusCard
           icon={LockKeyhole}
           title='Owner session'
-          value={block.session?.owner_authenticated ? 'authenticated' : 'locked'}
+          value={
+            block.session?.owner_authenticated ? 'authenticated' : 'locked'
+          }
           status={block.session?.owner_authenticated ? 'ok' : 'blocked'}
           detail={`${block.session?.auth_mode ?? 'unknown'} · ${block.session?.token_storage ?? 'metadata only'}`}
         />
@@ -245,7 +271,13 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           icon={Router}
           title='Model gateway'
           value={gateway?.status ?? 'unknown'}
-          status={gateway?.status === 'ok' ? 'ok' : gateway?.status === 'auth_required' ? 'warn' : 'blocked'}
+          status={
+            gateway?.status === 'ok'
+              ? 'ok'
+              : gateway?.status === 'auth_required'
+                ? 'warn'
+                : 'blocked'
+          }
           detail={`${gateway?.name ?? 'provider pending'} · ${block.gateway?.candidate_count ?? 0} candidates`}
         />
       </div>
@@ -264,8 +296,12 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
             >
               <div className='font-medium'>{row.name}</div>
               <div className='text-sm text-muted-foreground'>{row.role}</div>
-              <code className='text-xs text-muted-foreground'>{row.channel}</code>
-              <Badge variant={index === 0 ? 'secondary' : 'outline'}>{row.status}</Badge>
+              <code className='text-xs text-muted-foreground'>
+                {row.channel}
+              </code>
+              <Badge variant={index === 0 ? 'secondary' : 'outline'}>
+                {row.status}
+              </Badge>
             </div>
           ))}
         </div>
@@ -278,12 +314,30 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           desc='Session details are metadata-only. The dashboard token is never returned to the browser.'
         />
         <div className='grid gap-3 rounded-xl border p-4 sm:grid-cols-2'>
-          <Field label='Auth mode' value={block.session?.auth_mode ?? 'unknown'} />
-          <Field label='Token storage' value={block.session?.token_storage ?? 'unknown'} />
-          <Field label='CSRF required' value={String(block.session?.csrf_required ?? false)} />
-          <Field label='Session expires' value={formatDate(block.session?.session_expires_at)} />
-          <Field label='Credentials included' value={String(block.session?.credentials_included ?? false)} />
-          <Field label='Token included' value={String(block.session?.token_included ?? false)} />
+          <Field
+            label='Auth mode'
+            value={block.session?.auth_mode ?? 'unknown'}
+          />
+          <Field
+            label='Token storage'
+            value={block.session?.token_storage ?? 'unknown'}
+          />
+          <Field
+            label='CSRF required'
+            value={String(block.session?.csrf_required ?? false)}
+          />
+          <Field
+            label='Session expires'
+            value={formatDate(block.session?.session_expires_at)}
+          />
+          <Field
+            label='Credentials included'
+            value={String(block.session?.credentials_included ?? false)}
+          />
+          <Field
+            label='Token included'
+            value={String(block.session?.token_included ?? false)}
+          />
         </div>
       </section>
 
@@ -320,20 +374,40 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
               <ProviderCard key={provider.id} provider={provider} />
             ))}
             {!block.providers?.length ? (
-              <EmptyCard title='No provider metadata' desc='Pi did not return provider metadata yet.' />
+              <EmptyCard
+                title='No provider metadata'
+                desc='Pi did not return provider metadata yet.'
+              />
             ) : null}
           </div>
           <Card>
             <CardHeader>
               <CardTitle className='text-base'>Default agent route</CardTitle>
-              <CardDescription>Current route labels for the Pi operator.</CardDescription>
+              <CardDescription>
+                Current route labels for the Pi operator.
+              </CardDescription>
             </CardHeader>
             <CardContent className='grid gap-3'>
-              <Field label='Agent' value={defaultAgent?.name ?? defaultAgent?.id ?? 'unknown'} />
-              <Field label='Primary provider' value={defaultAgent?.primary_provider || 'not configured'} />
-              <Field label='Primary model' value={defaultAgent?.primary_model || 'not configured'} />
-              <Field label='Fallback provider' value={defaultAgent?.fallback_provider || 'disabled'} />
-              <Field label='Fallback model' value={defaultAgent?.fallback_model || 'disabled'} />
+              <Field
+                label='Agent'
+                value={defaultAgent?.name ?? defaultAgent?.id ?? 'unknown'}
+              />
+              <Field
+                label='Primary provider'
+                value={defaultAgent?.primary_provider || 'not configured'}
+              />
+              <Field
+                label='Primary model'
+                value={defaultAgent?.primary_model || 'not configured'}
+              />
+              <Field
+                label='Fallback provider'
+                value={defaultAgent?.fallback_provider || 'disabled'}
+              />
+              <Field
+                label='Fallback model'
+                value={defaultAgent?.fallback_model || 'disabled'}
+              />
             </CardContent>
           </Card>
         </div>
@@ -373,7 +447,10 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           />
           <div className='grid gap-2'>
             {blockers.map((blocker) => (
-              <div key={blocker} className='rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300'>
+              <div
+                key={blocker}
+                className='rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300'
+              >
                 {blocker}
               </div>
             ))}
@@ -404,13 +481,15 @@ function ModelRouteEditor({
     fallback_model: string
     reason: string
   }
-  setForm: Dispatch<SetStateAction<{
-    primary_provider: string
-    primary_model: string
-    fallback_provider: string
-    fallback_model: string
-    reason: string
-  }>>
+  setForm: Dispatch<
+    SetStateAction<{
+      primary_provider: string
+      primary_model: string
+      fallback_provider: string
+      fallback_model: string
+      reason: string
+    }>
+  >
   checkResult: ModelRouteProbe | null
   saveResult: ModelRouteSaveResult | null
   onCheck: () => void
@@ -421,7 +500,9 @@ function ModelRouteEditor({
   saveError: Error | null
   disabled: boolean
 }) {
-  const canCheck = Boolean(form.primary_provider.trim() && form.primary_model.trim())
+  const canCheck = Boolean(
+    form.primary_provider.trim() && form.primary_model.trim()
+  )
   const canSave = canCheck && !saving && !disabled
   return (
     <Card>
@@ -432,41 +513,58 @@ function ModelRouteEditor({
             value={form.primary_provider}
             placeholder='openai-codex, pi, openrouter...'
             disabled={disabled}
-            onChange={(value) => setForm((current) => ({ ...current, primary_provider: value }))}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, primary_provider: value }))
+            }
           />
           <LabeledInput
             label='Primary model'
             value={form.primary_model}
             placeholder='model label from provider metadata'
             disabled={disabled}
-            onChange={(value) => setForm((current) => ({ ...current, primary_model: value }))}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, primary_model: value }))
+            }
           />
           <LabeledInput
             label='Fallback provider'
             value={form.fallback_provider}
             placeholder='optional; leave blank to disable'
             disabled={disabled}
-            onChange={(value) => setForm((current) => ({ ...current, fallback_provider: value }))}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, fallback_provider: value }))
+            }
           />
           <LabeledInput
             label='Fallback model'
             value={form.fallback_model}
             placeholder='optional; leave blank to disable'
             disabled={disabled}
-            onChange={(value) => setForm((current) => ({ ...current, fallback_model: value }))}
+            onChange={(value) =>
+              setForm((current) => ({ ...current, fallback_model: value }))
+            }
           />
         </div>
         <div className='grid gap-2'>
-          <label className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Reason</label>
+          <label className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
+            Reason
+          </label>
           <Textarea
             value={form.reason}
             disabled={disabled}
             placeholder='Why this route should be saved. Required for approval context when a route is risky.'
-            onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, reason: event.target.value }))
+            }
           />
         </div>
         <div className='flex flex-wrap gap-2'>
-          <Button type='button' variant='outline' onClick={onCheck} disabled={!canCheck || checking || disabled}>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={onCheck}
+            disabled={!canCheck || checking || disabled}
+          >
             {checking ? 'Checking...' : 'Check route'}
           </Button>
           <Button type='button' onClick={onSave} disabled={!canSave}>
@@ -481,10 +579,21 @@ function ModelRouteEditor({
           </Message>
         ) : null}
         {saveResult ? (
-          <Message tone={saveResult.status === 'applied' || saveResult.status === 'unchanged' ? 'good' : 'warn'}>
+          <Message
+            tone={
+              saveResult.status === 'applied' ||
+              saveResult.status === 'unchanged'
+                ? 'good'
+                : 'warn'
+            }
+          >
             Save result: {saveResult.status}
-            {saveResult.request_id ? ` · ToolGate request ${saveResult.request_id}` : ''}
-            {saveResult.approval_reasons?.length ? ` · ${saveResult.approval_reasons.join('; ')}` : ''}
+            {saveResult.request_id
+              ? ` · ToolGate request ${saveResult.request_id}`
+              : ''}
+            {saveResult.approval_reasons?.length
+              ? ` · ${saveResult.approval_reasons.join('; ')}`
+              : ''}
           </Message>
         ) : null}
       </CardContent>
@@ -507,20 +616,37 @@ function LabeledInput({
 }) {
   return (
     <div className='grid gap-2'>
-      <label className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>{label}</label>
-      <Input value={value} placeholder={placeholder} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
+      <label className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
+        {label}
+      </label>
+      <Input
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   )
 }
 
-function Message({ tone, children }: { tone: 'good' | 'warn' | 'bad'; children: ReactNode }) {
+function Message({
+  tone,
+  children,
+}: {
+  tone: 'good' | 'warn' | 'bad'
+  children: ReactNode
+}) {
   const className =
     tone === 'good'
       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
       : tone === 'warn'
         ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
         : 'border-destructive/40 bg-destructive/10 text-destructive'
-  return <div className={`rounded-lg border p-3 text-sm leading-6 ${className}`}>{children}</div>
+  return (
+    <div className={`rounded-lg border p-3 text-sm leading-6 ${className}`}>
+      {children}
+    </div>
+  )
 }
 
 function StatusCard({
@@ -544,7 +670,17 @@ function StatusCard({
       </CardHeader>
       <CardContent>
         <div className='flex items-center gap-2'>
-          <Badge variant={status === 'ok' ? 'secondary' : status === 'warn' ? 'outline' : 'destructive'}>{value}</Badge>
+          <Badge
+            variant={
+              status === 'ok'
+                ? 'secondary'
+                : status === 'warn'
+                  ? 'outline'
+                  : 'destructive'
+            }
+          >
+            {value}
+          </Badge>
         </div>
         <p className='mt-2 text-xs text-muted-foreground'>{detail}</p>
       </CardContent>
@@ -568,8 +704,14 @@ function ProviderCard({ provider }: { provider: ModelProvider }) {
       <CardContent className='grid gap-3 text-sm'>
         <div className='grid gap-3 sm:grid-cols-3'>
           <Field label='Configured' value={String(provider.configured)} />
-          <Field label='Models visible' value={String(provider.models_visible)} />
-          <Field label='Model count' value={String(provider.model_count ?? 0)} />
+          <Field
+            label='Models visible'
+            value={String(provider.models_visible)}
+          />
+          <Field
+            label='Model count'
+            value={String(provider.model_count ?? 0)}
+          />
         </div>
         {provider.privacy || provider.setup_hint ? (
           <p className='text-xs leading-5 text-muted-foreground'>
@@ -581,7 +723,15 @@ function ProviderCard({ provider }: { provider: ModelProvider }) {
   )
 }
 
-function SectionTitle({ icon: Icon, title, desc }: { icon: typeof Network; title: string; desc: string }) {
+function SectionTitle({
+  icon: Icon,
+  title,
+  desc,
+}: {
+  icon: LucideIcon
+  title: string
+  desc: string
+}) {
   return (
     <div className='flex items-start gap-3'>
       <div className='mt-0.5 rounded-md border bg-muted/40 p-2'>
@@ -598,8 +748,10 @@ function SectionTitle({ icon: Icon, title, desc }: { icon: typeof Network; title
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>{label}</p>
-      <p className='mt-1 break-words font-mono text-xs'>{value}</p>
+      <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
+        {label}
+      </p>
+      <p className='mt-1 font-mono text-xs break-words'>{value}</p>
     </div>
   )
 }

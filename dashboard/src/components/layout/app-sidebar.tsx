@@ -84,16 +84,13 @@ function AgentStatusBlock() {
         </div>
       </div>
       <Link
-        to='/chats/$id'
-        params={{ id: 'chat_release' }}
+        to='/system'
         className='flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-sidebar-foreground/65 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-        aria-label='Open active session'
+        aria-label='Open system status'
       >
-        <span className='size-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgb(16_185_129/0.12)]' />
+        <span className='size-2 shrink-0 rounded-full bg-muted-foreground/45' />
         <span className='min-w-0 truncate font-mono text-[11px] leading-4 group-data-[collapsible=icon]:hidden'>
-          executing
-          <span className='px-1 text-sidebar-foreground/35'>·</span>3 tools
-          <span className='px-1 text-sidebar-foreground/35'>·</span>42% ctx
+          status unknown
         </span>
       </Link>
     </div>

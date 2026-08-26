@@ -18,8 +18,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Main } from '@/components/layout/main'
 import { getAgentGate, relativeTime, type Approval } from './api'
+import { buildCommandStatCards, type CommandStatCard } from './command-cards'
 import { Core } from './core'
-import { Sparkline } from './density-primitives'
 import { AgentGateHeader } from './page-header'
 
 type Suggestion = { title: string; summary: string; confidence?: number }
@@ -44,13 +44,6 @@ type ChatSession = {
   updated_at: string
 }
 
-const histories = {
-  cpu: [18, 24, 19, 31, 26, 35, 29, 22, 27, 33, 24, 27],
-  memory: [41, 42, 42, 43, 44, 45, 46, 45, 46, 47, 46, 46],
-  disk: [59, 59, 60, 60, 61, 61, 62, 62, 62, 63, 63, 63],
-  approvals: [2, 3, 3, 5, 4, 4, 6, 5, 4, 4, 4, 4],
-}
-
 export function CommandPage() {
   const home = useQuery({
     queryKey: ['agentgate', 'home'],
@@ -69,7 +62,7 @@ export function CommandPage() {
   const anomalies = home.data?.anomalies ?? []
   const suggestions = home.data?.suggestions ?? []
   const recent = chats.data?.sessions?.slice(0, 3) ?? []
-  const vitals = system.data?.vitals
+  const statCards = buildCommandStatCards(system.data)
   const isCalm = pending.length === 0 && anomalies.length === 0
 
   return (
@@ -84,8 +77,8 @@ export function CommandPage() {
                 <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent' />
                 <div className='mb-4 flex flex-wrap items-center gap-2'>
                   <Badge variant='secondary' className='rounded-full'>
-                    <span className='mr-1.5 size-1.5 rounded-full bg-emerald-500' />
-                    Hermes is ready
+                    <span className='mr-1.5 size-1.5 rounded-full bg-muted-foreground/60' />
+                    Runtime status unknown
                   </Badge>
                   <span className='font-mono text-[11px] text-muted-foreground'>
                     local · private · owner-gated
@@ -95,9 +88,9 @@ export function CommandPage() {
                   Command is quiet until something needs you.
                 </h1>
                 <p className='mt-4 max-w-lg text-sm leading-6 text-muted-foreground'>
-                  AgentGate is watching the active work, holding context, and
-                  keeping the operational noise below the fold until you want
-                  it.
+                  Source-bound AgentGate status appears here. Unknown, empty,
+                  degraded, and offline states are shown honestly instead of
+                  pretending the stack is healthy.
                 </p>
                 <div className='mt-6 flex flex-wrap gap-2'>
                   <Button asChild>
@@ -142,7 +135,7 @@ export function CommandPage() {
               <div className='flex flex-col items-center gap-2'>
                 <Core className='size-[340px] sm:size-[420px] lg:size-[500px]' />
                 <p className='text-center font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase'>
-                  specimen live · non-repeating drift
+                  text-first foundation · presence deferred
                 </p>
               </div>
             </div>
@@ -170,33 +163,26 @@ export function CommandPage() {
             detail='Everything observable, kept below the arrival room'
           />
           <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-            <StatCard
-              title='CPU'
-              value={`${vitals?.cpu_percent ?? '—'}%`}
-              note={`${vitals?.cpu_count ?? '—'} cores · 15 min`}
-              icon={Server}
-              history={histories.cpu}
-            />
-            <StatCard
-              title='Memory'
-              value={`${vitals?.memory.percent ?? '—'}%`}
-              note='15.8 GB free · 15 min'
-              icon={MemoryStick}
-              history={histories.memory}
-            />
-            <StatCard
-              title='Disk'
-              value={`${vitals?.disk.percent ?? '—'}%`}
-              note='428 GB free · 15 min'
-              icon={HardDrive}
-              history={histories.disk}
-            />
+            {statCards.map((card) => (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                value={card.value}
+                note={card.note}
+                icon={
+                  card.title === 'CPU'
+                    ? Server
+                    : card.title === 'Memory'
+                      ? MemoryStick
+                      : HardDrive
+                }
+              />
+            ))}
             <StatCard
               title='Pending review'
               value={String(pending.length)}
-              note='Owner decisions · 15 min'
+              note='Owner decisions · current sample'
               icon={ShieldCheck}
-              history={histories.approvals}
             />
           </div>
         </section>
@@ -314,13 +300,9 @@ function StatCard({
   value,
   note,
   icon: Icon,
-  history,
-}: {
+}: Omit<CommandStatCard, 'title'> & {
   title: string
-  value: string
-  note: string
   icon: LucideIcon
-  history: number[]
 }) {
   return (
     <Card>
@@ -333,7 +315,6 @@ function StatCard({
           {value}
         </div>
         <p className='text-xs text-muted-foreground'>{note}</p>
-        <Sparkline values={history} className='mt-3 text-muted-foreground' />
       </CardContent>
     </Card>
   )

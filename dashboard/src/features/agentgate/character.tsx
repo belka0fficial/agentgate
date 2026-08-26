@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowLeft,
@@ -20,6 +19,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,7 +41,6 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Main } from '@/components/layout/main'
-import { cn } from '@/lib/utils'
 import { AgentGateHeader } from './page-header'
 import { personas, soulForPersona, type Persona } from './personas'
 
@@ -105,9 +104,7 @@ export function CharacterListPage() {
                 persona={persona}
                 armed={deleteArmed === persona.id}
                 onArmDelete={() =>
-                  setDeleteArmed(
-                    deleteArmed === persona.id ? null : persona.id
-                  )
+                  setDeleteArmed(deleteArmed === persona.id ? null : persona.id)
                 }
               />
             ))}
@@ -163,10 +160,7 @@ export function CharacterListPage() {
           </div>
         </section>
       </Main>
-      <CharacterStudio
-        open={studioOpen}
-        onOpenChange={setStudioOpen}
-      />
+      <CharacterStudio open={studioOpen} onOpenChange={setStudioOpen} />
     </>
   )
 }
@@ -211,7 +205,10 @@ export function CharacterDetailPage({ personaId }: { personaId: string }) {
                 <Field label='Role' defaultValue={persona.role} />
                 <div className='space-y-2 md:col-span-2'>
                   <Label>Identity</Label>
-                  <Textarea defaultValue={persona.identity} className='min-h-28' />
+                  <Textarea
+                    defaultValue={persona.identity}
+                    className='min-h-28'
+                  />
                 </div>
               </div>
             </section>
@@ -685,13 +682,19 @@ function CharacterStudio({
 
   useEffect(() => {
     if (open) {
+      // The studio draft resets only when the owner opens the modal.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStepIndex(0)
-      setDraft(basePersona ? studioDraftFromPersona(basePersona) : blankStudioDraft())
+      setDraft(
+        basePersona ? studioDraftFromPersona(basePersona) : blankStudioDraft()
+      )
     }
   }, [basePersona, open])
 
   useEffect(() => {
     if (!open) return
+    // Voice metadata is a deferred presentation preview; this effect does not install audio runtime.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVoiceStatus('mapping')
     const handle = window.setTimeout(() => {
       setDraft((current) => ({ ...current, voice: mapDraftToVoice(current) }))
@@ -710,7 +713,10 @@ function CharacterStudio({
   ])
 
   useEffect(() => {
-    if (stepIndex > steps.length - 1) setStepIndex(steps.length - 1)
+    if (stepIndex > steps.length - 1) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStepIndex(steps.length - 1)
+    }
   }, [stepIndex, steps.length])
 
   if (!open) return null
@@ -798,7 +804,10 @@ function CharacterStudio({
           <Button variant='ghost' onClick={skip} disabled={step.id === 'setup'}>
             Skip
           </Button>
-          <Button onClick={continueFlow} disabled={stepIndex === steps.length - 1}>
+          <Button
+            onClick={continueFlow}
+            disabled={stepIndex === steps.length - 1}
+          >
             Continue
           </Button>
         </div>
@@ -837,7 +846,9 @@ function StudioQuestion({
             icon={<Sparkles />}
             title='Assistant'
             description='Voice, speaking manner, personality, boundaries, response length. No appearance, backstory, or memories.'
-            onClick={() => onPatchDraft({ setup: 'assistant', role: 'practical' })}
+            onClick={() =>
+              onPatchDraft({ setup: 'assistant', role: 'practical' })
+            }
           />
           <ChoiceCard
             active={draft.setup === 'character'}
@@ -889,10 +900,7 @@ function StudioQuestion({
           />
         </div>
         {draft.build === 'reference' ? (
-          <Input
-            className='mt-5'
-            placeholder='https://example.com/reference'
-          />
+          <Input className='mt-5' placeholder='https://example.com/reference' />
         ) : null}
         {draft.build === 'image' ? (
           <div className='mt-5 rounded-xl bg-card p-4 text-sm text-muted-foreground'>
@@ -1008,20 +1016,23 @@ function AvatarStage({
       <div className='relative flex h-full flex-col items-center justify-center'>
         <div
           className='relative h-64 w-44 transition-all duration-700'
-          style={{ opacity: 0.42 + detail * 0.52, filter: `blur(${3 - detail * 3}px)` }}
+          style={{
+            opacity: 0.42 + detail * 0.52,
+            filter: `blur(${3 - detail * 3}px)`,
+          }}
         >
-          <div className='absolute left-1/2 top-3 h-24 w-24 -translate-x-1/2 rounded-full bg-muted/80 shadow-[0_0_90px_hsl(var(--muted)/0.38)]' />
-          <div className='absolute left-1/2 top-28 h-36 w-32 -translate-x-1/2 rounded-[48%_48%_18%_18%] bg-muted/65' />
+          <div className='absolute top-3 left-1/2 h-24 w-24 -translate-x-1/2 rounded-full bg-muted/80 shadow-[0_0_90px_hsl(var(--muted)/0.38)]' />
+          <div className='absolute top-28 left-1/2 h-36 w-32 -translate-x-1/2 rounded-[48%_48%_18%_18%] bg-muted/65' />
           <div
-            className='absolute left-1/2 top-7 h-20 w-20 -translate-x-1/2 rounded-full border border-foreground/15'
+            className='absolute top-7 left-1/2 h-20 w-20 -translate-x-1/2 rounded-full border border-foreground/15'
             style={{ opacity: detail }}
           />
           <div
-            className='absolute left-8 top-40 h-20 w-1 rounded-full bg-foreground/20'
+            className='absolute top-40 left-8 h-20 w-1 rounded-full bg-foreground/20'
             style={{ opacity: detail * 0.8 }}
           />
           <div
-            className='absolute right-8 top-40 h-20 w-1 rounded-full bg-foreground/20'
+            className='absolute top-40 right-8 h-20 w-1 rounded-full bg-foreground/20'
             style={{ opacity: detail * 0.8 }}
           />
         </div>
@@ -1244,10 +1255,21 @@ function mapDraftToVoice(draft: StudioDraft) {
   const source = [draft.traits, draft.manner, draft.role, draft.background]
     .join(' ')
     .toLowerCase()
-  const pitch = source.includes('systems') || source.includes('terse') ? 'low pitch' : 'medium-low pitch'
-  const pace = source.includes('precise') || source.includes('skeptical') ? 'measured pace' : 'steady pace'
-  const warmth = source.includes('protective') || source.includes('calm') ? 'warm edge' : 'cool warmth'
-  const energy = source.includes('playful') ? 'bright energy' : 'contained energy'
+  const pitch =
+    source.includes('systems') || source.includes('terse')
+      ? 'low pitch'
+      : 'medium-low pitch'
+  const pace =
+    source.includes('precise') || source.includes('skeptical')
+      ? 'measured pace'
+      : 'steady pace'
+  const warmth =
+    source.includes('protective') || source.includes('calm')
+      ? 'warm edge'
+      : 'cool warmth'
+  const energy = source.includes('playful')
+    ? 'bright energy'
+    : 'contained energy'
   return `${pitch} · ${pace} · ${warmth} · ${energy}`
 }
 

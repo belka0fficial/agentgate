@@ -1,13 +1,15 @@
 import {
-  Bell,
-  Clock,
+  Boxes,
+  Bot,
+  BriefcaseBusiness,
   Command,
+  GitBranch,
   LayoutDashboard,
+  MemoryStick,
   MessagesSquare,
   Monitor,
   Package,
   ShieldCheck,
-  UserCog,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -26,29 +28,19 @@ export const sidebarData: SidebarData = {
   ],
   navGroups: [
     {
-      title: 'General',
+      title: 'AgentGate',
       items: [
-        {
-          title: 'Command',
-          url: '/',
-          icon: LayoutDashboard,
-        },
-        {
-          title: 'Approvals',
-          url: '/approvals',
-          icon: ShieldCheck,
-        },
-        {
-          title: 'Chats',
-          url: '/chats',
-          badge: '9',
-          icon: MessagesSquare,
-        },
+        { title: 'Companion', url: '/companion', icon: Bot },
+        { title: 'Chats', url: '/chats', icon: MessagesSquare },
+        { title: 'Approvals', url: '/approvals', icon: ShieldCheck },
+        { title: 'Command', url: '/', icon: LayoutDashboard },
+        { title: 'Orchestration', url: '/orchestration', icon: GitBranch },
+        { title: 'Workforce', url: '/workforce', icon: BriefcaseBusiness },
+        { title: 'Jobs', url: '/jobs', icon: Boxes },
+        { title: 'Capabilities', url: '/capabilities', icon: Package },
+        { title: 'Memory', url: '/memory', icon: MemoryStick },
+        { title: 'Apps', url: '/apps/', icon: Boxes },
         { title: 'System', url: '/system', icon: Monitor },
-        { title: 'Automations', url: '/automations', icon: Clock },
-        { title: 'Memory', url: '/memory', icon: Package },
-        { title: 'Suggestions', url: '/suggestions', icon: Bell },
-        { title: 'Character', url: '/character', icon: UserCog },
       ],
     },
   ],
