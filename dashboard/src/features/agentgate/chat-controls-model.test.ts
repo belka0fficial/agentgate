@@ -103,12 +103,78 @@ describe('chat text controls model', () => {
       status: 'planned',
       reason: 'No verified regenerate route is exposed by AgentGate yet.',
     })
+    expect(chatActionAvailability('share', agentMessage)).toEqual({
+      available: false,
+      status: 'planned',
+      reason: 'Sharing is unavailable until a backend contract exists.',
+    })
+    expect(chatActionAvailability('read-aloud', agentMessage)).toEqual({
+      available: false,
+      status: 'planned',
+      reason: 'Read-aloud is planned for the later voice/audio phase.',
+    })
+    expect(chatActionAvailability('file-attachment')).toEqual({
+      available: false,
+      status: 'planned',
+      reason: 'File attachments need a versioned content-parts contract.',
+    })
     expect(chatActionAvailability('selected-reply', agentMessage)).toEqual({
       available: false,
       status: 'planned',
       reason:
         'Selected-text reply needs a backend message-span schema before persistence.',
     })
+  })
+
+  it('parses safe markdown without raw HTML or unsafe links', async () => {
+    const { safeMarkdownBlocks } = await import('./chat-controls-model')
+    expect(
+      safeMarkdownBlocks(
+        'Visit https://example.com, ignore <script>x</script> and `code`.\n\n```ts\nconst x = 1\n```'
+      )
+    ).toEqual([
+      {
+        kind: 'paragraph',
+        parts: [
+          { kind: 'text', text: 'Visit ' },
+          {
+            kind: 'link',
+            text: 'https://example.com',
+            href: 'https://example.com',
+          },
+          { kind: 'text', text: ', ignore <script>x</script> and ' },
+          { kind: 'code', text: 'code' },
+          { kind: 'text', text: '.' },
+        ],
+      },
+      { kind: 'codeBlock', language: 'ts', text: 'const x = 1' },
+    ])
+  })
+
+  it('derives model choices only from source-bound backend metadata', async () => {
+    const { chatModelChoices } = await import('./chat-controls-model')
+    expect(
+      chatModelChoices({
+        models: [
+          { id: 'safe-model', provider: 'brain', status: 'live' },
+          { model: 'fallback-model', provider_id: 'pi', status: 'unknown' },
+          { id: 'bad/path', provider: 'brain' },
+        ],
+      })
+    ).toEqual([
+      {
+        label: 'safe-model',
+        value: 'safe-model',
+        provider: 'brain',
+        status: 'live',
+      },
+      {
+        label: 'fallback-model',
+        value: 'fallback-model',
+        provider: 'pi',
+        status: 'unknown',
+      },
+    ])
   })
 
   it('keeps UI errors browser-safe', () => {
@@ -119,5 +185,22 @@ describe('chat text controls model', () => {
         )
       )
     ).toBe('Chat action failed. Check the source status and try again.')
+  })
+})
+
+describe('chat model availability', () => {
+  it('filters model choices to explicitly live source rows', async () => {
+    const { chatModelChoices } = await import('./chat-controls-model')
+    expect(
+      chatModelChoices({
+        models: [
+          { id: 'live-model', status: 'live' },
+          { id: 'offline-model', status: 'offline' },
+          { id: 'unknown-model', status: 'unknown' },
+        ],
+      })
+        .filter((item) => item.status === 'live')
+        .map((item) => item.value)
+    ).toEqual(['live-model'])
   })
 })

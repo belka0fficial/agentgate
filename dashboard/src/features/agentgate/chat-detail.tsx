@@ -20,9 +20,9 @@ import {
   SlidersHorizontal,
   Square,
   Trash2,
+  Volume2,
   WifiOff,
   Wrench,
-  X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -67,9 +67,12 @@ import {
 } from './api'
 import {
   chatActionAvailability,
+  chatModelChoices,
   forkPayloadForMessage,
   safeChatUiError,
+  safeMarkdownBlocks,
   streamChatBody,
+  type MarkdownInlinePart,
 } from './chat-controls-model'
 import { personas } from './personas'
 
@@ -90,7 +93,7 @@ type ChatState = (typeof chatStates)[number]
 type ChatSessionFork = { id?: string }
 
 export function ChatDetailPage({ chatId }: { chatId: string }) {
-  const [quoteDraft, setQuoteDraft] = useState('')
+  const [promptDraft, setPromptDraft] = useState('')
   const [selectionChip, setSelectionChip] = useState<{
     text: string
     x: number
@@ -252,7 +255,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
                       </div>
                     ))
                   ) : (
-                    <EmptySession onPrompt={setQuoteDraft} />
+                    <EmptySession onPrompt={setPromptDraft} />
                   )}
                   <RunStateSurface state={chatState} />
                   <div ref={threadEndRef} aria-hidden='true' />
@@ -275,9 +278,10 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
               className='mx-auto w-full max-w-[1200px] shrink-0 px-4 sm:px-6'
             >
               <Composer
+                key={promptDraft || 'composer'}
                 chatId={chatId}
-                quoteDraft={quoteDraft}
-                onQuoteConsumed={() => setQuoteDraft('')}
+                initialPrompt={promptDraft}
+                onPromptConsumed={() => setPromptDraft('')}
                 isStreaming={chatState === 'streaming'}
                 onSend={async () => {
                   await queryClient.invalidateQueries({
@@ -340,7 +344,7 @@ function MessageRow({
               : 'text-sm leading-6 font-normal break-words whitespace-pre-wrap'
           }
         >
-          {message.content}
+          <MarkdownMessage content={message.content} />
         </div>
         <div className='mt-1.5 flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap opacity-45 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100'>
           <MessageMeta message={message} onFork={() => onFork(message)} />
@@ -348,6 +352,63 @@ function MessageRow({
       </div>
     </article>
   )
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  const blocks = safeMarkdownBlocks(content)
+  if (!blocks.length) return null
+
+  return (
+    <div className='space-y-3 whitespace-normal'>
+      {blocks.map((block, index) => {
+        if (block.kind === 'codeBlock') {
+          return (
+            <pre
+              key={`code-${index}`}
+              className='overflow-x-auto rounded-md bg-background/60 p-3 font-mono text-xs whitespace-pre'
+            >
+              {block.language ? (
+                <code className='mb-2 block text-[10px] text-muted-foreground'>
+                  {block.language}
+                </code>
+              ) : null}
+              <code>{block.text}</code>
+            </pre>
+          )
+        }
+        return (
+          <p key={`paragraph-${index}`} className='whitespace-pre-wrap'>
+            {block.parts.map((part, partIndex) => (
+              <MarkdownPart key={`${part.kind}-${partIndex}`} part={part} />
+            ))}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+function MarkdownPart({ part }: { part: MarkdownInlinePart }) {
+  if (part.kind === 'link') {
+    return (
+      <a
+        href={part.href}
+        target='_blank'
+        rel='noreferrer noopener'
+        className='text-primary underline underline-offset-2'
+      >
+        {part.text}
+      </a>
+    )
+  }
+  if (part.kind === 'code') {
+    return (
+      <code className='rounded bg-background/60 px-1 py-0.5 font-mono text-[0.92em]'>
+        {part.text}
+      </code>
+    )
+  }
+  return <>{part.text}</>
 }
 
 function getChatStateFromHref(href: string): ChatState {
@@ -599,6 +660,8 @@ async function streamChatTurn(
   options: {
     memoryIncognito: boolean
     reasoning: string
+    model?: string
+    provider?: string
   }
 ) {
   const response = await fetch(`/api/chats/${sessionId}/stream`, {
@@ -635,23 +698,36 @@ async function streamChatTurn(
 
 function Composer({
   chatId,
-  quoteDraft,
-  onQuoteConsumed,
+  initialPrompt,
+  onPromptConsumed,
   isStreaming = false,
   onSend,
 }: {
   chatId: string
-  quoteDraft?: string
-  onQuoteConsumed?: () => void
+  initialPrompt?: string
+  onPromptConsumed?: () => void
   isStreaming?: boolean
   onSend?: () => void
 }) {
-  const [value, setValue] = useState(() => getForkPrefill(chatId))
+  const [value, setValue] = useState(
+    () => initialPrompt || getForkPrefill(chatId)
+  )
   const [memoryIncognito, setMemoryIncognito] = useState(false)
   const [reasoning, setReasoning] = useState('medium')
+  const [selectedModel, setSelectedModel] = useState('source-default')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const modelMetadata = useQuery({
+    queryKey: ['agentgate', 'models', 'chat-composer'],
+    queryFn: () => getAgentGate<unknown>('/api/models'),
+  })
+  const modelChoices = chatModelChoices(modelMetadata.data).filter(
+    (choice) => choice.status === 'live'
+  )
+  const selectedModelChoice = modelChoices.find(
+    (choice) => choice.value === selectedModel
+  )
 
   return (
     <div className='z-20 bg-background/95 pt-3 pb-5 backdrop-blur'>
@@ -668,6 +744,12 @@ function Composer({
           streamChatTurn(chatId, input, {
             memoryIncognito,
             reasoning,
+            ...(selectedModelChoice
+              ? {
+                  model: selectedModelChoice.value,
+                  provider: selectedModelChoice.provider,
+                }
+              : {}),
           })
             .then(() => onSend?.())
             .catch((error: unknown) => {
@@ -677,16 +759,9 @@ function Composer({
               setValue(input)
             })
             .finally(() => setSending(false))
-          onQuoteConsumed?.()
+          onPromptConsumed?.()
         }}
       >
-        {quoteDraft ? (
-          <QuoteChip
-            label='Replying to Hermes · msg_06'
-            text={quoteDraft}
-            onRemove={() => onQuoteConsumed?.()}
-          />
-        ) : null}
         {sendError ? (
           <div className='border-b px-4 py-2 text-xs text-destructive'>
             {sendError}
@@ -707,10 +782,19 @@ function Composer({
         />
         <div className='flex flex-wrap items-center gap-1 bg-transparent px-2 py-2'>
           <InlineSelect
-            disabled
-            value='gpt-5.2'
-            items={['gpt-5.2', 'gpt-5.2-mini', 'o4-mini']}
-            label='Model'
+            disabled={!modelChoices.length}
+            value={selectedModelChoice?.value ?? 'source-default'}
+            items={
+              modelChoices.length
+                ? modelChoices.map((choice) => choice.value)
+                : ['source-default']
+            }
+            label={
+              modelChoices.length
+                ? 'Model from /api/models'
+                : 'Model unavailable until source metadata loads'
+            }
+            onValueChange={setSelectedModel}
           />
           <InlineSelect
             value='Hermes'
@@ -739,8 +823,8 @@ function Composer({
                 </Select>
               </div>
               <p className='text-xs text-muted-foreground'>
-                Extended thinking controls are unavailable until the runtime
-                contract exposes them.
+                Reasoning effort is sent to the verified ChatInput intensity
+                contract.
               </p>
             </div>
           </CapabilityPopover>
@@ -762,15 +846,12 @@ function Composer({
               </div>
             </div>
           </CapabilityPopover>
-          <Button
-            type='button'
-            variant='ghost'
-            size='icon'
-            disabled
-            aria-label='Attach file unavailable'
+          <UnavailableMetaAction
+            availability={chatActionAvailability('file-attachment')}
+            buttonClassName='size-9 shrink-0 text-muted-foreground'
           >
             <Paperclip />
-          </Button>
+          </UnavailableMetaAction>
           <Button
             type='button'
             variant='ghost'
@@ -834,38 +915,6 @@ function Composer({
           </Button>
         </div>
       </form>
-    </div>
-  )
-}
-
-function QuoteChip({
-  label,
-  text,
-  onRemove,
-}: {
-  label: string
-  text: string
-  onRemove: () => void
-}) {
-  return (
-    <div className='px-3 pt-3'>
-      <div className='flex items-center gap-3 rounded-lg bg-background/35 px-3 py-2'>
-        <span className='h-8 w-px shrink-0 rounded-full bg-primary/70' />
-        <div className='min-w-0 flex-1'>
-          <p className='text-[11px] text-muted-foreground'>{label}</p>
-          <p className='truncate text-xs text-foreground/90'>{text}</p>
-        </div>
-        <Button
-          type='button'
-          variant='ghost'
-          size='icon'
-          className='size-6 shrink-0 text-muted-foreground hover:text-foreground'
-          aria-label='Remove quote'
-          onClick={onRemove}
-        >
-          <X className='size-3.5' />
-        </Button>
-      </div>
     </div>
   )
 }
@@ -1031,15 +1080,17 @@ function MessageMeta({
               <RotateCcw />
             </UnavailableMetaAction>
           ) : null}
+          {!isOwner ? (
+            <UnavailableMetaAction
+              availability={chatActionAvailability('read-aloud', message)}
+            >
+              <Volume2 />
+            </UnavailableMetaAction>
+          ) : null}
           <ForkAction onFork={onFork} />
           {!isOwner ? (
             <UnavailableMetaAction
-              availability={{
-                available: false,
-                status: 'planned',
-                reason:
-                  'Sharing is unavailable until a backend contract exists.',
-              }}
+              availability={chatActionAvailability('share', message)}
             >
               <Share2 />
             </UnavailableMetaAction>
@@ -1072,9 +1123,11 @@ function ForkAction({ onFork }: { onFork: () => void }) {
 function UnavailableMetaAction({
   availability,
   children,
+  buttonClassName = 'size-6 shrink-0 text-muted-foreground',
 }: {
   availability: ReturnType<typeof chatActionAvailability>
   children: React.ReactNode
+  buttonClassName?: string
 }) {
   return (
     <Tooltip>
@@ -1085,7 +1138,7 @@ function UnavailableMetaAction({
             variant='ghost'
             size='icon'
             disabled
-            className='size-6 shrink-0 text-muted-foreground'
+            className={buttonClassName}
             aria-label={availability.reason ?? 'Action unavailable'}
           >
             {children}
@@ -1125,14 +1178,16 @@ function InlineSelect({
   items,
   label,
   disabled = false,
+  onValueChange,
 }: {
   value: string
   items: string[]
   label: string
   disabled?: boolean
+  onValueChange?: (value: string) => void
 }) {
   return (
-    <Select defaultValue={value}>
+    <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
         size='sm'
         aria-label={label}
