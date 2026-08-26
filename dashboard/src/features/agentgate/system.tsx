@@ -12,48 +12,29 @@ import {
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
 import { getAgentGate } from './api'
-import { Meter, Sparkline } from './density-primitives'
+import { Meter } from './density-primitives'
 import { AgentGateHeader } from './page-header'
+import {
+  buildSystemOverview,
+  type SourceState,
+  type SystemService,
+  type SystemSnapshot,
+  type SystemStat,
+} from './system-overview'
 
-type System = {
-  vitals: {
-    cpu_percent: number
-    memory: { percent: number }
-    disk: { percent: number }
-    cpu_count: number
-  }
-  backups: { latest: { name: string } }
-  containers: {
-    name: string
-    status: string
-    uptime: string
-    cpu: string
-    memory: string
-  }[]
-  errors?: { at: string; service: string; level: string; message: string }[]
-  packages?: { name: string; current: string; latest: string; state: string }[]
+function stateVariant(state: SourceState) {
+  if (state === 'live' || state === 'empty') return 'secondary'
+  if (state === 'degraded' || state === 'blocked') return 'destructive'
+  return 'outline'
 }
-
-const histories = [
-  [18, 24, 19, 31, 26, 35, 29, 22, 27],
-  [41, 42, 43, 43, 44, 45, 46, 46, 46],
-  [59, 59, 60, 60, 61, 61, 62, 63, 63],
-  [1, 1, 1, 1, 1, 1, 1, 1, 1],
-]
 
 function Stat({
   title,
   value,
   note,
+  state,
   icon: Icon,
-  history,
-}: {
-  title: string
-  value: string
-  note: string
-  icon: typeof Server
-  history: number[]
-}) {
+}: SystemStat & { icon: typeof Server }) {
   return (
     <Card>
       <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-1'>
@@ -61,9 +42,11 @@ function Stat({
         <Icon className='size-4 text-muted-foreground' />
       </CardHeader>
       <CardContent>
-        <p className='font-mono text-2xl font-bold'>{value}</p>
-        <p className='text-xs text-muted-foreground'>{note}</p>
-        <Sparkline values={history} className='mt-3 text-muted-foreground' />
+        <div className='flex items-start justify-between gap-3'>
+          <p className='font-mono text-2xl font-bold'>{value}</p>
+          <Badge variant={stateVariant(state)}>{state}</Badge>
+        </div>
+        <p className='mt-1 text-xs text-muted-foreground'>{note}</p>
       </CardContent>
     </Card>
   )
@@ -72,54 +55,52 @@ function Stat({
 export function SystemPage() {
   const query = useQuery({
     queryKey: ['agentgate', 'system'],
-    queryFn: () => getAgentGate<System>('/api/system'),
+    queryFn: () => getAgentGate<SystemSnapshot>('/api/system'),
   })
-  const system = query.data
+  const overview = buildSystemOverview(query.data)
   return (
     <>
       <AgentGateHeader />
       <Main>
         <div className='mb-6'>
           <p className='text-sm text-muted-foreground'>
-            Runtime health, verified backups, and local service status.
+            Source-bound read-only telemetry from SystemGate. Unknown, empty,
+            and degraded states are shown instead of inferred health.
           </p>
         </div>
+        {query.error ? (
+          <div className='mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive'>
+            SystemGate overview blocked: {query.error.message}
+          </div>
+        ) : null}
         <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-          <Stat
-            title='CPU'
-            value={`${system?.vitals.cpu_percent ?? '—'}%`}
-            note={`${system?.vitals.cpu_count ?? '—'} cores · 15 min`}
-            icon={Server}
-            history={histories[0]}
-          />
-          <Stat
-            title='Memory'
-            value={`${system?.vitals.memory.percent ?? '—'}%`}
-            note='15.8 GB free · 15 min'
-            icon={MemoryStick}
-            history={histories[1]}
-          />
-          <Stat
-            title='Disk'
-            value={`${system?.vitals.disk.percent ?? '—'}%`}
-            note='428 GB free · 15 min'
-            icon={HardDrive}
-            history={histories[2]}
-          />
-          <Stat
-            title='Backup'
-            value='31h'
-            note='Age · policy target 24h'
-            icon={ShieldCheck}
-            history={histories[3]}
-          />
+          {overview.stats.map((stat) => (
+            <Stat
+              key={stat.title}
+              {...stat}
+              icon={
+                stat.title === 'CPU'
+                  ? Server
+                  : stat.title === 'Memory'
+                    ? MemoryStick
+                    : stat.title === 'Disk'
+                      ? HardDrive
+                      : ShieldCheck
+              }
+            />
+          ))}
         </div>
         <section className='mt-6'>
-          <div className='mb-2 border-b pb-3'>
-            <h2 className='text-sm font-medium'>Services</h2>
-            <p className='text-xs text-muted-foreground'>
-              Local components observed by the runtime supervisor.
-            </p>
+          <div className='mb-2 flex items-end justify-between gap-3 border-b pb-3'>
+            <div>
+              <h2 className='text-sm font-medium'>Services</h2>
+              <p className='text-xs text-muted-foreground'>
+                Local components only when SystemGate reports them.
+              </p>
+            </div>
+            <Badge variant={stateVariant(overview.serviceState)}>
+              {overview.serviceState}
+            </Badge>
           </div>
           <Table>
             <TableHeader>
@@ -132,104 +113,78 @@ export function SystemPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(system?.containers ?? []).map((service) => (
-                <TableRow key={service.name}>
-                  <TableCell className='font-medium'>{service.name}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        service.status === 'healthy' ? 'secondary' : 'outline'
-                      }
-                    >
-                      {service.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <code className='font-mono text-xs'>{service.uptime}</code>
-                  </TableCell>
-                  <TableCell>
-                    <Meter
-                      value={Number.parseFloat(service.cpu)}
-                      label='load'
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Meter
-                      value={Math.min(
-                        100,
-                        Math.round(Number.parseFloat(service.memory) / 12)
-                      )}
-                      label={service.memory}
-                    />
+              {overview.services.map((service) => (
+                <ServiceRow key={service.name} service={service} />
+              ))}
+              {!overview.services.length ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className='py-8 text-center text-sm text-muted-foreground'
+                  >
+                    {overview.serviceState === 'degraded'
+                      ? 'SystemGate service source is unavailable.'
+                      : 'SystemGate returned no service rows.'}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : null}
             </TableBody>
           </Table>
         </section>
-        <div className='mt-6 grid gap-8 xl:grid-cols-2'>
-          <section id='history'>
-            <div className='mb-3 border-b pb-3'>
-              <h2 className='text-sm font-medium'>Error log tail</h2>
+        <section className='mt-6'>
+          <div className='mb-3 flex items-end justify-between gap-3 border-b pb-3'>
+            <div>
+              <h2 className='text-sm font-medium'>Backup source</h2>
               <p className='text-xs text-muted-foreground'>
-                Warnings and errors from the active supervisor window.
+                Backup status is displayed only from the SystemGate backup
+                payload.
               </p>
             </div>
-            <div className='space-y-3'>
-              {(system?.errors ?? []).map((entry) => (
-                <div
-                  key={`${entry.at}-${entry.service}`}
-                  className='grid gap-1 border-b pb-3 last:border-0 last:pb-0 sm:grid-cols-[64px_120px_1fr]'
-                >
-                  <code className='font-mono text-xs text-muted-foreground'>
-                    {entry.at}
-                  </code>
-                  <div>
-                    <Badge
-                      variant={
-                        entry.level === 'error' ? 'destructive' : 'outline'
-                      }
-                    >
-                      {entry.service}
-                    </Badge>
-                  </div>
-                  <p className='text-xs leading-5 text-muted-foreground'>
-                    {entry.message}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section id='backups'>
-            <div className='mb-3 border-b pb-3'>
-              <h2 className='text-sm font-medium'>Package freshness</h2>
-              <p className='text-xs text-muted-foreground'>
-                Installed versions compared with the approved channel.
-              </p>
-            </div>
-            <div className='space-y-3'>
-              {(system?.packages ?? []).map((pkg) => (
-                <div
-                  key={pkg.name}
-                  className='flex items-center justify-between gap-4 border-b pb-3 last:border-0 last:pb-0'
-                >
-                  <div>
-                    <p className='text-sm font-medium'>{pkg.name}</p>
-                    <p className='font-mono text-xs text-muted-foreground'>
-                      {pkg.current} → {pkg.latest}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={pkg.state === 'current' ? 'secondary' : 'outline'}
-                  >
-                    {pkg.state}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
+            <Badge variant={stateVariant(overview.backupState)}>
+              {overview.backupState}
+            </Badge>
+          </div>
+          <p className='rounded-xl bg-card p-4 text-sm text-muted-foreground'>
+            {overview.stats.find((stat) => stat.title === 'Backup')?.note ??
+              'No backup source data'}
+          </p>
+        </section>
       </Main>
     </>
+  )
+}
+
+function ServiceRow({ service }: { service: SystemService }) {
+  const cpuValue = Number.parseFloat(service.cpu)
+  const memoryIsPercent = service.memory.trim().endsWith('%')
+  const memoryValue = memoryIsPercent
+    ? Number.parseFloat(service.memory)
+    : Number.NaN
+  return (
+    <TableRow>
+      <TableCell className='font-medium'>{service.name}</TableCell>
+      <TableCell>
+        <Badge variant='outline'>{service.status}</Badge>
+      </TableCell>
+      <TableCell>
+        <code className='font-mono text-xs'>{service.uptime}</code>
+      </TableCell>
+      <TableCell>
+        {Number.isFinite(cpuValue) ? (
+          <Meter value={cpuValue} label='reported load' />
+        ) : (
+          <span className='text-xs text-muted-foreground'>{service.cpu}</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {Number.isFinite(memoryValue) ? (
+          <Meter value={Math.min(100, memoryValue)} label={service.memory} />
+        ) : (
+          <span className='text-xs text-muted-foreground'>
+            {service.memory}
+          </span>
+        )}
+      </TableCell>
+    </TableRow>
   )
 }

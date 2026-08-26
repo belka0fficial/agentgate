@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Bot,
   Brain,
-  FileText,
   Laptop,
   MessageSquarePlus,
   Moon,
@@ -73,7 +72,11 @@ export function CommandMenu() {
   const automations = useQuery({
     queryKey: ['agentgate', 'automations'],
     queryFn: () =>
-      getAgentGate<{ automations: Automation[] }>('/api/automations'),
+      getAgentGate<{
+        jobs?: Automation[]
+        toolgate_automations?: Automation[]
+        automations?: Automation[]
+      }>('/api/automations'),
   })
   const approvals = useQuery({
     queryKey: ['agentgate', 'approvals'],
@@ -101,7 +104,11 @@ export function CommandMenu() {
   const navItems = sidebarData.navGroups.flatMap((group) => group.items)
   const sessionRows = sessions.data?.sessions ?? []
   const memoryRows = memories.data?.memories ?? []
-  const automationRows = automations.data?.automations ?? []
+  const automationRows = [
+    ...(automations.data?.automations ?? []),
+    ...(automations.data?.jobs ?? []),
+    ...(automations.data?.toolgate_automations ?? []),
+  ]
   const approvalRows = approvals.data ?? []
 
   return (
@@ -151,9 +158,7 @@ export function CommandMenu() {
               title='New persona'
               detail='Open the persona roster'
               shortcut='>'
-              onSelect={() =>
-                runCommand(() => navigate({ to: '/character' }))
-              }
+              onSelect={() => runCommand(() => navigate({ to: '/character' }))}
             />
             <PaletteItem
               icon={<Play />}
@@ -226,9 +231,9 @@ export function CommandMenu() {
               <PaletteItem
                 key={automation.id}
                 icon={<Wrench />}
-                value={`automation ${automation.name} ${automation.description} ${automation.status}`}
+                value={`automation ${automation.name} ${automation.status}`}
                 title={automation.name}
-                detail={automation.description}
+                detail='Metadata only; prompts and arguments stay server-side.'
                 shortcut={automation.status}
                 onSelect={() =>
                   runCommand(() => navigate({ to: '/automations' }))
@@ -253,29 +258,6 @@ export function CommandMenu() {
                 }
               />
             ))}
-          </CommandGroup>
-        ) : null}
-
-        {show() ? (
-          <CommandGroup heading='Files / artifacts'>
-            <PaletteItem
-              icon={<FileText />}
-              value='file artifact release-readiness markdown draft'
-              title='release-readiness.md'
-              detail='Local draft artifact · 2.8 KB'
-              shortcut='md'
-              onSelect={() => runCommand(() => navigate({ to: '/chats' }))}
-            />
-            <PaletteItem
-              icon={<FileText />}
-              value='file artifact automation-results csv'
-              title='automation-results.csv'
-              detail='Run history export · 42 rows'
-              shortcut='csv'
-              onSelect={() =>
-                runCommand(() => navigate({ to: '/automations' }))
-              }
-            />
           </CommandGroup>
         ) : null}
 
@@ -391,4 +373,3 @@ function PaletteItem({
     </CommandItem>
   )
 }
-

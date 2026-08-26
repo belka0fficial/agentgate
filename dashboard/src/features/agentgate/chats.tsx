@@ -43,7 +43,7 @@ export function ChatsPage() {
   })
   const createChat = useMutation({
     mutationFn: () =>
-      postAgentGate<ChatSession>('/api/sessions', {
+      postAgentGate<ChatSession>('/api/chats', {
         title: 'New AgentGate conversation',
         agent_id: 'agent_pi_operator',
       }),
@@ -91,10 +91,10 @@ export function ChatsPage() {
               <div>
                 <h3 className='font-medium'>Owner login required</h3>
                 <p className='text-xs text-muted-foreground'>
-                  AgentGate is connected to the Pi adapter. Enter the owner token
-                  once to receive the adapter httpOnly session cookie. The token
-                  is sent only to <code>/api/auth/login</code> and is not stored in
-                  localStorage or bundled into the app.
+                  AgentGate is connected to the Pi adapter. Enter the owner
+                  token once to receive the adapter httpOnly session cookie. The
+                  token is sent only to <code>/api/auth/login</code> and is not
+                  stored in localStorage or bundled into the app.
                 </p>
               </div>
               <div className='flex gap-2'>
@@ -126,53 +126,53 @@ export function ChatsPage() {
               No Pi sessions yet. Start a new chat to create one.
             </div>
           ) : !needsOwnerLogin ? (
-          <Table className='min-w-[900px]'>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Session</TableHead>
-                <TableHead>Last message</TableHead>
-                <TableHead>Run context</TableHead>
-                <TableHead>Turns</TableHead>
-                <TableHead>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className='cursor-pointer hover:bg-muted/45'
-                >
-                  <TableCell className='p-0' colSpan={5}>
-                    <Link
-                      to='/chats/$id'
-                      params={{ id: row.id }}
-                      className='grid min-w-0 grid-cols-[minmax(180px,1.2fr)_minmax(240px,2fr)_minmax(160px,1fr)_100px_120px] items-center gap-4 px-2 py-4 text-sm'
-                      aria-label={`Open ${row.title}`}
-                    >
-                      <span className='min-w-0 font-medium'>{row.title}</span>
-                      <span className='min-w-0 truncate text-muted-foreground'>
-                        {row.preview}
-                      </span>
-                      <span className='flex min-w-0 flex-wrap gap-1'>
-                        <Badge variant='outline'>
-                          {row.model ?? 'provider pending'}
-                        </Badge>
-                        <Badge variant='secondary'>
-                          {sessionContextLabel(row.mode)}
-                        </Badge>
-                      </span>
-                      <code className='font-mono text-xs'>
-                        {row.message_count ?? '—'}
-                      </code>
-                      <code className='font-mono text-xs text-muted-foreground'>
-                        {relativeTime(row.updated_at)}
-                      </code>
-                    </Link>
-                  </TableCell>
+            <Table className='min-w-[900px]'>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Last message</TableHead>
+                  <TableHead>Run context</TableHead>
+                  <TableHead>Turns</TableHead>
+                  <TableHead>Updated</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className='cursor-pointer hover:bg-muted/45'
+                  >
+                    <TableCell className='p-0' colSpan={5}>
+                      <Link
+                        to='/chats/$id'
+                        params={{ id: row.id }}
+                        className='grid min-w-0 grid-cols-[minmax(180px,1.2fr)_minmax(240px,2fr)_minmax(160px,1fr)_100px_120px] items-center gap-4 px-2 py-4 text-sm'
+                        aria-label={`Open ${row.title}`}
+                      >
+                        <span className='min-w-0 font-medium'>{row.title}</span>
+                        <span className='min-w-0 truncate text-muted-foreground'>
+                          {row.preview}
+                        </span>
+                        <span className='flex min-w-0 flex-wrap gap-1'>
+                          <Badge variant='outline'>
+                            {row.model ?? 'provider pending'}
+                          </Badge>
+                          <Badge variant='secondary'>
+                            {sessionContextLabel(row.mode)}
+                          </Badge>
+                        </span>
+                        <code className='font-mono text-xs'>
+                          {row.message_count ?? '—'}
+                        </code>
+                        <code className='font-mono text-xs text-muted-foreground'>
+                          {relativeTime(row.updated_at)}
+                        </code>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : null}
         </section>
       </Main>

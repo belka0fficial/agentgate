@@ -44,7 +44,14 @@ export type ChatMessage = {
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text()
-  const isJson = response.headers.get('content-type')?.includes('application/json')
+  const isJson = response.headers
+    .get('content-type')
+    ?.includes('application/json')
+  if (text && !isJson) {
+    throw new Error(
+      `Expected JSON response from ${response.url || 'AgentGate API'}`
+    )
+  }
   const payload = text && isJson ? JSON.parse(text) : text
 
   if (!response.ok) {
@@ -102,7 +109,7 @@ export async function postAgentGate<T>(
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      ...(csrfToken ? { 'x-agentgate-csrf': csrfToken } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
       ...headers,
     },
     body: JSON.stringify(body ?? {}),
@@ -116,7 +123,9 @@ export async function postAgentGate<T>(
 }
 
 export async function loginAgentGateOwner(ownerToken: string) {
-  return postAgentGate<OwnerSession>('/api/auth/login', { owner_token: ownerToken })
+  return postAgentGate<OwnerSession>('/api/auth/login', {
+    owner_token: ownerToken,
+  })
 }
 
 export async function logoutAgentGateOwner() {
@@ -130,6 +139,12 @@ export type GatewayHealth = {
   service: string
   pi?: string
   owner_auth?: string
+}
+
+export type DependencyHealth = {
+  name: string
+  status: string
+  detail?: { source?: string; message?: string } | string
 }
 
 export type ModelProvider = {
@@ -229,7 +244,14 @@ export type ModelSummary = {
   }
   providers?: Pick<
     ModelProvider,
-    'id' | 'name' | 'kind' | 'status' | 'configured' | 'models_visible' | 'model_count' | 'models_status'
+    | 'id'
+    | 'name'
+    | 'kind'
+    | 'status'
+    | 'configured'
+    | 'models_visible'
+    | 'model_count'
+    | 'models_status'
   >[]
 }
 
@@ -238,7 +260,11 @@ export async function getOwnerSession() {
 }
 
 export async function getGatewayHealth() {
-  return getAgentGate<GatewayHealth>('/health/detailed')
+  return getAgentGate<GatewayHealth>('/api/health')
+}
+
+export async function getDependencyHealth() {
+  return getAgentGate<DependencyHealth[]>('/api/health/dependencies')
 }
 
 export async function getModelProviders() {
@@ -250,7 +276,10 @@ export async function getModelGatewayCandidates() {
 }
 
 export async function checkModelRoute(provider: string, model: string) {
-  return postAgentGate<ModelRouteProbe>('/api/model/route-check', { provider, model })
+  return postAgentGate<ModelRouteProbe>('/api/model/route-check', {
+    provider,
+    model,
+  })
 }
 
 export async function planModelRoute(payload: {
@@ -263,21 +292,31 @@ export async function planModelRoute(payload: {
   return postAgentGate<ModelRoutePlan>('/api/model/route-plan', payload)
 }
 
-export async function saveModelRoute(agentId: string, payload: {
-  primary_provider: string
-  primary_model: string
-  fallback_provider: string
-  fallback_model: string
-  reason: string
-}) {
-  return postAgentGate<ModelRouteSaveResult>(`/api/model/routes/${encodeURIComponent(agentId)}/save`, payload)
+export async function saveModelRoute(
+  agentId: string,
+  payload: {
+    primary_provider: string
+    primary_model: string
+    fallback_provider: string
+    fallback_model: string
+    reason: string
+  }
+) {
+  return postAgentGate<ModelRouteSaveResult>(
+    `/api/model/routes/${encodeURIComponent(agentId)}/save`,
+    payload
+  )
 }
 
 export async function deleteAgentGate<T>(path: string): Promise<T> {
+  await getCsrfToken()
   const response = await fetch(path, {
     method: 'DELETE',
     credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'X-CSRF-Token': cachedCsrfToken ?? '',
+    },
   })
   return parseResponse<T>(response)
 }

@@ -26,15 +26,16 @@ import {
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
 import { getAgentGate, relativeTime } from './api'
+import {
+  buildMemoryDetail,
+  memoryOverviewErrors,
+  memoryOverviewState,
+  normalizeMemoryRecords,
+  type MemoryRecord,
+  type MemoryState,
+} from './memory-overview'
 import { AgentGateHeader } from './page-header'
 
-type MemoryRecord = {
-  id: string
-  title: string
-  kind: string
-  confidence: string
-  updated_at: string
-}
 const kinds = [
   'all',
   'policy',
@@ -43,31 +44,50 @@ const kinds = [
   'research',
   'project',
   'runbook',
+  'pattern',
+  'unknown',
 ]
+
+function stateVariant(state: MemoryState) {
+  if (state === 'fact') return 'secondary'
+  if (state === 'pattern' || state === 'theory') return 'outline'
+  return 'outline'
+}
 
 export function MemoryPage() {
   const [kind, setKind] = useState('all')
   const [sort, setSort] = useState('confidence')
-  const [selectedId, setSelectedId] = useState('mem_001')
+  const [selectedId, setSelectedId] = useState('')
   const query = useQuery({
     queryKey: ['agentgate', 'memory'],
-    queryFn: () =>
-      getAgentGate<{ memories: MemoryRecord[] }>('/api/gates/memorygate'),
+    queryFn: () => getAgentGate<unknown>('/api/gates/memorygate'),
   })
+  const allRecords = useMemo(
+    () => normalizeMemoryRecords(query.data),
+    [query.data]
+  )
+  const memoryErrors = useMemo(
+    () => memoryOverviewErrors(query.data),
+    [query.data]
+  )
   const records = useMemo(
     () =>
-      (query.data?.memories ?? [])
-        .filter((item) => kind === 'all' || item.kind === kind)
+      allRecords
+        .filter(
+          (item) => kind === 'all' || item.kind === kind || item.state === kind
+        )
         .sort((a, b) =>
           sort === 'date'
-            ? +new Date(b.updated_at) - +new Date(a.updated_at)
+            ? +new Date(b.updated_at ?? 0) - +new Date(a.updated_at ?? 0)
             : rank(b.confidence) - rank(a.confidence)
         ),
-    [query.data, kind, sort]
+    [allRecords, kind, sort]
   )
   const selected =
-    (query.data?.memories ?? []).find((item) => item.id === selectedId) ??
-    records[0]
+    allRecords.find((item) => item.id === selectedId) ?? records[0]
+  const sourceState = query.isLoading
+    ? 'unknown'
+    : memoryOverviewState(query.data, allRecords)
 
   return (
     <>
@@ -84,60 +104,69 @@ export function MemoryPage() {
       <Main>
         <p className='mb-6 text-sm text-muted-foreground'>
           Durable context, evidence, and operational knowledge retained by
-          MemoryGate.
+          MemoryGate. Facts, theories, patterns, empty, and unknown states stay
+          distinct.
         </p>
+        {query.error || memoryErrors.length ? (
+          <div className='mb-4 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive'>
+            MemoryGate overview degraded:{' '}
+            {query.error?.message ?? memoryErrors.join('; ')}
+          </div>
+        ) : null}
         <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <section>
-            <div className='mb-4 border-b pb-3'>
-              <h2 className='text-sm font-medium'>Stored context</h2>
-              <p className='text-xs text-muted-foreground'>
-                Evidence-backed memories available to the agent when relevant.
-              </p>
+            <div className='mb-4 flex items-end justify-between gap-3 border-b pb-3'>
+              <div>
+                <h2 className='text-sm font-medium'>Stored context</h2>
+                <p className='text-xs text-muted-foreground'>
+                  Records shown only when returned by MemoryGate overview.
+                </p>
+              </div>
+              <Badge
+                variant={
+                  sourceState === 'live'
+                    ? 'secondary'
+                    : sourceState === 'degraded'
+                      ? 'destructive'
+                      : 'outline'
+                }
+              >
+                {sourceState}
+              </Badge>
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Memory</TableHead>
                   <TableHead>Kind</TableHead>
+                  <TableHead>State</TableHead>
                   <TableHead>Confidence</TableHead>
                   <TableHead>Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {records.map((item) => (
-                  <TableRow
+                  <MemoryRow
                     key={item.id}
-                    onClick={() => setSelectedId(item.id)}
-                    className={cn(
-                      'cursor-pointer',
-                      selected?.id === item.id && 'bg-muted/50'
-                    )}
-                  >
-                    <TableCell>
-                      <p className='font-medium'>{item.title}</p>
-                      <code className='font-mono text-xs text-muted-foreground'>
-                        {item.id}
-                      </code>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant='outline'>{item.kind}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          item.confidence === 'high' ? 'secondary' : 'outline'
-                        }
-                      >
-                        {item.confidence}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <code className='font-mono text-xs'>
-                        {relativeTime(item.updated_at)}
-                      </code>
+                    item={item}
+                    selected={selected?.id === item.id}
+                    onSelect={() => setSelectedId(item.id)}
+                  />
+                ))}
+                {!records.length ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className='py-8 text-center text-sm text-muted-foreground'
+                    >
+                      {query.isLoading
+                        ? 'Loading MemoryGate overview...'
+                        : sourceState === 'degraded'
+                          ? 'MemoryGate returned errors for this overview; no safe memory rows are available.'
+                          : 'MemoryGate returned no memories for this view.'}
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : null}
               </TableBody>
             </Table>
           </section>
@@ -145,6 +174,46 @@ export function MemoryPage() {
         </div>
       </Main>
     </>
+  )
+}
+
+function MemoryRow({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: MemoryRecord
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <TableRow
+      onClick={onSelect}
+      className={cn('cursor-pointer', selected && 'bg-muted/50')}
+    >
+      <TableCell>
+        <p className='font-medium'>{item.title}</p>
+        <code className='font-mono text-xs text-muted-foreground'>
+          {item.id}
+        </code>
+      </TableCell>
+      <TableCell>
+        <Badge variant='outline'>{item.kind}</Badge>
+      </TableCell>
+      <TableCell>
+        <Badge variant={stateVariant(item.state)}>{item.state}</Badge>
+      </TableCell>
+      <TableCell>
+        <Badge variant={item.confidence === 'high' ? 'secondary' : 'outline'}>
+          {item.confidence}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <code className='font-mono text-xs'>
+          {relativeTime(item.updated_at)}
+        </code>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -200,16 +269,17 @@ function MemoryDetail({ memory }: { memory?: MemoryRecord }) {
     return (
       <Card>
         <CardContent className='py-10 text-center text-sm text-muted-foreground'>
-          Select a memory to inspect its evidence.
+          Select a memory when MemoryGate returns one.
         </CardContent>
       </Card>
     )
+  const detail = buildMemoryDetail(memory)
   return (
     <Card className='h-fit xl:sticky xl:top-4'>
       <CardHeader>
         <div className='flex items-center justify-between gap-3'>
-          <CardTitle>Evidence detail</CardTitle>
-          <Badge variant='secondary'>{memory.confidence}</Badge>
+          <CardTitle>Source detail</CardTitle>
+          <Badge variant={stateVariant(memory.state)}>{memory.state}</Badge>
         </div>
         <CardDescription>
           <code className='font-mono'>{memory.id}</code>
@@ -220,31 +290,18 @@ function MemoryDetail({ memory }: { memory?: MemoryRecord }) {
           <p className='mb-1 text-xs font-medium text-muted-foreground'>
             Claim
           </p>
-          <p className='text-sm leading-6'>{memory.title}</p>
+          <p className='text-sm leading-6'>{detail.claim}</p>
         </div>
         <div>
           <p className='mb-2 text-xs font-medium text-muted-foreground'>
-            Evidence chain
+            Evidence/source references
           </p>
           <ol className='space-y-3 border-l pl-4 text-sm'>
-            <li>
-              <p className='font-medium'>Source observed</p>
-              <p className='text-xs text-muted-foreground'>
-                Operator policy · signed revision 14
-              </p>
-            </li>
-            <li>
-              <p className='font-medium'>Claim extracted</p>
-              <p className='text-xs text-muted-foreground'>
-                MemoryGate · deterministic parser
-              </p>
-            </li>
-            <li>
-              <p className='font-medium'>Verified</p>
-              <p className='text-xs text-muted-foreground'>
-                Cross-checked against active ToolGate policy
-              </p>
-            </li>
+            {detail.evidence.map((line) => (
+              <li key={line}>
+                <p className='text-xs text-muted-foreground'>{line}</p>
+              </li>
+            ))}
           </ol>
         </div>
         <div>
@@ -252,15 +309,23 @@ function MemoryDetail({ memory }: { memory?: MemoryRecord }) {
             Linked entities
           </p>
           <div className='flex flex-wrap gap-2'>
-            <Badge variant='outline'>release-0.8</Badge>
-            <Badge variant='outline'>ToolGate</Badge>
-            <Badge variant='outline'>Owner</Badge>
+            {detail.linkedEntities.length ? (
+              detail.linkedEntities.map((entity) => (
+                <Badge key={entity} variant='outline'>
+                  {entity}
+                </Badge>
+              ))
+            ) : (
+              <span className='text-xs text-muted-foreground'>
+                Not provided by MemoryGate overview.
+              </span>
+            )}
           </div>
         </div>
         <div className='rounded-md bg-muted p-3'>
           <p className='text-xs text-muted-foreground'>Source</p>
           <code className='mt-1 block font-mono text-xs break-all'>
-            policy://repository/external-effects@14
+            {detail.source}
           </code>
         </div>
       </CardContent>

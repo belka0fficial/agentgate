@@ -12,6 +12,7 @@ type Suggestion = {
   theme?: string
   priority?: string
   confidence?: number
+  confidence_label?: string
 }
 export function SuggestionsPage() {
   const query = useQuery({
@@ -67,7 +68,11 @@ export function SuggestionsPage() {
                         {item.priority ?? 'medium'} priority
                       </Badge>
                       <Badge variant='secondary'>
-                        {item.confidence ?? 0}% confidence
+                        {item.confidence_label ??
+                          (typeof item.confidence === 'number'
+                            ? `${item.confidence}%`
+                            : 'unknown')}{' '}
+                        confidence
                       </Badge>
                     </div>
                     <p className='pl-7 text-xs leading-5 text-muted-foreground'>

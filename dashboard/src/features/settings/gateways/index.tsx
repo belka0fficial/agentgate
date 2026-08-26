@@ -35,11 +35,13 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   checkModelRoute,
   getAgentGate,
+  getDependencyHealth,
   getGatewayHealth,
   getModelGatewayCandidates,
   getModelProviders,
   getOwnerSession,
   saveModelRoute,
+  type DependencyHealth,
   type GatewayHealth,
   type ModelGatewayCandidates,
   type ModelProvider,
@@ -48,6 +50,11 @@ import {
   type OwnerSession,
 } from '@/features/agentgate/api'
 import { ContentSection } from '../components/content-section'
+import {
+  buildGatewayRows,
+  dependencyStatus,
+  gatewayBadgeVariant,
+} from './gateway-overview'
 
 type Agent = {
   id: string
@@ -63,6 +70,7 @@ type AgentsPayload = { agents: Agent[] }
 type QueryBlock = {
   session?: OwnerSession
   health?: GatewayHealth
+  dependencies?: DependencyHealth[]
   providers?: ModelProvider[]
   gateway?: ModelGatewayCandidates
   agents?: Agent[]
@@ -70,39 +78,6 @@ type QueryBlock = {
   error?: Error
   refresh: () => void
 }
-
-const gatewayRows = [
-  {
-    name: 'AgentGate UI',
-    role: 'Owner settings and control plane',
-    channel: 'same-origin browser calls',
-    status: 'local',
-  },
-  {
-    name: 'Pi adapter',
-    role: 'Runtime facade and owner-auth boundary',
-    channel: '/api/* + /health through Vite proxy',
-    status: 'source-bound',
-  },
-  {
-    name: 'MemoryGate',
-    role: 'Scoped context and evidence memory',
-    channel: 'Pi adapter gate client',
-    status: 'behind facade',
-  },
-  {
-    name: 'ToolGate',
-    role: 'Tool execution policy, approvals, audit',
-    channel: 'Pi adapter gate client',
-    status: 'approval boundary',
-  },
-  {
-    name: 'SystemGate',
-    role: 'Read-only host telemetry',
-    channel: 'Pi adapter gate client',
-    status: 'read-only',
-  },
-]
 
 export function GatewaySettings() {
   const session = useQuery({
@@ -113,6 +88,11 @@ export function GatewaySettings() {
   const health = useQuery({
     queryKey: ['agentgate', 'gateway-health'],
     queryFn: getGatewayHealth,
+    retry: false,
+  })
+  const dependencies = useQuery({
+    queryKey: ['agentgate', 'dependency-health'],
+    queryFn: getDependencyHealth,
     retry: false,
   })
   const providers = useQuery({
@@ -134,18 +114,21 @@ export function GatewaySettings() {
   const block: QueryBlock = {
     session: session.data,
     health: health.data,
+    dependencies: dependencies.data,
     providers: providers.data?.providers,
     gateway: gateway.data,
     agents: agents.data?.agents,
     loading:
       session.isLoading ||
       health.isLoading ||
+      dependencies.isLoading ||
       providers.isLoading ||
       gateway.isLoading ||
       agents.isLoading,
     error: firstError(
       session.error,
       health.error,
+      dependencies.error,
       providers.error,
       gateway.error,
       agents.error
@@ -153,6 +136,7 @@ export function GatewaySettings() {
     refresh: () => {
       void session.refetch()
       void health.refetch()
+      void dependencies.refetch()
       void providers.refetch()
       void gateway.refetch()
       void agents.refetch()
@@ -224,6 +208,20 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
   })
   const gateway = block.gateway?.gateway
   const blockers = block.gateway?.setup?.blockers ?? []
+  const dependencyByName = new Map(
+    (block.dependencies ?? []).map((dependency) => [
+      dependency.name,
+      dependencyStatus(dependency.status),
+    ])
+  )
+  const gatewayRows = buildGatewayRows({
+    healthStatus: block.health?.status,
+    ownerAuthenticated: block.session?.owner_authenticated,
+    providerStatus: gateway?.status,
+    memorygateStatus: dependencyByName.get('memorygate'),
+    toolgateStatus: dependencyByName.get('toolgate'),
+    systemgateStatus: dependencyByName.get('systemgate'),
+  })
 
   if (block.loading) {
     return <GatewaySkeleton />
@@ -289,7 +287,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           desc='Professional boundary: every gate talks through the Pi adapter facade, not through browser secrets or random direct sockets.'
         />
         <div className='overflow-hidden rounded-xl border'>
-          {gatewayRows.map((row, index) => (
+          {gatewayRows.map((row) => (
             <div
               key={row.name}
               className='grid gap-2 border-b p-4 last:border-b-0 md:grid-cols-[180px_1fr_220px_140px] md:items-center'
@@ -299,7 +297,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
               <code className='text-xs text-muted-foreground'>
                 {row.channel}
               </code>
-              <Badge variant={index === 0 ? 'secondary' : 'outline'}>
+              <Badge variant={gatewayBadgeVariant(row.status)}>
                 {row.status}
               </Badge>
             </div>

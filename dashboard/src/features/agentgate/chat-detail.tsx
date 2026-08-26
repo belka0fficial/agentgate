@@ -168,7 +168,10 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     })
   }
 
-  const messages = conversation.data?.messages && chatState !== 'empty' ? conversation.data.messages : []
+  const messages =
+    conversation.data?.messages && chatState !== 'empty'
+      ? conversation.data.messages
+      : []
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -664,10 +667,18 @@ async function streamChatTurn(
     extendedThinking: boolean
   }
 ) {
-  const response = await fetch(`/api/sessions/${sessionId}/chat/stream`, {
+  const response = await fetch(`/api/chats/${sessionId}/stream`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'X-CSRF-Token':
+        document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('agentgate_csrf='))
+          ?.split('=')[1] ?? '',
+    },
     body: JSON.stringify({
       input,
       memory_enabled: options.memoryOn,
@@ -867,7 +878,9 @@ function Composer({
           })
             .then(() => onSend?.())
             .catch((error: unknown) => {
-              setSendError(error instanceof Error ? error.message : 'Chat request failed')
+              setSendError(
+                error instanceof Error ? error.message : 'Chat request failed'
+              )
               setValue(input)
             })
             .finally(() => setSending(false))
@@ -882,7 +895,9 @@ function Composer({
           />
         ) : null}
         {sendError ? (
-          <div className='border-b px-4 py-2 text-xs text-destructive'>{sendError}</div>
+          <div className='border-b px-4 py-2 text-xs text-destructive'>
+            {sendError}
+          </div>
         ) : null}
         {sendError ? (
           <div className='border-b px-4 py-2 text-xs text-destructive'>

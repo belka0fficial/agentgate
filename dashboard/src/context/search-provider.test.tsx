@@ -77,7 +77,7 @@ describe('SearchProvider and CommandMenu', () => {
           : path.includes('/api/gates/memorygate')
             ? { memories: [] }
             : path.includes('/api/automations')
-              ? { automations: [] }
+              ? { jobs: [], toolgate_automations: [] }
               : path.includes('/api/approvals')
                 ? []
                 : {}

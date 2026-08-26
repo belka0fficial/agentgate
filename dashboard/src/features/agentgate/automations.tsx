@@ -18,7 +18,6 @@ type Job = {
   id: string
   name?: string
   title?: string
-  prompt?: string
   schedule?: string
   next_run?: string
   next?: string
@@ -26,17 +25,27 @@ type Job = {
   paused?: boolean
   last_status?: string
   last_run?: string
-  last_output?: string
-  output?: string
 }
 
-type JobsResponse = Job[] | { jobs?: Job[] }
+type SourceError = { source?: string; message?: string } | string | null
+
+type AutomationOverviewResponse = {
+  jobs?: Job[]
+  toolgate_automations?: Job[]
+  errors?: Record<string, SourceError>
+}
+
+function errorMessage(error: SourceError | undefined) {
+  if (!error) return null
+  if (typeof error === 'string') return error
+  return error.message ?? error.source ?? 'Source unavailable'
+}
 
 export function JobsPage() {
   const queryClient = useQueryClient()
   const query = useQuery({
-    queryKey: ['agentgate', 'jobs'],
-    queryFn: () => getAgentGate<JobsResponse>('/api/cron/jobs'),
+    queryKey: ['agentgate', 'automations'],
+    queryFn: () => getAgentGate<AutomationOverviewResponse>('/api/automations'),
   })
   const action = useMutation({
     mutationFn: ({
@@ -50,10 +59,13 @@ export function JobsPage() {
         `/api/cron/jobs/${encodeURIComponent(jobId)}/${actionName}`
       ),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['agentgate', 'jobs'] }),
+      queryClient.invalidateQueries({ queryKey: ['agentgate', 'automations'] }),
   })
 
-  const jobs = Array.isArray(query.data) ? query.data : (query.data?.jobs ?? [])
+  const jobs = query.data?.jobs ?? []
+  const toolgateAutomations = query.data?.toolgate_automations ?? []
+  const brainError = errorMessage(query.data?.errors?.brain)
+  const toolgateError = errorMessage(query.data?.errors?.toolgate)
 
   return (
     <>
@@ -72,6 +84,11 @@ export function JobsPage() {
               Source-bound schedules and outputs from the Pi/runtime adapter.
             </p>
           </div>
+          {brainError ? (
+            <div className='mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive'>
+              Brain jobs degraded: {brainError}
+            </div>
+          ) : null}
           <Table>
             <TableHeader>
               <TableRow>
@@ -105,7 +122,7 @@ export function JobsPage() {
                           {item.name ?? item.title ?? item.id}
                         </p>
                         <p className='max-w-sm text-xs text-muted-foreground'>
-                          {item.prompt ?? 'No prompt summary available'}
+                          Runtime job metadata only; prompts stay server-side.
                         </p>
                       </TableCell>
                       <TableCell>
@@ -126,7 +143,7 @@ export function JobsPage() {
                           </code>
                         </div>
                         <p className='mt-1 max-w-56 truncate text-xs text-muted-foreground'>
-                          {item.last_output ?? item.output ?? 'No output'}
+                          Output withheld from overview.
                         </p>
                       </TableCell>
                       <TableCell>
@@ -174,6 +191,65 @@ export function JobsPage() {
                     </TableRow>
                   )
                 })
+              )}
+            </TableBody>
+          </Table>
+        </section>
+
+        <section className='mt-6'>
+          <div className='mb-2 border-b pb-3'>
+            <h2 className='text-sm font-medium'>ToolGate automations</h2>
+            <p className='text-xs text-muted-foreground'>
+              Sanitized automation metadata only. Tool arguments stay inside
+              ToolGate.
+            </p>
+          </div>
+          {toolgateError ? (
+            <div className='mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive'>
+              ToolGate automations degraded: {toolgateError}
+            </div>
+          ) : null}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Automation</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Schedule</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {toolgateAutomations.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className='py-8 text-sm text-muted-foreground'
+                  >
+                    No ToolGate automations reported.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                toolgateAutomations.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <p className='font-medium'>
+                        {item.name ?? item.title ?? item.id}
+                      </p>
+                      <p className='max-w-sm text-xs text-muted-foreground'>
+                        Arguments withheld from overview.
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant='outline'>
+                        {item.status ?? 'unknown'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <code className='font-mono text-xs'>
+                        {item.schedule ?? '—'}
+                      </code>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
