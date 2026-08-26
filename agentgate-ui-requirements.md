@@ -1,5 +1,7 @@
 # AgentGate UI Overhaul — Requirements & Design System
 
+> **Historical UI calibration.** Preserve this file for visual reasoning, but use [`docs/README.md`](docs/README.md) and the current screen specifications/plans for product structure. Its Suggestions, merged Automations, one-character, and navigation assumptions are no longer authoritative.
+
 You are redesigning the AgentGate dashboard. This document is the complete requirement set. Loop on it until every acceptance item passes. Do not substitute your own aesthetic defaults — every deviation from a mainstream dashboard template in here is deliberate.
 
 ## Context

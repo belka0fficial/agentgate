@@ -65,6 +65,10 @@ docker compose up -d --build agentgate
 - `docs/ui/current/` holds the official latest screenshot register for review.
 - `docs/ui/archive/` holds earlier UI passes, experiments, and calibration captures.
 - `docs/refs/` holds visual and motion references used during the redesign process.
+- `docs/README.md` is the authoritative documentation index.
+- `docs/product/` holds current product behavior, including Continuous Improvement and Technology Intelligence.
+- `docs/architecture/` holds system ownership and Software Supply Chain design.
+- `docs/references/technology-catalog.md` records repository/technology adoption decisions.
 
 ## Brain MCP Output Bridge
 

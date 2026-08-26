@@ -17,3 +17,6 @@ dashboard/dist/
 dashboard/.vite/
 dashboard/.tanstack/
 dashboard/.playwright-cli/
+
+# Local-only visual references with unknown redistribution rights
+docs/refs/focus-presence/*.png

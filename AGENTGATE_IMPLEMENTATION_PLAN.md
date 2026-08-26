@@ -1,5 +1,7 @@
 # AgentGate Implementation Plan
 
+> **Superseded implementation plan.** Use [`docs/README.md`](docs/README.md) and [the current architecture/foundation plan](.hermes/plans/2026-08-26_012753-agentgate-product-architecture-foundation.md). This document predates the Companion/Worker/Team/Flow taxonomy, Jobs versus ToolGate Automations split, Software Supply Chain, Continuous Improvement, and Technology Intelligence.
+
 ## 1. Purpose
 
 AgentGate is a local-first, single-owner personal agent dashboard for Hermes.

@@ -1,5 +1,7 @@
 # AgentGate Product Notes
 
+> **Historical product exploration.** Current authority starts at [`docs/README.md`](docs/README.md), including the clarified taxonomy, Software Supply Chain, Continuous Improvement, Technology Intelligence, and repository catalog. When this file conflicts with current docs or accepted plans, the current docs win.
+
 AgentGate is the personal AI dashboard for Hermes, a custom personal agent built
 on top of ToolGate and MemoryGate.
 
