@@ -27,7 +27,7 @@ def test_apps_registry_returns_safe_source_bound_metadata(monkeypatch, tmp_path)
             "description": "Private note project",
             "url": "http://127.0.0.1:9000",
             "health_url": "http://127.0.0.1:9000/health",
-            "status": "available",
+            "status": "unknown",
             "source": "brain",
             "source_ref": "app-registry:notes",
             "pinned": True,
@@ -44,7 +44,7 @@ def test_apps_registry_returns_safe_source_bound_metadata(monkeypatch, tmp_path)
             "id": body["apps"][0]["id"],
             "name": "Safe Notes",
             "purpose": "Private note project",
-            "status": "available",
+            "status": "unknown",
             "source": "brain",
             "source_ref": "app-registry:notes",
             "pinned": True,
@@ -100,3 +100,18 @@ def test_apps_detail_and_lifecycle_are_approval_bound(monkeypatch, tmp_path):
     encoded = str({"detail": detail.json(), "create": create_plan.json(), "start": start.json()})
     for unsafe in ("localhost", "http://", "url", "command", "raw", "args"):
         assert unsafe not in encoded
+
+
+
+def test_app_creation_plan_withholds_path_source_refs(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+    with TestClient(app) as client:
+        login(client)
+        response = client.post("/api/apps", headers=csrf_headers(client), json={"name": "A", "url": "http://localhost:3000", "source_ref": "C:projects/app"})
+    assert response.status_code == 200
+    assert response.json()["app"]["source_ref"] == "reference withheld"

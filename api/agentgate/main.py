@@ -751,7 +751,7 @@ def safe_opaque_ref(value: Any, fallback: str = "not provided") -> str:
     if not isinstance(value, str) or not value.strip():
         return fallback
     text = value.strip()
-    if "/" in text or "\\" in text or "://" in text or len(text) > 120:
+    if "/" in text or "\\" in text or "://" in text or re.match(r"^[A-Za-z]:", text) or len(text) > 120:
         return "reference withheld"
     if not re.fullmatch(r"[A-Za-z0-9._:-]{1,120}", text):
         return "reference withheld"
@@ -763,7 +763,7 @@ def safe_app_record(item: dict[str, Any], index: int = 0) -> dict[str, Any]:
         "id": safe_browser_string(item.get("id"), f"app-{index + 1}"),
         "name": safe_browser_string(item.get("name"), "App"),
         "purpose": safe_browser_string(item.get("description") or item.get("purpose"), "not provided"),
-        "status": safe_browser_string(item.get("status"), "unknown").lower(),
+        "status": safe_browser_string(item.get("status"), "unknown").lower() if safe_browser_string(item.get("status"), "unknown").lower() in ALLOWED_SOURCE_STATUSES else "unknown",
         "source": safe_browser_string(item.get("source"), "agentgate-local-registry"),
         "source_ref": safe_opaque_ref(item.get("source_ref")),
         "pinned": bool(item.get("pinned", False)),
@@ -1484,7 +1484,7 @@ async def create_app(payload: AppInput):
             "name": safe_browser_string(payload.name, "App"),
             "purpose": safe_browser_string(payload.description, "not provided"),
             "source": safe_browser_string(payload.source, "manual"),
-            "source_ref": safe_browser_string(payload.source_ref, "not provided"),
+            "source_ref": safe_opaque_ref(payload.source_ref),
             "pinned": bool(payload.pinned),
             "lifecycle": app_lifecycle_unavailable(),
         },
