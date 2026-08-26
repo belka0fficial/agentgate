@@ -7,7 +7,8 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { playwright } from '@vitest/browser-playwright'
 
 // https://vite.dev/config/
-const agentGateApiTarget = process.env.AGENTGATE_API_TARGET || 'http://127.0.0.1:8644'
+const agentGateApiTarget =
+  process.env.AGENTGATE_API_TARGET || 'http://127.0.0.1:8644'
 const ownerToken = process.env.AGENTGATE_OWNER_TOKEN || ''
 
 export default defineConfig({

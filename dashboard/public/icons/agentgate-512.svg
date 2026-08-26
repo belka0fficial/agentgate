@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="AgentGate">
+  <rect width="512" height="512" rx="116" fill="#050608"/>
+  <path d="M256 86 403.8 171.3v170.6L256 427.2 108.2 341.9V171.3L256 86Z" fill="none" stroke="#2dd4bf" stroke-width="28" stroke-linejoin="round"/>
+  <path d="M256 147.3 350.7 202v109.4L256 366.1l-94.7-54.7V202L256 147.3Z" fill="#0f172a" stroke="#94a3b8" stroke-width="18" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="48" fill="#f8fafc"/>
+  <circle cx="256" cy="256" r="18" fill="#050608"/>
+</svg>

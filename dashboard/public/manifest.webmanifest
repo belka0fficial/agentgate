@@ -1,0 +1,25 @@
+{
+  "name": "AgentGate",
+  "short_name": "AgentGate",
+  "description": "Private command surface for a local personal agent.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/agentgate-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/agentgate-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
