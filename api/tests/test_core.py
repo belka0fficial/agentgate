@@ -325,7 +325,7 @@ def test_verification_view_redacts_unsafe_identifiers(monkeypatch, tmp_path):
     encoded = str(response.json())
     for unsafe in ("api.anthropic.com", "/home/alexeybe1kin", "/etc/passwd", "/var/run/docker.sock", "file://"):
         assert unsafe not in encoded
-    item = response.json()[0]
+    item = response.json()["pending"][0]
     assert item["source_id"] == "reference withheld"
     assert item["session_id"] == "reference withheld"
     assert item["run_id"] == "reference withheld"

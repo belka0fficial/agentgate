@@ -1,17 +1,16 @@
 export type Approval = {
   id: string
   source: string
+  source_id: string
+  status: string
   severity: 'high' | 'medium' | 'low'
   title: string
   details: string
   binding: { type: string; id: string; version: string; digest: string }
+  action?: Record<string, unknown>
   created_at: string
-}
-
-export type DecidedApproval = Approval & {
-  decision: 'approved' | 'rejected'
-  decided_at: string
-  decided_by: string
+  expires_at?: string
+  action_payload_withheld?: boolean
 }
 
 export type ChatSession = {

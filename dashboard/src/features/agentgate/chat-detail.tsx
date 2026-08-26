@@ -354,9 +354,15 @@ function StateInlineSurface({
   if (state === 'tool' && message.id === 'msg_02') return <InlineToolCall />
   if (state === 'approval' && message.id === 'msg_04')
     return (
-      <p className='text-xs text-muted-foreground'>
-        Approval request available in Verifications.
-      </p>
+      <div className='flex max-w-[72ch] items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground'>
+        <span>
+          Approval details are available only from real source-bound requests in
+          Verifications.
+        </span>
+        <Button type='button' size='sm' variant='outline' disabled>
+          Open Verifications
+        </Button>
+      </div>
     )
   if (state === 'artifact' && message.id === 'msg_06')
     return <ArtifactCard onOpen={onOpenArtifact} />

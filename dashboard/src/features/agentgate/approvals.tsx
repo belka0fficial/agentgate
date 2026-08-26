@@ -19,47 +19,56 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
+import { getAgentGate, postAgentGate, relativeTime, type Approval } from './api'
 import {
-  getAgentGate,
-  postAgentGate,
-  relativeTime,
-  type Approval,
-  type DecidedApproval,
-} from './api'
+  historyUnavailableCopy,
+  normalizeVerificationsResponse,
+  pendingDecisionConfirmed,
+  type VerificationCenter,
+} from './approvals-model'
 import { AgentGateHeader } from './page-header'
 
 export function ApprovalsPage() {
   const [source, setSource] = useState('all')
   const approvals = useQuery({
     queryKey: ['agentgate', 'approvals'],
-    queryFn: () => getAgentGate<Approval[]>('/api/approvals'),
+    queryFn: async () =>
+      normalizeVerificationsResponse(
+        await getAgentGate<VerificationCenter>('/api/approvals')
+      ),
   })
-  const [decidedRows, setDecidedRows] = useState<DecidedApproval[]>([])
+  const [decisionError, setDecisionError] = useState<string | null>(null)
+  const [decidingId, setDecidingId] = useState<string | null>(null)
 
   async function decideApproval(
     item: Approval,
     decision: 'approved' | 'rejected'
   ) {
-    await postAgentGate(
-      `/api/verifications/${encodeURIComponent(item.source)}/${encodeURIComponent(item.id)}/decision`,
-      { decision }
-    )
-    setDecidedRows((current) => [
-      {
-        ...item,
-        decision,
-        decided_at: new Date().toISOString(),
-        decided_by: 'Owner',
-      },
-      ...current.filter((row) => row.id !== item.id),
-    ])
-    await approvals.refetch()
+    setDecisionError(null)
+    setDecidingId(`${item.source}:${item.source_id}`)
+    try {
+      await postAgentGate(
+        `/api/verifications/${encodeURIComponent(item.source)}/${encodeURIComponent(item.source_id)}/decision`,
+        { decision }
+      )
+      const readBack = await approvals.refetch()
+      const center = readBack.data
+      if (center && !pendingDecisionConfirmed(item, center)) {
+        setDecisionError(
+          'Decision sent, but read-back still reports this approval as pending. Source remains authoritative.'
+        )
+      }
+    } catch (error) {
+      setDecisionError(
+        error instanceof Error ? error.message : 'Decision failed.'
+      )
+    } finally {
+      setDecidingId(null)
+    }
   }
 
-  const rows = (approvals.data ?? []).filter(
-    (item) => source === 'all' || item.source.toLowerCase() === source
-  )
-  const decided = decidedRows.filter(
+  const center = approvals.data ?? normalizeVerificationsResponse(undefined)
+  const rows = center.pending.filter(
     (item) => source === 'all' || item.source.toLowerCase() === source
   )
   return (
@@ -69,13 +78,15 @@ export function ApprovalsPage() {
       />
       <Main>
         <p className='mb-6 text-sm text-muted-foreground'>
-          Review exactly what the agent is asking to do.
+          Review source-bound approval requests using metadata-only action
+          summaries.
         </p>
         <section>
           <div className='mb-2 border-b pb-3'>
             <h2 className='text-sm font-medium'>Waiting for you</h2>
             <p className='text-xs text-muted-foreground'>
-              {rows.length} owner decisions match this source filter.
+              {rows.length} real pending source-bound requests match this source
+              filter.
             </p>
           </div>
           <Table>
@@ -84,6 +95,7 @@ export function ApprovalsPage() {
                 <TableHead>Action</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Binding</TableHead>
+                <TableHead>Risk / expiry</TableHead>
                 <TableHead className='text-right'>Decision</TableHead>
               </TableRow>
             </TableHeader>
@@ -112,11 +124,30 @@ export function ApprovalsPage() {
                       {item.binding.digest}
                     </code>
                   </TableCell>
+                  <TableCell className='text-xs text-muted-foreground'>
+                    <Badge
+                      variant={
+                        item.severity === 'high' ? 'destructive' : 'secondary'
+                      }
+                    >
+                      {item.severity}
+                    </Badge>
+                    <div className='mt-1'>
+                      Expires {relativeTime(item.expires_at)}
+                    </div>
+                    <div className='mt-1'>
+                      Payload withheld:{' '}
+                      {item.action_payload_withheld ? 'yes' : 'unknown'}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className='flex justify-end gap-2'>
                       <Button
                         size='sm'
                         variant='secondary'
+                        disabled={
+                          decidingId === `${item.source}:${item.source_id}`
+                        }
                         onClick={() => void decideApproval(item, 'approved')}
                       >
                         <Check />
@@ -126,6 +157,9 @@ export function ApprovalsPage() {
                         size='sm'
                         variant='outline'
                         className='border-destructive text-destructive hover:bg-destructive hover:text-white'
+                        disabled={
+                          decidingId === `${item.source}:${item.source_id}`
+                        }
                         onClick={() => void decideApproval(item, 'rejected')}
                       >
                         <X />
@@ -138,59 +172,24 @@ export function ApprovalsPage() {
             </TableBody>
           </Table>
         </section>
+        {decisionError ? (
+          <div className='mt-4 rounded-lg border border-destructive/40 p-3 text-sm text-destructive'>
+            {decisionError}
+          </div>
+        ) : null}
         <section className='mt-8'>
           <div className='mb-2 border-b pb-3'>
-            <h2 className='text-sm font-medium'>Decisions this page</h2>
+            <h2 className='text-sm font-medium'>Approval history</h2>
             <p className='text-xs text-muted-foreground'>
-              Decisions made during this page session; source audit remains
-              authoritative.
+              {historyUnavailableCopy(center.history)}
             </p>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Action</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Decision</TableHead>
-                <TableHead>Decided</TableHead>
-                <TableHead>By</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {decided.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <p className='font-medium'>{item.title}</p>
-                    <code className='font-mono text-xs text-muted-foreground'>
-                      {item.binding.type}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant='outline'>{item.source}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        item.decision === 'rejected'
-                          ? 'destructive'
-                          : 'secondary'
-                      }
-                    >
-                      {item.decision}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <code className='font-mono text-xs'>
-                      {relativeTime(item.decided_at)}
-                    </code>
-                  </TableCell>
-                  <TableCell className='text-sm text-muted-foreground'>
-                    {item.decided_by}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className='rounded-lg border border-dashed p-4 text-sm text-muted-foreground'>
+            Approved, rejected, dismissed, and expired history is not retained
+            in AgentGate unless ToolGate or Brain exposes a real source-bound
+            persistence/query contract. No localStorage or page-session history
+            is shown here.
+          </div>
         </section>
       </Main>
     </>

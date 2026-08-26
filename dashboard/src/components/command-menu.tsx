@@ -31,9 +31,12 @@ import {
 import {
   getAgentGate,
   relativeTime,
-  type Approval,
   type ChatSession,
 } from '@/features/agentgate/api'
+import {
+  normalizeVerificationsResponse,
+  type VerificationCenter,
+} from '@/features/agentgate/approvals-model'
 import { personas } from '@/features/agentgate/personas'
 import { sidebarData } from './layout/data/sidebar-data'
 
@@ -80,7 +83,10 @@ export function CommandMenu() {
   })
   const approvals = useQuery({
     queryKey: ['agentgate', 'approvals'],
-    queryFn: () => getAgentGate<Approval[]>('/api/approvals'),
+    queryFn: async () =>
+      normalizeVerificationsResponse(
+        await getAgentGate<VerificationCenter>('/api/approvals')
+      ),
   })
 
   const scope = query.trim().charAt(0)
@@ -109,7 +115,7 @@ export function CommandMenu() {
     ...(automations.data?.jobs ?? []),
     ...(automations.data?.toolgate_automations ?? []),
   ]
-  const approvalRows = approvals.data ?? []
+  const approvalRows = approvals.data?.pending ?? []
 
   return (
     <CommandDialog

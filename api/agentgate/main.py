@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -1298,27 +1298,94 @@ async def capability_kind(kind: Literal["skills", "toolsets"], up: Upstream = De
     return {kind: rows, "source": "brain", "status": status, "metadata_only": True}
 
 
-@app.get("/api/verifications", dependencies=[Depends(require_auth)])
-async def verifications(store: Database = Depends(db), up: Upstream = Depends(upstream)):
+VERIFICATION_HISTORY_UNAVAILABLE_REASON = "No real source-bound approval history query contract is available."
+
+
+def verification_history_unavailable() -> dict[str, Any]:
+    return {
+        "available": False,
+        "status": "unavailable",
+        "source": "toolgate+brain",
+        "reason": VERIFICATION_HISTORY_UNAVAILABLE_REASON,
+        "items": [],
+        "metadata_only": True,
+    }
+
+
+async def verification_center_payload(store: Database, up: Upstream) -> dict[str, Any]:
+    source_statuses: dict[str, dict[str, Any]] = {}
     try:
         toolgate = await up.request("toolgate", "GET", "/v2/requests")
-    except HTTPException:
+        if isinstance(toolgate, list):
+            request_status = "live" if toolgate else "empty"
+        elif isinstance(toolgate, dict):
+            request_status = normalized_status(toolgate.get("status") or toolgate.get("state"))
+            if request_status == "unknown":
+                request_status = "unknown"
+        else:
+            request_status = "unknown"
+        source_statuses["toolgate_requests"] = {"status": request_status, "source": "toolgate"}
+    except HTTPException as exc:
         toolgate = []
-    rows = [verification_view("toolgate", item) for item in toolgate if item.get("kind") == "verification"]
-    for item in store.rows("SELECT * FROM verification_refs ORDER BY created_at DESC"):
+        source_statuses["toolgate_requests"] = {
+            "status": dependency_status_from_exception(exc),
+            "source": "toolgate",
+            "error": safe_browser_error(exc.detail, "toolgate"),
+        }
+
+    pending: list[dict[str, Any]] = []
+    if isinstance(toolgate, list):
+        pending.extend(
+            verification_view("toolgate", item)
+            for item in toolgate
+            if isinstance(item, dict)
+            and item.get("kind") == "verification"
+            and item.get("status", "pending") == "pending"
+        )
+
+    for item in store.rows("SELECT * FROM verification_refs WHERE status = 'pending' ORDER BY created_at DESC"):
         decoded = store.decode(item)
-        rows.append(verification_view(normalize_source(decoded.get("source")), decoded))
-    return rows
+        pending.append(verification_view(normalize_source(decoded.get("source")), decoded))
+
+    return {
+        "metadata_only": True,
+        "safe_fields": [
+            "id",
+            "source",
+            "source_id",
+            "status",
+            "severity",
+            "title",
+            "details",
+            "binding",
+            "action",
+            "created_at",
+            "expires_at",
+        ],
+        "pending": pending,
+        "pending_count": len(pending),
+        "history": verification_history_unavailable(),
+        "sources": source_statuses,
+    }
+
+
+@app.get("/api/verifications", dependencies=[Depends(require_auth)])
+async def verifications(store: Database = Depends(db), up: Upstream = Depends(upstream)):
+    return await verification_center_payload(store, up)
 
 
 @app.get("/api/approvals", dependencies=[Depends(require_auth)])
 async def approvals(store: Database = Depends(db), up: Upstream = Depends(upstream)):
-    return await verifications(store, up)
+    return await verification_center_payload(store, up)
 
 
-@app.post("/api/verifications/toolgate/{request_id}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
+@app.post("/api/verifications/toolgate/{request_id:path}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def decide_toolgate(request_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    result = await up.request("toolgate", "POST", f"/v2/requests/{request_id}/decision", json=payload)
+    decision = payload.get("decision")
+    if decision not in {"approved", "rejected"}:
+        raise HTTPException(422, "Decision must be approved or rejected")
+    upstream_id = quote(request_id, safe="")
+    result = await up.request("toolgate", "POST", f"/v2/requests/{upstream_id}/decision", json=payload)
     return decision_result_view("toolgate", request_id, result, str(payload.get("decision") or "decided"))
 
 
@@ -1334,7 +1401,7 @@ async def approve_run(run_id: str, payload: dict[str, Any], up: Upstream = Depen
     return decision_result_view("brain", run_id, result, str(payload.get("decision") or "approved"))
 
 
-@app.post("/api/verifications/brain/{source_id}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
+@app.post("/api/verifications/brain/{source_id:path}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def decide_brain(source_id: str, payload: dict[str, Any], store: Database = Depends(db), up: Upstream = Depends(upstream)):
     item = store.row("SELECT * FROM verification_refs WHERE source IN ('brain', 'hermes') AND source_id = ?", (source_id,))
     if not item or not item.get("run_id"):
