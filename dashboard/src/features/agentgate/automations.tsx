@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pause, Play } from 'lucide-react'
+import { Lock, Pause, Play } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Main } from '@/components/layout/main'
 import { getAgentGate, postAgentGate } from './api'
+import { jobActionsEnabled, safeJobHistoryLabel } from './automations-model'
 import { AgentGateHeader } from './page-header'
 
 type Job = {
@@ -24,7 +25,13 @@ type Job = {
   status?: string
   paused?: boolean
   last_status?: string
-  last_run?: string
+  last_run?: string | null
+  owner?: string
+  editable?: boolean
+  kind?: string
+  source_ref?: string
+  output?: { status?: string; raw_withheld?: boolean }
+  history?: { status?: string; reason?: string }
 }
 
 type SourceError = { source?: string; message?: string } | string | null
@@ -93,6 +100,7 @@ export function JobsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Job</TableHead>
+                <TableHead>Kind</TableHead>
                 <TableHead>Last run</TableHead>
                 <TableHead>Schedule</TableHead>
                 <TableHead>Next</TableHead>
@@ -103,7 +111,7 @@ export function JobsPage() {
               {jobs.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className='py-8 text-sm text-muted-foreground'
                   >
                     {query.isLoading
@@ -115,6 +123,7 @@ export function JobsPage() {
                 jobs.map((item) => {
                   const paused =
                     Boolean(item.paused) || item.status === 'paused'
+                  const actionsEnabled = jobActionsEnabled(item)
                   return (
                     <TableRow key={item.id}>
                       <TableCell>
@@ -122,8 +131,18 @@ export function JobsPage() {
                           {item.name ?? item.title ?? item.id}
                         </p>
                         <p className='max-w-sm text-xs text-muted-foreground'>
-                          Runtime job metadata only; prompts stay server-side.
+                          {item.owner === 'system'
+                            ? 'Built-in system job; locked metadata only.'
+                            : 'Runtime job metadata only; prompts stay server-side.'}
                         </p>
+                        {item.source_ref ? (
+                          <p className='mt-1 max-w-sm truncate text-xs text-muted-foreground'>
+                            Source: {item.source_ref}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant='outline'>{item.kind ?? 'cron'}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className='flex items-center gap-2'>
@@ -143,7 +162,10 @@ export function JobsPage() {
                           </code>
                         </div>
                         <p className='mt-1 max-w-56 truncate text-xs text-muted-foreground'>
-                          Output withheld from overview.
+                          {item.output?.raw_withheld === true
+                            ? `Output ${item.output.status ?? 'withheld'}.`
+                            : 'Output withheld from overview.'}{' '}
+                          {safeJobHistoryLabel(item)}.
                         </p>
                       </TableCell>
                       <TableCell>
@@ -161,7 +183,7 @@ export function JobsPage() {
                           <Button
                             size='sm'
                             variant='outline'
-                            disabled={action.isPending}
+                            disabled={action.isPending || !actionsEnabled}
                             onClick={() =>
                               action.mutate({
                                 jobId: item.id,
@@ -169,13 +191,25 @@ export function JobsPage() {
                               })
                             }
                           >
-                            {paused ? <Play /> : <Pause />}
-                            {paused ? 'Resume' : 'Pause'}
+                            {actionsEnabled ? (
+                              paused ? (
+                                <Play />
+                              ) : (
+                                <Pause />
+                              )
+                            ) : (
+                              <Lock />
+                            )}
+                            {actionsEnabled
+                              ? paused
+                                ? 'Resume'
+                                : 'Pause'
+                              : 'Locked'}
                           </Button>
                           <Button
                             size='sm'
                             variant='secondary'
-                            disabled={action.isPending}
+                            disabled={action.isPending || !actionsEnabled}
                             onClick={() =>
                               action.mutate({
                                 jobId: item.id,
@@ -183,8 +217,8 @@ export function JobsPage() {
                               })
                             }
                           >
-                            <Play />
-                            Run now
+                            {actionsEnabled ? <Play /> : <Lock />}
+                            {actionsEnabled ? 'Run now' : 'System'}
                           </Button>
                         </div>
                       </TableCell>

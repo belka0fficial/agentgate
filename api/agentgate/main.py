@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .auth import CSRF_COOKIE_NAME, COOKIE_NAME, issue_csrf_token, issue_session, require_auth, require_csrf, require_mcp, validate_admin_key
@@ -57,6 +57,52 @@ class AppInput(BaseModel):
     source: str = "manual"
     source_ref: str | None = None
     pinned: bool = False
+
+
+SYSTEM_BUILTIN_JOBS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "system:technology-radar-global",
+        "name": "technology-radar-global",
+        "kind": "cron",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/technology-intelligence.md#technology-radar-global",
+    },
+    {
+        "id": "system:technology-radar-china",
+        "name": "technology-radar-china",
+        "kind": "cron",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/technology-intelligence.md#technology-radar-china",
+    },
+    {
+        "id": "system:agentgate-reference-refresh",
+        "name": "agentgate-reference-refresh",
+        "kind": "cron",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/technology-intelligence.md#agentgate-reference-refresh",
+    },
+    {
+        "id": "system:agent-skill-quality-review",
+        "name": "agent-skill-quality-review",
+        "kind": "flow",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/continuous-improvement.md#weekly-quality-job",
+    },
+    {
+        "id": "system:supply-chain-update-review",
+        "name": "supply-chain-update-review",
+        "kind": "loop",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/architecture/software-supply-chain.md",
+    },
+)
+
+SYSTEM_BUILTIN_JOB_IDS = {item["id"] for item in SYSTEM_BUILTIN_JOBS}
 
 
 class CharacterInput(BaseModel):
@@ -1384,10 +1430,64 @@ async def cron_jobs(up: Upstream = Depends(upstream)):
     try:
         jobs = await up.request("brain", "GET", "/api/jobs")
     except HTTPException as exc:
-        return {"jobs": [], "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
-    return {"jobs": safe_automation_rows(jobs, "brain"), "metadata_only": True}
+        return {
+            "jobs": system_builtin_job_rows(),
+            "error": safe_browser_error(exc.detail),
+            "metadata_only": True,
+            "raw_response_withheld": True,
+        }
+    return {"jobs": safe_automation_rows(jobs, "brain") + system_builtin_job_rows(), "metadata_only": True}
 
 
+def unavailable_flow_history(kind: str) -> dict[str, str]:
+    if kind in {"flow", "loop"}:
+        return {"status": "unavailable", "reason": "Pi flow/loop history contract not available"}
+    return {"status": "planned", "reason": "No runtime history contract available for built-in system jobs"}
+
+
+def safe_output_summary(status: str) -> dict[str, Any]:
+    return {"status": safe_browser_string(status, "planned"), "raw_withheld": True}
+
+
+def system_builtin_job_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in SYSTEM_BUILTIN_JOBS:
+        status = safe_browser_string(item.get("status"), "planned")
+        kind = safe_browser_string(item.get("kind"), "cron")
+        rows.append({
+            "id": safe_browser_string(item.get("id"), "system:unknown"),
+            "name": safe_browser_string(item.get("name"), "system built-in job"),
+            "owner": "system",
+            "editable": False,
+            "kind": kind,
+            "status": status,
+            "schedule": safe_browser_string(item.get("schedule"), "planned"),
+            "source": "agentgate",
+            "source_ref": safe_browser_string(item.get("source_ref"), "docs/README.md"),
+            "metadata_only": True,
+            "last_run": None,
+            "next_run": None,
+            "output": safe_output_summary(status),
+            "history": unavailable_flow_history(kind),
+        })
+    return rows
+
+
+def is_system_builtin_job(job_id: str) -> bool:
+    return job_id in SYSTEM_BUILTIN_JOB_IDS
+
+
+def locked_system_job_response(job_id: str, action: str) -> dict[str, Any]:
+    return {
+        "id": safe_browser_string(job_id, "system:unknown"),
+        "owner": "system",
+        "editable": False,
+        "status": "blocked",
+        "action": safe_browser_string(action, "updated"),
+        "error": {"source": "agentgate", "message": "Built-in system jobs are locked and metadata-only."},
+        "metadata_only": True,
+        "raw_response_withheld": True,
+    }
 
 
 def safe_automation_rows(value: Any, source: str) -> list[dict[str, Any]]:
@@ -1401,6 +1501,11 @@ def safe_automation_rows(value: Any, source: str) -> list[dict[str, Any]]:
             "name": f"{source} automation",
             "status": safe_browser_string(item.get("status") or item.get("last_status"), "unknown"),
             "source": source,
+            "owner": "user",
+            "editable": True,
+            "kind": "automation" if source == "toolgate" else "cron",
+            "metadata_only": True,
+            "output": {"status": "unavailable", "raw_withheld": True},
         }
         for key in ("schedule", "next_run", "next", "last_run"):
             if isinstance(item.get(key), str):
@@ -1482,7 +1587,7 @@ async def automations(up: Upstream = Depends(upstream)):
         optional("toolgate", "/v2/automations"),
     )
     return {
-        "jobs": safe_automation_rows(jobs, "brain"),
+        "jobs": system_builtin_job_rows() + safe_automation_rows(jobs, "brain"),
         "toolgate_automations": safe_automation_rows(toolgate_automations, "toolgate"),
         "errors": {
             "brain": jobs.get("error") if isinstance(jobs, dict) else None,
@@ -1517,6 +1622,8 @@ async def create_cron(payload: dict[str, Any], up: Upstream = Depends(upstream))
 
 @app.patch("/api/cron/jobs/{job_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def update_cron(job_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
+    if is_system_builtin_job(job_id):
+        return JSONResponse(status_code=423, content=locked_system_job_response(job_id, "updated"))
     try:
         result = await up.request("brain", "PATCH", f"/api/jobs/{job_id}", json=payload)
     except HTTPException as exc:
@@ -1526,6 +1633,8 @@ async def update_cron(job_id: str, payload: dict[str, Any], up: Upstream = Depen
 
 @app.delete("/api/cron/jobs/{job_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def delete_cron(job_id: str, up: Upstream = Depends(upstream)):
+    if is_system_builtin_job(job_id):
+        return JSONResponse(status_code=423, content=locked_system_job_response(job_id, "deleted"))
     try:
         result = await up.request("brain", "DELETE", f"/api/jobs/{job_id}")
     except HTTPException as exc:
@@ -1535,6 +1644,8 @@ async def delete_cron(job_id: str, up: Upstream = Depends(upstream)):
 
 @app.post("/api/cron/jobs/{job_id}/{action}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def cron_action(job_id: str, action: Literal["pause", "resume", "run"], up: Upstream = Depends(upstream)):
+    if is_system_builtin_job(job_id):
+        return JSONResponse(status_code=423, content=locked_system_job_response(job_id, action))
     try:
         result = await up.request("brain", "POST", f"/api/jobs/{job_id}/{action}")
     except HTTPException as exc:

@@ -4,12 +4,18 @@ export type Job = {
   status?: string
   paused?: boolean
   schedule?: string
-  next_run?: string
-  last_run?: string
+  next_run?: string | null
+  last_run?: string | null
   last_status?: string
   source?: string
+  source_ref?: string
+  owner?: 'system' | 'user' | string
+  editable?: boolean
+  kind?: 'cron' | 'flow' | 'loop' | 'automation' | string
   metadata_only?: boolean
   output_withheld?: boolean
+  output?: { status?: string; raw_withheld?: boolean }
+  history?: { status?: string; reason?: string }
 }
 
 export type Automation = {
@@ -47,4 +53,19 @@ export function normalizeJobsResponse(
 export function jobStatus(item: Job) {
   if (item.paused) return 'paused'
   return item.status ?? item.last_status ?? 'unknown'
+}
+
+export function isLockedSystemJob(item: Job) {
+  return item.owner === 'system' || item.editable === false
+}
+
+export function jobActionsEnabled(item: Job) {
+  return !isLockedSystemJob(item)
+}
+
+export function safeJobHistoryLabel(item: Job) {
+  const status = item.history?.status
+  if (status === 'unavailable') return 'History unavailable'
+  if (status === 'planned') return 'History planned'
+  return status ?? 'History unknown'
 }

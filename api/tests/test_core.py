@@ -714,6 +714,76 @@ def test_cron_jobs_endpoint_redacts_browser_payloads(monkeypatch, tmp_path):
 
 
 
+def test_cron_jobs_include_locked_builtin_system_metadata_without_raw_activity(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        assert name == "brain"
+        assert path == "/api/jobs"
+        return []
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/cron/jobs")
+
+    assert response.status_code == 200
+    payload = response.json()
+    system_jobs = [job for job in payload["jobs"] if job["owner"] == "system"]
+    assert {job["id"] for job in system_jobs} >= {
+        "system:technology-radar-global",
+        "system:technology-radar-china",
+        "system:agentgate-reference-refresh",
+        "system:agent-skill-quality-review",
+        "system:supply-chain-update-review",
+    }
+    for job in system_jobs:
+        assert job["editable"] is False
+        assert job["metadata_only"] is True
+        assert job["output"]["raw_withheld"] is True
+        assert job["output"]["status"] in {"planned", "unavailable"}
+        assert job["history"]["status"] in {"planned", "unavailable"}
+        assert "entries" not in job["history"]
+    encoded = str(payload)
+    for unsafe in ("prompt", "stdout", "stderr", "tool_args", "provider_url", "/home/", "api.openai.com", "secret"):
+        assert unsafe not in encoded.lower()
+
+
+def test_system_cron_mutations_are_blocked_before_upstream(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    calls = []
+
+    async def fake_request(name, method, path, **kwargs):
+        calls.append((name, method, path))
+        return {"id": "should-not-call"}
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        headers = csrf_headers(client)
+        app.state.upstream.request = fake_request
+        patch_response = client.patch("/api/cron/jobs/system:technology-radar-global", headers=headers, json={"paused": True})
+        delete_response = client.delete("/api/cron/jobs/system:technology-radar-global", headers=headers)
+        run_response = client.post("/api/cron/jobs/system:technology-radar-global/run", headers=headers)
+
+    assert calls == []
+    for response in (patch_response, delete_response, run_response):
+        assert response.status_code == 423
+        assert response.json()["owner"] == "system"
+        assert response.json()["editable"] is False
+        assert response.json()["metadata_only"] is True
+
+
 def test_cron_mutation_responses_are_browser_sanitized(monkeypatch, tmp_path):
     monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
     monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
@@ -824,8 +894,19 @@ def test_automations_endpoint_uses_metadata_only_rows(monkeypatch, tmp_path):
         assert unsafe not in encoded
     for unsafe_key in ("description", "summary", "prompt", "last_output", "args", "title"):
         assert unsafe_key not in encoded
-    assert response.json()["jobs"][0]["name"] == "brain automation"
+    assert response.json()["jobs"][0]["owner"] == "system"
+    assert response.json()["jobs"][0]["editable"] is False
+    assert response.json()["jobs"][0]["metadata_only"] is True
+    user_job = next(item for item in response.json()["jobs"] if item["owner"] == "user")
+    assert user_job["name"] == "brain automation"
+    assert user_job["editable"] is True
+    assert user_job["metadata_only"] is True
+    assert user_job["output"] == {"status": "unavailable", "raw_withheld": True}
     assert response.json()["toolgate_automations"][0]["name"] == "toolgate automation"
+    assert response.json()["toolgate_automations"][0]["owner"] == "user"
+    assert response.json()["toolgate_automations"][0]["editable"] is True
+    assert response.json()["toolgate_automations"][0]["metadata_only"] is True
+    assert response.json()["toolgate_automations"][0]["output"] == {"status": "unavailable", "raw_withheld": True}
 
 
 def test_dependency_health_returns_canonical_live_status():
@@ -846,8 +927,8 @@ def test_safe_automation_rows_uses_source_authored_names_only():
         {"id": "j2", "name": "Safe-looking but still runtime text", "status": "ok"},
     ], "brain")
     assert rows == [
-        {"id": "j1", "name": "brain automation", "status": "ok", "source": "brain"},
-        {"id": "j2", "name": "brain automation", "status": "ok", "source": "brain"},
+        {"id": "j1", "name": "brain automation", "status": "ok", "source": "brain", "owner": "user", "editable": True, "kind": "cron", "metadata_only": True, "output": {"status": "unavailable", "raw_withheld": True}},
+        {"id": "j2", "name": "brain automation", "status": "ok", "source": "brain", "owner": "user", "editable": True, "kind": "cron", "metadata_only": True, "output": {"status": "unavailable", "raw_withheld": True}},
     ]
 
 
