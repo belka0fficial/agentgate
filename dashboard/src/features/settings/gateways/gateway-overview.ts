@@ -33,7 +33,7 @@ function piStatus(status?: string): GatewayStatus {
 }
 
 function modelStatus(status?: string): GatewayStatus {
-  if (status === 'ok' || status === 'ready' || status === 'live') return 'live'
+  if (status === 'ok' || status === 'live') return 'live'
   if (status === 'auth_required' || status === 'blocked') return 'blocked'
   if (status === 'degraded') return 'degraded'
   if (status === 'offline') return 'offline'
@@ -89,7 +89,7 @@ export function gatewayBadgeVariant(status: GatewayStatus) {
 }
 
 export function dependencyStatus(status?: string): GatewayStatus {
-  if (status === 'online' || status === 'ok' || status === 'live') return 'live'
+  if (status === 'ok' || status === 'live') return 'live'
   if (status === 'degraded') return 'degraded'
   if (status === 'offline' || status === 'unreachable') return 'offline'
   if (status === 'blocked' || status === 'auth_required') return 'blocked'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -21,81 +21,46 @@ import {
 import { Main } from '@/components/layout/main'
 import {
   getAgentGate,
+  postAgentGate,
   relativeTime,
   type Approval,
   type DecidedApproval,
 } from './api'
 import { AgentGateHeader } from './page-header'
 
-const inlineApprovalKey = 'agentgate:inline-approval:appr_01'
-
 export function ApprovalsPage() {
-  const [source, setSource] = useState('All')
-  const [inlineDecision, setInlineDecision] = useState<
-    'approved' | 'rejected' | null
-  >(null)
+  const [source, setSource] = useState('all')
   const approvals = useQuery({
     queryKey: ['agentgate', 'approvals'],
     queryFn: () => getAgentGate<Approval[]>('/api/approvals'),
   })
-  const history = useQuery({
-    queryKey: ['agentgate', 'approvals', 'history'],
-    queryFn: () => getAgentGate<DecidedApproval[]>('/api/approvals/history'),
-  })
-  useEffect(() => {
-    function readInlineDecision() {
-      const value = localStorage.getItem(inlineApprovalKey)
-      setInlineDecision(
-        value === 'approved' || value === 'rejected' ? value : null
-      )
-    }
+  const [decidedRows, setDecidedRows] = useState<DecidedApproval[]>([])
 
-    readInlineDecision()
-    window.addEventListener('storage', readInlineDecision)
-    window.addEventListener('agentgate:inline-approval', readInlineDecision)
-
-    return () => {
-      window.removeEventListener('storage', readInlineDecision)
-      window.removeEventListener(
-        'agentgate:inline-approval',
-        readInlineDecision
-      )
-    }
-  }, [])
-
-  function decideInline(next: 'approved' | 'rejected') {
-    localStorage.setItem(inlineApprovalKey, next)
-    window.dispatchEvent(
-      new CustomEvent('agentgate:inline-approval', {
-        detail: { id: 'appr_01', decision: next },
-      })
+  async function decideApproval(
+    item: Approval,
+    decision: 'approved' | 'rejected'
+  ) {
+    await postAgentGate(
+      `/api/verifications/${encodeURIComponent(item.source)}/${encodeURIComponent(item.id)}/decision`,
+      { decision }
     )
+    setDecidedRows((current) => [
+      {
+        ...item,
+        decision,
+        decided_at: new Date().toISOString(),
+        decided_by: 'Owner',
+      },
+      ...current.filter((row) => row.id !== item.id),
+    ])
+    await approvals.refetch()
   }
 
-  const pending = inlineDecision
-    ? (approvals.data ?? []).filter((item) => item.id !== 'appr_01')
-    : (approvals.data ?? [])
-  const inlineApproval = inlineDecision
-    ? approvals.data?.find((item) => item.id === 'appr_01')
-    : null
-  const historyRows = [
-    ...(inlineApproval && inlineDecision
-      ? [
-          {
-            ...inlineApproval,
-            decision: inlineDecision,
-            decided_at: new Date().toISOString(),
-            decided_by: 'Owner',
-          } satisfies DecidedApproval,
-        ]
-      : []),
-    ...(history.data ?? []).filter((item) => item.id !== 'appr_01'),
-  ]
-  const rows = pending.filter(
-    (item) => source === 'All' || item.source === source
+  const rows = (approvals.data ?? []).filter(
+    (item) => source === 'all' || item.source.toLowerCase() === source
   )
-  const decided = historyRows.filter(
-    (item) => source === 'All' || item.source === source
+  const decided = decidedRows.filter(
+    (item) => source === 'all' || item.source.toLowerCase() === source
   )
   return (
     <>
@@ -152,11 +117,7 @@ export function ApprovalsPage() {
                       <Button
                         size='sm'
                         variant='secondary'
-                        onClick={() =>
-                          item.id === 'appr_01'
-                            ? decideInline('approved')
-                            : undefined
-                        }
+                        onClick={() => void decideApproval(item, 'approved')}
                       >
                         <Check />
                         Approve
@@ -165,11 +126,7 @@ export function ApprovalsPage() {
                         size='sm'
                         variant='outline'
                         className='border-destructive text-destructive hover:bg-destructive hover:text-white'
-                        onClick={() =>
-                          item.id === 'appr_01'
-                            ? decideInline('rejected')
-                            : undefined
-                        }
+                        onClick={() => void decideApproval(item, 'rejected')}
                       >
                         <X />
                         Reject
@@ -183,9 +140,10 @@ export function ApprovalsPage() {
         </section>
         <section className='mt-8'>
           <div className='mb-2 border-b pb-3'>
-            <h2 className='text-sm font-medium'>Decided history</h2>
+            <h2 className='text-sm font-medium'>Decisions this page</h2>
             <p className='text-xs text-muted-foreground'>
-              Recent owner decisions retained for audit.
+              Decisions made during this page session; source audit remains
+              authoritative.
             </p>
           </div>
           <Table>
@@ -252,9 +210,13 @@ function ApprovalToolbar({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {['All', 'ToolGate', 'Hermes'].map((item) => (
-          <SelectItem key={item} value={item}>
-            {item === 'All' ? 'All sources' : item}
+        {[
+          ['all', 'All sources'],
+          ['toolgate', 'ToolGate'],
+          ['brain', 'Brain'],
+        ].map(([value, label]) => (
+          <SelectItem key={value} value={value}>
+            {label}
           </SelectItem>
         ))}
       </SelectContent>

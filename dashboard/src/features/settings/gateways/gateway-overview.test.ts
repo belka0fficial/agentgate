@@ -44,7 +44,7 @@ it('does not treat connected as verified live and styles from status', () => {
 })
 
 it('maps dependency health statuses into canonical gate row states', () => {
-  expect(dependencyStatus('online')).toBe('live')
+  expect(dependencyStatus('online')).toBe('unknown')
   expect(dependencyStatus('offline')).toBe('offline')
   expect(dependencyStatus('auth_required')).toBe('blocked')
   expect(dependencyStatus('connected')).toBe('unknown')
@@ -61,7 +61,7 @@ it('maps dependency health statuses into canonical gate row states', () => {
   ).toEqual([
     ['AgentGate UI', 'live'],
     ['Pi adapter', 'live'],
-    ['MemoryGate', 'live'],
+    ['MemoryGate', 'unknown'],
     ['ToolGate', 'offline'],
     ['SystemGate', 'degraded'],
     ['Model gateway', 'live'],

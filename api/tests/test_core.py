@@ -831,8 +831,10 @@ def test_automations_endpoint_uses_metadata_only_rows(monkeypatch, tmp_path):
 def test_dependency_health_returns_canonical_live_status():
     from agentgate.main import dependency_status_from_payload
 
-    for status in ("ok", "online", "live", "healthy", "ready"):
+    for status in ("ok", "live"):
         assert dependency_status_from_payload({"status": status}) == "live"
+    for status in ("online", "healthy", "ready", "success"):
+        assert dependency_status_from_payload({"status": status}) == "unknown"
 
 
 
@@ -1584,7 +1586,7 @@ def test_capabilities_are_source_bound_and_metadata_only(monkeypatch, tmp_path):
 
     assert body["metadata_only"] is True
     assert body["counts"] == {"tools": 1, "toolsets": 1, "skills": 1, "automations": 1}
-    assert body["tools"][0] == {"id": "tools-0", "name": "Shell", "status": "live", "source": "toolgate", "kind": "tools", "metadata_only": True, "details_withheld": True}
+    assert body["tools"][0] == {"id": "tools-0", "name": "Shell", "status": "unknown", "source": "toolgate", "kind": "tools", "metadata_only": True, "details_withheld": True}
     encoded = str(body)
     for unsafe in ("api.openai.com", "api.anthropic.com", "/home/alexey", "/var/run/docker.sock", "TOKEN", "sk-test", "hidden prompt", "cmd", "args", "env", "command", "provider_url"):
         assert unsafe not in encoded

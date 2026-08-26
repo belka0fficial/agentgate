@@ -150,10 +150,10 @@ def normalized_status(value: Any, *, absent: str = "unknown") -> str:
     raw = str(value).strip().lower()
     aliases = {
         "ok": "live",
-        "healthy": "live",
-        "online": "live",
-        "ready": "live",
-        "connected": "live",
+        "healthy": "unknown",
+        "online": "unknown",
+        "ready": "unknown",
+        "connected": "unknown",
         "auth_required": "blocked",
         "unauthorized": "blocked",
         "forbidden": "blocked",
@@ -489,6 +489,8 @@ def browser_unsafe_string(value: str) -> bool:
     )
     if any(marker in lowered for marker in secret_markers):
         return True
+    if "sk-" in lowered or "sk_" in lowered:
+        return True
     stripped = value.strip()
     return stripped.startswith(("sk-", "sk_proj_", "sk-proj-", "AIza")) or (stripped.startswith("sk_") and len(stripped) > 12)
 
@@ -628,7 +630,7 @@ def safe_memory_search_response(value: Any) -> Any:
 
 
 def source_status_from(result: dict[str, Any], source: str) -> dict[str, Any]:
-    accepted = {"live", "ok", "online", "healthy", "success", "empty", "planned", "degraded", "offline", "stale", "unknown", "blocked"}
+    accepted = {"live", "ok", "empty", "planned", "degraded", "offline", "stale", "unknown", "blocked"}
     if not result.get("ok"):
         error = result.get("error")
         status_hint = ""
@@ -641,7 +643,7 @@ def source_status_from(result: dict[str, Any], source: str) -> dict[str, Any]:
     payload = result.get("data")
     raw_status = payload.get("status") if isinstance(payload, dict) else None
     status = safe_browser_string(raw_status, "live").lower()
-    if status in {"ok", "online", "healthy", "success"}:
+    if status == "ok":
         status = "live"
     elif status in {"auth_required", "unauthorized", "forbidden", "permission_denied"}:
         status = "blocked"
@@ -757,7 +759,7 @@ def dependency_status_from_payload(payload: Any) -> str:
             return status
         if status in {"unavailable", "unreachable"}:
             return "offline"
-        if status in {"ok", "online", "live", "healthy", "ready"}:
+        if status in {"ok", "live"}:
             return "live"
     return "unknown"
 
@@ -800,7 +802,9 @@ async def home(request: Request, up: Upstream = Depends(upstream), store: Databa
         try:
             return {"ok": True, "data": await up.request(name, "GET", path)}
         except HTTPException as exc:
-            return {"ok": False, "error": safe_browser_error(exc.detail, name)}
+            return {"ok": False, "error": exc.detail}
+        except Exception:
+            return {"ok": False, "error": {"source": name, "message": "source unavailable"}}
 
     def data(result: dict[str, Any], fallback: Any) -> Any:
         return result.get("data") if result.get("ok") else fallback
@@ -949,6 +953,19 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
     if payload.memory_incognito:
         body["instructions"] = "Do not create, update, or persist long-term memory for this turn."
 
+    def safe_approval_event(value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {"status": "unknown", "metadata_only": True, "approval_payload_withheld": True}
+        allowed = {
+            "approval_id", "id", "request_id", "run_id", "session_id", "subject_type",
+            "subject_id", "subject_version", "object_version", "version", "expires_at",
+            "status", "decision", "args_digest", "created_at",
+        }
+        result = {key: safe_browser_string(value[key], "unknown") for key in allowed if key in value}
+        result["metadata_only"] = True
+        result["approval_payload_withheld"] = True
+        return result
+
     async def events() -> AsyncIterator[bytes]:
         client = httpx.AsyncClient(timeout=None)
         try:
@@ -972,7 +989,18 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
                             })
                     except (ValueError, TypeError):
                         pass
-                if line:
+                if line.startswith("data:") and ("approval" in event_name or "tool" in event_name or "failed" in event_name or "subagent" in event_name or "action" in event_name):
+                    try:
+                        raw_event = json.loads(line[5:].strip())
+                        safe_event = safe_approval_event(raw_event) if "approval" in event_name else safe_browser_payload(raw_event)
+                        if isinstance(safe_event, dict):
+                            safe_event["metadata_only"] = True
+                            safe_event["event_payload_withheld"] = True
+                        safe_line = json.dumps(safe_event, separators=(",", ":"))
+                        yield f"data: {safe_line}\n".encode()
+                    except (ValueError, TypeError):
+                        yield b'data: {\"status\":\"unknown\",\"metadata_only\":true,\"event_payload_withheld\":true}\n'
+                elif line:
                     yield f"{line}\n".encode()
                 else:
                     yield b"\n"

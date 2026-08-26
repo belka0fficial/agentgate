@@ -3,10 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUp,
-  Ban,
   Brain,
   Camera,
-  Check,
   Clipboard,
   Download,
   EyeOff,
@@ -355,7 +353,11 @@ function StateInlineSurface({
     return <StreamingCursor />
   if (state === 'tool' && message.id === 'msg_02') return <InlineToolCall />
   if (state === 'approval' && message.id === 'msg_04')
-    return <InlineApprovalCard />
+    return (
+      <p className='text-xs text-muted-foreground'>
+        Approval request available in Verifications.
+      </p>
+    )
   if (state === 'artifact' && message.id === 'msg_06')
     return <ArtifactCard onOpen={onOpenArtifact} />
   if (state === 'selection' && index === 1)
@@ -394,73 +396,6 @@ function InlineToolCall() {
         />
       </CollapsibleContent>
     </Collapsible>
-  )
-}
-
-function InlineApprovalCard() {
-  const [decision, setDecision] = useState<'approved' | 'rejected' | null>(null)
-  const approval = {
-    title: 'Publish release notes to public changelog',
-    summary:
-      'This action writes the reviewed 0.8 release notes to a public repository file.',
-    binding: {
-      type: 'repository.write',
-      id: 'agentgate/docs/CHANGELOG.md',
-      version: '9e4ab21',
-      digest: 'sha256:8d18c2e4...4f0e',
-    },
-  }
-
-  function decide(next: 'approved' | 'rejected') {
-    setDecision(next)
-    localStorage.setItem('agentgate:inline-approval:appr_01', next)
-    window.dispatchEvent(
-      new CustomEvent('agentgate:inline-approval', {
-        detail: { id: 'appr_01', decision: next },
-      })
-    )
-  }
-
-  return (
-    <div className='max-w-[72ch] rounded-xl border bg-muted/35 p-4'>
-      <div className='mb-3 flex items-start justify-between gap-4'>
-        <div>
-          <p className='text-sm font-medium'>{approval.title}</p>
-          <p className='mt-1 text-xs text-muted-foreground'>
-            {approval.summary}
-          </p>
-        </div>
-        <Badge variant={decision ? 'secondary' : 'outline'}>
-          {decision ?? 'approval required'}
-        </Badge>
-      </div>
-      <div className='grid gap-1 rounded-md bg-background/40 p-3 font-mono text-[11px] text-muted-foreground'>
-        <span>type: {approval.binding.type}</span>
-        <span>id: {approval.binding.id}</span>
-        <span>version: {approval.binding.version}</span>
-        <span>digest: {approval.binding.digest}</span>
-      </div>
-      <div className='mt-3 flex justify-end gap-2'>
-        <Button
-          type='button'
-          size='sm'
-          variant='outline'
-          onClick={() => decide('rejected')}
-        >
-          <Ban />
-          Reject
-        </Button>
-        <Button
-          type='button'
-          size='sm'
-          variant='secondary'
-          onClick={() => decide('approved')}
-        >
-          <Check />
-          Approve
-        </Button>
-      </div>
-    </div>
   )
 }
 

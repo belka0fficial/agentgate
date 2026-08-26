@@ -79,6 +79,24 @@ type QueryBlock = {
   refresh: () => void
 }
 
+const sourceStatuses = new Set([
+  'live',
+  'degraded',
+  'offline',
+  'stale',
+  'blocked',
+  'empty',
+  'planned',
+  'unknown',
+])
+
+function sourceStatus(value: string | undefined) {
+  if (value === 'ok') return 'live'
+  if (value === 'warn' || value === 'warning') return 'degraded'
+  if (value === 'auth_required') return 'blocked'
+  return value && sourceStatuses.has(value) ? value : 'unknown'
+}
+
 export function GatewaySettings() {
   const session = useQuery({
     queryKey: ['agentgate', 'owner-session'],
@@ -261,18 +279,24 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         <StatusCard
           icon={RadioTower}
           title='Pi adapter'
-          value={block.health?.status ?? 'unknown'}
-          status={block.health?.status === 'ok' ? 'ok' : 'blocked'}
+          value={sourceStatus(block.health?.status)}
+          status={
+            sourceStatus(block.health?.status) === 'live'
+              ? 'ok'
+              : sourceStatus(block.health?.status) === 'degraded'
+                ? 'warn'
+                : 'blocked'
+          }
           detail={`${block.health?.service ?? 'not loaded'} · owner auth ${block.health?.owner_auth ?? 'unknown'}`}
         />
         <StatusCard
           icon={Router}
           title='Model gateway'
-          value={gateway?.status ?? 'unknown'}
+          value={sourceStatus(gateway?.status)}
           status={
-            gateway?.status === 'ok'
+            sourceStatus(gateway?.status) === 'live'
               ? 'ok'
-              : gateway?.status === 'auth_required'
+              : sourceStatus(gateway?.status) === 'degraded'
                 ? 'warn'
                 : 'blocked'
           }
@@ -687,7 +711,13 @@ function StatusCard({
 }
 
 function ProviderCard({ provider }: { provider: ModelProvider }) {
-  const status = provider.status === 'ok' ? 'secondary' : 'outline'
+  const normalized = sourceStatus(provider.status)
+  const status =
+    normalized === 'live'
+      ? 'secondary'
+      : normalized === 'degraded'
+        ? 'outline'
+        : 'destructive'
   return (
     <Card>
       <CardHeader className='pb-3'>
@@ -696,7 +726,7 @@ function ProviderCard({ provider }: { provider: ModelProvider }) {
             <CardTitle className='text-base'>{provider.name}</CardTitle>
             <CardDescription>{provider.kind}</CardDescription>
           </div>
-          <Badge variant={status}>{provider.status}</Badge>
+          <Badge variant={status}>{normalized}</Badge>
         </div>
       </CardHeader>
       <CardContent className='grid gap-3 text-sm'>

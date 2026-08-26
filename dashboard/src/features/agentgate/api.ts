@@ -88,8 +88,19 @@ export type OwnerSession = {
 
 let cachedCsrfToken: string | null = null
 
+function readableCsrfCookie() {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(/(?:^|; )agentgate_csrf=([^;]*)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 async function getCsrfToken() {
   if (cachedCsrfToken) return cachedCsrfToken
+  const cookieToken = readableCsrfCookie()
+  if (cookieToken) {
+    cachedCsrfToken = cookieToken
+    return cachedCsrfToken
+  }
   const session = await getAgentGate<{ csrf_token?: string | null }>(
     '/api/auth/session'
   )
