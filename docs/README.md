@@ -22,6 +22,7 @@ Conversation ideas must be promoted into project documentation before they becom
 - [`product/continuous-improvement.md`](product/continuous-improvement.md) — response feedback, evaluated changes, versioning, canaries, and rollback.
 - [`product/technology-intelligence.md`](product/technology-intelligence.md) — weekly global/Chinese research Jobs and Companion delivery.
 - [`product/conversation-control-and-focus-presence.md`](product/conversation-control-and-focus-presence.md) — multi-message turns, manual voice floor control, communication routing, screen sharing, Focus Room, and desktop Companion modes.
+- [`product/attention-notifications.md`](product/attention-notifications.md) — source-bound attention summary and planned notification delivery boundary.
 
 ### Architecture
 

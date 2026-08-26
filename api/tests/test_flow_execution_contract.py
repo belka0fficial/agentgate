@@ -65,7 +65,7 @@ def test_flow_execution_overview_is_source_bound_metadata_only(monkeypatch, tmp_
     assert response.status_code == 200
     body = response.json()
     assert body["metadata_only"] is True
-    assert body["source_status"] == {"status": "live", "source": "brain"}
+    assert body["source_status"] == {"status": "unknown", "source": "brain"}
     assert body["definitions_status"] == "live"
     assert body["runtime"]["source"] == "brain"
     assert body["runtime"]["execution_source_bound"] is True

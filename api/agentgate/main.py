@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from datetime import datetime, timedelta, timezone
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,7 +13,7 @@ from urllib.parse import quote, urlparse
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .auth import CSRF_COOKIE_NAME, COOKIE_NAME, issue_csrf_token, issue_session, require_auth, require_csrf, require_mcp, validate_admin_key
@@ -652,7 +653,7 @@ def source_status_from(result: dict[str, Any], source: str) -> dict[str, Any]:
         return {"status": failed_status, "source": source, "detail": safe_browser_error(error, source)}
     payload = result.get("data")
     raw_status = payload.get("status") if isinstance(payload, dict) else None
-    status = safe_browser_string(raw_status, "live").lower()
+    status = safe_browser_string(raw_status, "unknown").lower() if raw_status else "unknown"
     if status == "ok":
         status = "live"
     elif status in {"auth_required", "unauthorized", "forbidden", "permission_denied"}:
@@ -671,6 +672,143 @@ def safe_health_view(result: dict[str, Any], source: str) -> dict[str, Any]:
 
 def safe_suggestion_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [safe_suggestion(item) for item in rows[:3] if isinstance(item, dict)]
+
+
+ATTENTION_NOTIFICATION_PLAN = {
+    "status": "planned",
+    "source": "agentgate",
+    "delivery": [],
+    "reason": "No durable browser push or background delivery notification contract is available.",
+}
+
+
+def attention_href(base: str, source_id: Any | None = None, *, source: str | None = None) -> str | None:
+    safe_id = safe_browser_string(source_id, "") if source_id is not None else ""
+    if source_id is not None and (not safe_id or safe_id == "reference withheld"):
+        return None
+    if base == "approvals" and source in {"brain", "toolgate"} and safe_id:
+        return f"/approvals?source={source}&source_id={quote(safe_id, safe='')}"
+    if base == "flow-execution" and safe_id:
+        return f"/flow-execution/{quote(safe_id, safe='')}"
+    if base == "suggestions":
+        return "/suggestions"
+    return None
+
+
+def attention_approval_item(source: str, item: dict[str, Any]) -> dict[str, Any]:
+    view = verification_view(source, item)
+    canonical_source = source if source in {"brain", "toolgate"} else "unknown"
+    row = {
+        "kind": "pending_approval",
+        "status": "live",
+        "source": canonical_source,
+        "source_id": view["source_id"],
+        "title": "Approval requires review",
+        "severity": "high" if str(view.get("severity") or "").lower() == "high" else "medium" if str(view.get("severity") or "").lower() == "medium" else "low",
+        "metadata_only": True,
+        "details_withheld": True,
+    }
+    href = attention_href("approvals", view["source_id"], source=canonical_source)
+    if href:
+        row["href"] = href
+    return row
+
+
+def dependency_attention_item(name: str, status: str) -> dict[str, Any]:
+    return {
+        "kind": "degraded_dependency",
+        "status": status,
+        "source": safe_browser_string(name, "dependency"),
+        "title": f"{safe_browser_string(name, 'Dependency')} is {status}",
+        "metadata_only": True,
+        "details_withheld": True,
+    }
+
+
+def valid_attention_timestamp(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = value.strip().replace("Z", "+00:00")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", value.strip()):
+        return None
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def is_recent_attention_timestamp(value: Any) -> bool:
+    normalized = valid_attention_timestamp(value)
+    if not normalized:
+        return False
+    parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    now_utc = datetime.now(timezone.utc)
+    return now_utc - timedelta(days=7) <= parsed <= now_utc
+
+
+def job_failed_recently(item: dict[str, Any]) -> bool:
+    status = str(item.get("last_status") or item.get("status") or item.get("state") or "").lower()
+    timestamp = item.get("last_run_at") or item.get("last_run")
+    if status in {"failed", "error"} and is_recent_attention_timestamp(timestamp):
+        return True
+    history = item.get("run_history")
+    if isinstance(history, list):
+        return any(
+            isinstance(row, dict)
+            and safe_run_history_label(row.get("status")) == "failed"
+            and is_recent_attention_timestamp(row.get("completed_at") or row.get("finished_at") or row.get("created_at"))
+            for row in history
+        )
+    return False
+
+
+def failed_job_attention_item(item: dict[str, Any], index: int) -> dict[str, Any]:
+    safe_id = safe_browser_string(item.get("id") or item.get("job_id"), f"job-{index + 1}")
+    row = {
+        "kind": "failed_recent_job",
+        "status": "failed",
+        "source": "brain",
+        "source_id": safe_id,
+        "title": "brain automation failed recently",
+        "metadata_only": True,
+        "details_withheld": True,
+    }
+    last_run = valid_attention_timestamp(item.get("last_run_at") or item.get("last_run"))
+    if last_run:
+        row["last_run"] = last_run
+    href = attention_href("flow-execution", safe_id)
+    if href:
+        row["href"] = href
+    return row
+
+
+def suggestion_attention_item(item: dict[str, Any]) -> dict[str, Any]:
+    suggestion = safe_suggestion(item)
+    return {
+        "kind": "new_suggestion",
+        "status": suggestion["status"],
+        "source": "agentgate",
+        "source_id": suggestion["id"],
+        "title": "New suggestion requires review",
+        "priority": suggestion["priority"],
+        "confidence": suggestion["confidence"],
+        "confidence_label": suggestion["confidence_label"],
+        "href": "/suggestions",
+        "metadata_only": True,
+        "details_withheld": True,
+    }
+
+
+async def optional_upstream(up: Upstream, name: str, path: str) -> dict[str, Any]:
+    try:
+        return {"ok": True, "data": await up.request(name, "GET", path)}
+    except HTTPException as exc:
+        return {"ok": False, "error": exc.detail}
+    except Exception:
+        return {"ok": False, "error": {"source": name, "message": "source unavailable"}}
 
 
 def app_lifecycle_unavailable() -> dict[str, Any]:
@@ -845,6 +983,72 @@ async def dependency_health(up: Upstream = Depends(upstream)):
         except HTTPException as exc:
             return {"name": name, "status": dependency_status_from_exception(exc), "detail": safe_browser_error(exc.detail, name)}
     return await asyncio.gather(check("brain", "/health"), check("toolgate", "/v2/status"), check("memorygate", "/health"), check("systemgate", "/health"))
+
+
+@app.get("/api/attention", dependencies=[Depends(require_auth)])
+async def attention(up: Upstream = Depends(upstream), store: Database = Depends(db)):
+    brain_health, toolgate_health, memorygate_health, systemgate_health, requests, jobs = await asyncio.gather(
+        optional_upstream(up, "brain", "/health/detailed"),
+        optional_upstream(up, "toolgate", "/v2/status"),
+        optional_upstream(up, "memorygate", "/health"),
+        optional_upstream(up, "systemgate", "/health"),
+        optional_upstream(up, "toolgate", "/v2/requests"),
+        optional_upstream(up, "brain", "/api/jobs"),
+    )
+
+    source_statuses = {
+        "brain": source_status_from(brain_health, "brain"),
+        "toolgate": source_status_from(toolgate_health, "toolgate"),
+        "memorygate": source_status_from(memorygate_health, "memorygate"),
+        "systemgate": source_status_from(systemgate_health, "systemgate"),
+        "toolgate_requests": source_status_from(requests, "toolgate"),
+        "brain_jobs": source_status_from(jobs, "brain"),
+    }
+
+    request_rows = requests.get("data") if requests.get("ok") else []
+    toolgate_pending = [
+        attention_approval_item("toolgate", item)
+        for item in request_rows
+        if isinstance(item, dict) and item.get("kind") == "verification" and item.get("status") == "pending"
+    ] if isinstance(request_rows, list) else []
+    brain_pending = [
+        attention_approval_item(normalize_source(decoded.get("source")), decoded)
+        for decoded in [store.decode(item) for item in store.rows("SELECT * FROM verification_refs WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10")]
+    ]
+
+    degraded_dependencies = [
+        dependency_attention_item(name, row["status"])
+        for name, row in source_statuses.items()
+        if row.get("status") in {"degraded", "offline", "stale", "blocked", "auth_required"}
+    ]
+
+    job_rows = job_items(jobs.get("data")) if jobs.get("ok") else []
+    failed_jobs = [
+        failed_job_attention_item(item, index)
+        for index, item in enumerate(job_rows)
+        if job_failed_recently(item)
+    ][:5]
+
+    suggestion_rows = [store.decode(item) for item in store.rows("SELECT * FROM suggestions WHERE status = 'new' ORDER BY created_at DESC LIMIT 3")]
+    suggestion_items = [suggestion_attention_item(item) for item in suggestion_rows]
+
+    items = toolgate_pending + brain_pending + degraded_dependencies + failed_jobs + suggestion_items
+    degraded = any(row.get("status") in {"degraded", "offline", "stale", "blocked", "auth_required"} for row in source_statuses.values())
+    status = "degraded" if degraded else "live" if items else "empty"
+    return {
+        "metadata_only": True,
+        "status": status,
+        "source_status": source_statuses,
+        "summary": {
+            "pending_approvals": len(toolgate_pending) + len(brain_pending),
+            "degraded_dependencies": len(degraded_dependencies),
+            "failed_recent_jobs": len(failed_jobs),
+            "new_suggestions": len(suggestion_items),
+        },
+        "items": items[:12],
+        "empty_state": "empty" if not items else "live",
+        "notifications": ATTENTION_NOTIFICATION_PLAN,
+    }
 
 
 @app.get("/api/home", dependencies=[Depends(require_auth)])
@@ -2187,4 +2391,4 @@ async def dashboard(full_path: str):
         return FileResponse(candidate)
     if (dist / "index.html").exists():
         return FileResponse(dist / "index.html")
-    raise HTTPException(503, "Dashboard has not been built. Run npm run build in dashboard/.")
+    return HTMLResponse("<!doctype html><title>AgentGate</title><main>AgentGate dashboard build is not present in this server worktree.</main>")
