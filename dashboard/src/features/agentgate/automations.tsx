@@ -15,6 +15,7 @@ import {
 import { Main } from '@/components/layout/main'
 import { getAgentGate, postAgentGate } from './api'
 import {
+  canRenderJobControls,
   jobActionsEnabled,
   normalizeToolGateOverview,
   safeJobHistoryLabel,
@@ -223,48 +224,45 @@ export function JobsPage() {
                         </code>
                       </TableCell>
                       <TableCell>
-                        <div className='flex justify-end gap-2'>
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={action.isPending || !actionsEnabled}
-                            onClick={() =>
-                              action.mutate({
-                                jobId: item.id,
-                                actionName: paused ? 'resume' : 'pause',
-                              })
-                            }
-                          >
-                            {actionsEnabled ? (
-                              paused ? (
-                                <Play />
-                              ) : (
-                                <Pause />
-                              )
-                            ) : (
+                        {canRenderJobControls(item) ? (
+                          <div className='flex justify-end gap-2'>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              disabled={action.isPending || !actionsEnabled}
+                              onClick={() =>
+                                action.mutate({
+                                  jobId: item.id,
+                                  actionName: paused ? 'resume' : 'pause',
+                                })
+                              }
+                            >
+                              {paused ? <Play /> : <Pause />}
+                              {paused ? 'Resume' : 'Pause'}
+                            </Button>
+                            <Button
+                              size='sm'
+                              variant='secondary'
+                              disabled={action.isPending || !actionsEnabled}
+                              onClick={() =>
+                                action.mutate({
+                                  jobId: item.id,
+                                  actionName: 'run',
+                                })
+                              }
+                            >
+                              <Play />
+                              Run now
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className='flex justify-end'>
+                            <Badge variant='outline'>
                               <Lock />
-                            )}
-                            {actionsEnabled
-                              ? paused
-                                ? 'Resume'
-                                : 'Pause'
-                              : 'Locked'}
-                          </Button>
-                          <Button
-                            size='sm'
-                            variant='secondary'
-                            disabled={action.isPending || !actionsEnabled}
-                            onClick={() =>
-                              action.mutate({
-                                jobId: item.id,
-                                actionName: 'run',
-                              })
-                            }
-                          >
-                            {actionsEnabled ? <Play /> : <Lock />}
-                            {actionsEnabled ? 'Run now' : 'System'}
-                          </Button>
-                        </div>
+                              System locked
+                            </Badge>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   )

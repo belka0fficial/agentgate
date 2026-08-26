@@ -67,6 +67,10 @@ export function jobActionsEnabled(item: Job) {
   return !isLockedSystemJob(item)
 }
 
+export function canRenderJobControls(item: Job) {
+  return jobActionsEnabled(item)
+}
+
 export function safeJobHistoryLabel(item: Job) {
   const status = item.history?.status
   if (status === 'unavailable') return 'History unavailable'

@@ -156,6 +156,31 @@ Future trusted policies may permit narrowly scoped canary promotion, but that re
 8. preserve low-confidence findings in a research archive;
 9. never rewrite production artifacts directly.
 
+
+## System intelligence review Jobs
+
+Built-in system-owned Cron rows may expose only safe metadata for planned improvement scans. They are not a standalone Suggestions product and do not prove runtime execution until Pi publishes a real Job contract.
+
+### `agentgate-suggestion-discovery-scan`
+
+- Review source-bound feedback clusters, technology findings, reference gaps, stale decisions, and safe owner-visible product opportunities.
+- Model suggestions and discoveries as improvement evidence that can become owner-facing proposals or Conker Journal findings.
+- Do not expose raw prompts, memory text, tool arguments/results, logs, host paths, provider URLs, secrets, or private source content in the browser.
+- Do not create a separate Suggestions surface or notification feed.
+
+### `auto-skill-update-review`
+
+- Review eligible Skill feedback, failed Skill use, corrections, and version outcomes.
+- Draft candidate Skill updates with exact diffs, regression cases, evaluation evidence, approval binding, and rollback version.
+- Automatic observation, clustering, drafting, and isolated evaluation are allowed; production Skill application is not allowed without owner approval.
+- Never change evaluator prompts, promotion rules, approval requirements, or rollback history.
+
+### `flow-improvement-review`
+
+- Review Flow/Loop evidence, repeated orchestration failures, interruption needs, and owner-approved improvement opportunities.
+- Draft Pi-owned Flow/Loop proposals with versioned definitions, migration notes, evaluation evidence, approval binding, and rollback.
+- Do not execute flows, edit ToolGate Automations, or duplicate Pi orchestration authority from AgentGate.
+
 ## Acceptance criteria
 
 - Feedback always links to the exact response and active versions.

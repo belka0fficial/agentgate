@@ -85,17 +85,41 @@ SYSTEM_BUILTIN_JOBS: tuple[dict[str, Any], ...] = (
         "source_ref": "docs/product/technology-intelligence.md#agentgate-reference-refresh",
     },
     {
+        "id": "system:agentgate-suggestion-discovery-scan",
+        "name": "agentgate-suggestion-discovery-scan",
+        "kind": "cron",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/continuous-improvement.md#agentgate-suggestion-discovery-scan",
+    },
+    {
         "id": "system:agent-skill-quality-review",
         "name": "agent-skill-quality-review",
-        "kind": "flow",
+        "kind": "cron",
         "status": "planned",
         "schedule": "weekly",
         "source_ref": "docs/product/continuous-improvement.md#weekly-quality-job",
     },
     {
+        "id": "system:auto-skill-update-review",
+        "name": "auto-skill-update-review",
+        "kind": "cron",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/continuous-improvement.md#auto-skill-update-review",
+    },
+    {
+        "id": "system:flow-improvement-review",
+        "name": "flow-improvement-review",
+        "kind": "cron",
+        "status": "planned",
+        "schedule": "weekly",
+        "source_ref": "docs/product/continuous-improvement.md#flow-improvement-review",
+    },
+    {
         "id": "system:supply-chain-update-review",
         "name": "supply-chain-update-review",
-        "kind": "loop",
+        "kind": "cron",
         "status": "planned",
         "schedule": "weekly",
         "source_ref": "docs/architecture/software-supply-chain.md",
@@ -142,6 +166,14 @@ def safe_browser_string(value: Any, fallback: str = "unknown") -> str:
         return fallback
     text = str(value)
     return "reference withheld" if browser_unsafe_string(text) else text
+
+
+def safe_doc_source_ref(value: Any, fallback: str = "docs/README.md") -> str:
+    if not isinstance(value, str):
+        return fallback
+    if re.fullmatch(r"docs/[A-Za-z0-9._/#:-]+", value):
+        return value
+    return safe_browser_string(value, fallback)
 
 
 def safe_capability_label(value: Any, fallback: str) -> str:
@@ -1616,7 +1648,7 @@ async def cron_jobs(up: Upstream = Depends(upstream)):
             "metadata_only": True,
             "raw_response_withheld": True,
         }
-    return {"jobs": safe_automation_rows(jobs, "brain") + system_builtin_job_rows(), "metadata_only": True}
+    return {"jobs": safe_automation_rows(jobs, "brain", exclude_ids=SYSTEM_BUILTIN_JOB_IDS) + system_builtin_job_rows(), "metadata_only": True}
 
 
 def unavailable_flow_history(kind: str) -> dict[str, str]:
@@ -1643,7 +1675,7 @@ def system_builtin_job_rows() -> list[dict[str, Any]]:
             "status": status,
             "schedule": safe_browser_string(item.get("schedule"), "planned"),
             "source": "agentgate",
-            "source_ref": safe_browser_string(item.get("source_ref"), "docs/README.md"),
+            "source_ref": safe_doc_source_ref(item.get("source_ref")),
             "metadata_only": True,
             "last_run": None,
             "next_run": None,
@@ -1670,14 +1702,17 @@ def locked_system_job_response(job_id: str, action: str) -> dict[str, Any]:
     }
 
 
-def safe_automation_rows(value: Any, source: str) -> list[dict[str, Any]]:
+def safe_automation_rows(value: Any, source: str, exclude_ids: set[str] | None = None) -> list[dict[str, Any]]:
     rows = value if isinstance(value, list) else value.get("jobs", value.get("automations", [])) if isinstance(value, dict) else []
     safe_rows: list[dict[str, Any]] = []
     for index, item in enumerate(rows):
         if not isinstance(item, dict):
             continue
+        raw_id = item.get("id") or item.get("job_id")
+        if exclude_ids and isinstance(raw_id, str) and raw_id in exclude_ids:
+            continue
         row: dict[str, Any] = {
-            "id": safe_browser_string(item.get("id") or item.get("job_id"), f"{source}-{index + 1}"),
+            "id": safe_browser_string(raw_id, f"{source}-{index + 1}"),
             "name": f"{source} automation",
             "status": safe_browser_string(item.get("status") or item.get("last_status"), "unknown"),
             "source": source,
@@ -1805,7 +1840,7 @@ async def automations(up: Upstream = Depends(upstream)):
         optional("toolgate", "/v2/automations"),
     )
     return {
-        "jobs": system_builtin_job_rows() + safe_automation_rows(jobs, "brain"),
+        "jobs": system_builtin_job_rows() + safe_automation_rows(jobs, "brain", exclude_ids=SYSTEM_BUILTIN_JOB_IDS),
         "toolgate_automations": safe_toolgate_automation_rows(toolgate_automations),
         "errors": {
             "brain": jobs.get("error") if isinstance(jobs, dict) else None,

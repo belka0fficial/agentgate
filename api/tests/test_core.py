@@ -728,7 +728,10 @@ def test_cron_jobs_include_locked_builtin_system_metadata_without_raw_activity(m
     async def fake_request(name, method, path, **kwargs):
         assert name == "brain"
         assert path == "/api/jobs"
-        return []
+        return [
+            {"id": "system:agentgate-suggestion-discovery-scan", "name": "upstream duplicate should not appear"},
+            {"id": "owner-job", "name": "owner job", "status": "running"},
+        ]
 
     with TestClient(app) as client:
         client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
@@ -738,24 +741,69 @@ def test_cron_jobs_include_locked_builtin_system_metadata_without_raw_activity(m
     assert response.status_code == 200
     payload = response.json()
     system_jobs = [job for job in payload["jobs"] if job["owner"] == "system"]
+    system_ids = [job["id"] for job in system_jobs]
+    assert len(system_ids) == len(set(system_ids))
     assert {job["id"] for job in system_jobs} >= {
         "system:technology-radar-global",
         "system:technology-radar-china",
         "system:agentgate-reference-refresh",
         "system:agent-skill-quality-review",
         "system:supply-chain-update-review",
+        "system:agentgate-suggestion-discovery-scan",
+        "system:auto-skill-update-review",
+        "system:flow-improvement-review",
     }
     for job in system_jobs:
         assert job["editable"] is False
         assert job["metadata_only"] is True
+        assert job["owner"] == "system"
+        assert job["kind"] == "cron"
+        assert job["status"] in {"planned", "unknown"}
+        assert job["source_ref"].startswith("docs/")
         assert job["output"]["raw_withheld"] is True
-        assert job["output"]["status"] in {"planned", "unavailable"}
+        assert job["output"]["status"] in {"planned", "unknown"}
         assert job["history"]["status"] in {"planned", "unavailable"}
         assert "entries" not in job["history"]
+    assert [job["owner"] for job in payload["jobs"] if job["id"] == "owner-job"] == ["user"]
     encoded = str(payload)
     for unsafe in ("prompt", "stdout", "stderr", "tool_args", "provider_url", "/home/", "api.openai.com", "secret"):
         assert unsafe not in encoded.lower()
 
+
+
+def test_automations_endpoint_includes_system_jobs_once_and_keeps_user_jobs_separate(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if name == "brain" and path == "/api/jobs":
+            return [
+                {"id": "system:flow-improvement-review", "name": "duplicate runtime system row"},
+                {"id": "owner-job", "name": "Owner private job", "status": "paused"},
+            ]
+        if name == "toolgate" and path == "/v2/automations":
+            return []
+        raise AssertionError((name, method, path, kwargs))
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/automations")
+
+    assert response.status_code == 200
+    jobs = response.json()["jobs"]
+    assert [job["id"] for job in jobs].count("system:flow-improvement-review") == 1
+    system_job = next(job for job in jobs if job["id"] == "system:flow-improvement-review")
+    assert system_job["owner"] == "system"
+    assert system_job["editable"] is False
+    assert system_job["metadata_only"] is True
+    user_job = next(job for job in jobs if job["id"] == "owner-job")
+    assert user_job["owner"] == "user"
+    assert user_job["editable"] is True
 
 def test_system_cron_mutations_are_blocked_before_upstream(monkeypatch, tmp_path):
     monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
@@ -2017,3 +2065,10 @@ def test_toolgate_gate_reports_safe_catalog_statuses_and_approval_links(monkeypa
     encoded = str(body)
     for unsafe in ("api.openai.com", "cat /etc/passwd", "private", "stdout", "cmd", "base_url"):
         assert unsafe not in encoded
+
+
+
+def test_safe_automation_rows_ignores_malformed_ids():
+    from agentgate.main import safe_automation_rows
+    rows = safe_automation_rows([{"id": {"not": "hashable"}, "status": "planned"}], "brain", {"system:id"})
+    assert rows[0]["id"] == "brain-1"
