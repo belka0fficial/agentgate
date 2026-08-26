@@ -202,8 +202,8 @@ def test_home_projects_chats_jobs_memory_and_brain_approvals_safely(monkeypatch,
     encoded = str(body)
     for unsafe in ("token:", "sk-test", "/home/alexey", "raw_owner_prompt", "api.openai.com", "password:", "/etc/passwd", "command", "SECRET", "'args':"):
         assert unsafe not in encoded
-    assert body["recent_chats"][0]["preview"] == "reference withheld"
-    assert body["active_jobs"][0]["name"] == "Job"
+    assert body["recent_chats"][0]["preview_withheld"] is True
+    assert body["active_jobs"][0]["name"] == "brain automation"
     assert body["memory_status"]["briefing"] == "details withheld"
     assert body["pending_verifications"][0]["action_payload_withheld"] is True
 
@@ -251,9 +251,9 @@ def test_home_sanitizes_suggestions_apps_unlabeled_secrets_and_failed_auth(monke
 
     body = response.json()
     assert body["source_status"]["toolgate"]["status"] == "blocked"
-    assert body["recent_chats"][0]["title"] == "reference withheld"
+    assert body["recent_chats"][0]["preview_withheld"] is True
     assert body["memory_status"]["briefing"] == "details withheld"
-    assert body["suggestions"][0]["summary"] == "reference withheld"
+    assert body["suggestions"][0]["summary"] == "Details withheld"
     assert body["pinned_apps"][0]["url"] == "reference withheld"
     encoded = str(body)
     for unsafe in ("sk-proj-", "hidden prompt", "/home/alexey", "api_key", "sk-test", "source_ref", "api.openai.com", "api.anthropic.com"):
