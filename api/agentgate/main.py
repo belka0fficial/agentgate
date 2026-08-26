@@ -899,7 +899,14 @@ def upstream(request: Request) -> Upstream:
 
 @app.get("/api/health")
 async def health(request: Request):
-    return {"status": "ok", "service": "agentgate", "time": now()}
+    return {
+        "status": "live",
+        "service": "agentgate",
+        "time": now(),
+        "process_only": True,
+        "dependencies_checked": False,
+        "dependency_health_route": "/api/health/dependencies",
+    }
 
 
 @app.post("/api/auth/login")
@@ -947,7 +954,7 @@ def dependency_status_from_payload(payload: Any) -> str:
     if isinstance(payload, dict):
         status = str(payload.get("status") or payload.get("state") or "").lower()
         if status in {"degraded", "offline", "blocked", "auth_required", "stale", "empty", "planned", "unknown"}:
-            return status
+            return "blocked" if status == "auth_required" else status
         if status in {"unavailable", "unreachable"}:
             return "offline"
         if status in {"ok", "live"}:
@@ -957,18 +964,18 @@ def dependency_status_from_payload(payload: Any) -> str:
 
 def dependency_status_from_exception(exc: HTTPException) -> str:
     if exc.status_code in {401, 403}:
-        return "auth_required"
+        return "blocked"
     detail = exc.detail
     if isinstance(detail, dict):
         status = str(detail.get("status") or detail.get("code") or detail.get("message") or "").lower()
         if "auth" in status or "forbidden" in status:
-            return "auth_required"
+            return "blocked"
         if "degraded" in status:
             return "degraded"
     elif isinstance(detail, str):
         lowered = detail.lower()
         if "auth" in lowered or "forbidden" in lowered:
-            return "auth_required"
+            return "blocked"
         if "degraded" in lowered:
             return "degraded"
     return "offline"

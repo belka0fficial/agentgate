@@ -555,7 +555,7 @@ def test_dependency_health_preserves_source_statuses(monkeypatch, tmp_path):
     by_name = {item["name"]: item for item in response.json()}
     assert by_name["brain"]["status"] == "live"
     assert by_name["memorygate"]["status"] == "degraded"
-    assert by_name["toolgate"]["status"] == "auth_required"
+    assert by_name["toolgate"]["status"] == "blocked"
     assert by_name["systemgate"]["status"] == "offline"
     assert "api.anthropic.com" not in str(by_name["toolgate"])
 

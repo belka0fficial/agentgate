@@ -37,6 +37,10 @@ Conversation ideas must be promoted into project documentation before they becom
 - [`development/fast-ui-loop.md`](development/fast-ui-loop.md) — laptop Vite HMR through a Tailscale/SSH tunnel to the server runtime.
 - [`development/team.md`](development/team.md) — scoped development roles, worktrees, concurrency, and review pipeline.
 
+### Operations
+
+- [`operations/release-hardening.md`](operations/release-hardening.md) — outage contracts, backup/restore, upgrade/migration, safe startup, health verification, static/secret scans, and rollback.
+
 ### Master plans
 
 - [Product architecture and foundation plan](../.hermes/plans/2026-08-26_012753-agentgate-product-architecture-foundation.md)

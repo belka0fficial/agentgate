@@ -16,6 +16,7 @@
     "test:ui": "vitest --ui --browser.headless",
     "test:browser": "vitest",
     "test:coverage": "vitest run --coverage --browser.headless",
+    "scan:static": "python3 ../scripts/security/static-boundary-scan.py dist",
     "test:browser:install": "playwright install chromium --with-deps"
   },
   "dependencies": {
