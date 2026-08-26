@@ -31,6 +31,11 @@ Conversation ideas must be promoted into project documentation before they becom
 
 - [`references/technology-catalog.md`](references/technology-catalog.md) — repositories and technology adoption decisions.
 
+### Development
+
+- [`development/fast-ui-loop.md`](development/fast-ui-loop.md) — laptop Vite HMR through a Tailscale/SSH tunnel to the server runtime.
+- [`development/team.md`](development/team.md) — scoped development roles, worktrees, concurrency, and review pipeline.
+
 ### Master plans
 
 - [Product architecture and foundation plan](../.hermes/plans/2026-08-26_012753-agentgate-product-architecture-foundation.md)
