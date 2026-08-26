@@ -627,9 +627,11 @@ function SelectionChip({
         type='button'
         size='sm'
         variant='ghost'
+        disabled={!chatActionAvailability('selected-reply').available}
+        aria-label='Selected-text reply unavailable'
         onClick={() => onQuote(selection.text)}
       >
-        Reply planned
+        Reply unavailable
       </Button>
       <Button
         type='button'
@@ -643,9 +645,11 @@ function SelectionChip({
         type='button'
         size='sm'
         variant='ghost'
+        disabled={!chatActionAvailability('selected-memory').available}
+        aria-label='Selected-text memory unavailable'
         onClick={() => onMemory(selection.text)}
       >
-        Memory planned
+        Memory unavailable
       </Button>
     </div>
   )
@@ -753,9 +757,7 @@ function Composer({
           })
             .then(() => onSend?.())
             .catch((error: unknown) => {
-              setSendError(
-                error instanceof Error ? error.message : 'Chat request failed'
-              )
+              setSendError(safeChatUiError(error))
               setValue(input)
             })
             .finally(() => setSending(false))
@@ -908,7 +910,13 @@ function Composer({
             size='icon'
             variant={isStreaming ? 'destructive' : 'default'}
             className='size-9 shrink-0'
-            aria-label={isStreaming || sending ? 'Stop run' : 'Send message'}
+            aria-label={
+              isStreaming
+                ? 'Stop run unavailable'
+                : sending
+                  ? 'Sending message'
+                  : 'Send message'
+            }
             disabled={sending || isStreaming}
           >
             {isStreaming || sending ? <Square /> : <ArrowUp />}
