@@ -124,7 +124,7 @@ export async function postAgentGate<T>(
 
 export async function loginAgentGateOwner(ownerToken: string) {
   return postAgentGate<OwnerSession>('/api/auth/login', {
-    owner_token: ownerToken,
+    key: ownerToken,
   })
 }
 
