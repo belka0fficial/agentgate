@@ -4,7 +4,7 @@ import { Apps } from '@/features/apps'
 
 const appsSearchSchema = z.object({
   type: z
-    .enum(['all', 'connected', 'notConnected'])
+    .enum(['all', 'pinned', 'available', 'planned'])
     .optional()
     .catch(undefined),
   filter: z.string().optional().catch(''),

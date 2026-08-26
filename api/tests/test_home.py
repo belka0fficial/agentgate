@@ -254,7 +254,7 @@ def test_home_sanitizes_suggestions_apps_unlabeled_secrets_and_failed_auth(monke
     assert body["recent_chats"][0]["preview_withheld"] is True
     assert body["memory_status"]["briefing"] == "details withheld"
     assert body["suggestions"][0]["summary"] == "Details withheld"
-    assert body["pinned_apps"][0]["url"] == "reference withheld"
+    assert body["pinned_apps"][0]["purpose"] == "not provided"
     encoded = str(body)
     for unsafe in ("sk-proj-", "hidden prompt", "/home/alexey", "api_key", "sk-test", "source_ref", "api.openai.com", "api.anthropic.com"):
         assert unsafe not in encoded

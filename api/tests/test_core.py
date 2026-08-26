@@ -27,8 +27,9 @@ def test_owner_and_mcp_workflows(monkeypatch, tmp_path):
         suggestion = client.post("/api/suggestions", headers=csrf_headers(client), json={"title": "Hydrate", "summary": "Keep water nearby"}).json()
         assert client.patch(f"/api/suggestions/{suggestion['id']}", headers=csrf_headers(client), json={"status": "saved"}).json()["status"] == "saved"
 
-        app_item = client.post("/api/apps", headers=csrf_headers(client), json={"name": "Local app", "url": "http://127.0.0.1:9000"}).json()
-        assert client.patch(f"/api/apps/{app_item['id']}", headers=csrf_headers(client), json={"pinned": True}).json()["pinned"] == 1
+        app_plan = client.post("/api/apps", headers=csrf_headers(client), json={"name": "Local app", "url": "http://127.0.0.1:9000"}).json()
+        assert app_plan["status"] == "pending_approval"
+        assert app_plan["requires_approval"] is True
 
         mcp = client.post("/api/mcp/suggestions", headers={"X-AgentGate-MCP-Key": "test-mcp-key-123456"}, json={"title": "Cron finding", "summary": "Something useful"})
         assert mcp.status_code == 200

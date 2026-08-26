@@ -709,18 +709,61 @@ def safe_suggestion_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [safe_suggestion(item) for item in rows[:3] if isinstance(item, dict)]
 
 
-def safe_app_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    safe: list[dict[str, Any]] = []
-    for index, item in enumerate(rows[:8]):
-        if not isinstance(item, dict):
-            continue
-        safe.append({
+def app_lifecycle_unavailable() -> dict[str, Any]:
+    return {
+        "available": False,
+        "status": "planned",
+        "source": "toolgate",
+        "reason": "No approved ToolGate app lifecycle contract is available.",
+        "actions": [],
+    }
+
+
+def safe_home_app_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
             "id": safe_browser_string(item.get("id"), f"app-{index + 1}"),
             "name": safe_browser_string(item.get("name"), "Pinned app"),
-            "url": safe_browser_string(item.get("url"), "reference withheld"),
+            "purpose": safe_browser_string(item.get("description") or item.get("purpose"), "not provided"),
             "pinned": bool(item.get("pinned", True)),
             "metadata_only": True,
-        })
+        }
+        for index, item in enumerate(rows[:8])
+        if isinstance(item, dict)
+    ]
+
+
+def safe_opaque_ref(value: Any, fallback: str = "not provided") -> str:
+    if not isinstance(value, str) or not value.strip():
+        return fallback
+    text = value.strip()
+    if "/" in text or "\\" in text or "://" in text or len(text) > 120:
+        return "reference withheld"
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,120}", text):
+        return "reference withheld"
+    return text
+
+
+def safe_app_record(item: dict[str, Any], index: int = 0) -> dict[str, Any]:
+    return {
+        "id": safe_browser_string(item.get("id"), f"app-{index + 1}"),
+        "name": safe_browser_string(item.get("name"), "App"),
+        "purpose": safe_browser_string(item.get("description") or item.get("purpose"), "not provided"),
+        "status": safe_browser_string(item.get("status"), "unknown").lower(),
+        "source": safe_browser_string(item.get("source"), "agentgate-local-registry"),
+        "source_ref": safe_opaque_ref(item.get("source_ref")),
+        "pinned": bool(item.get("pinned", False)),
+        "metadata_only": True,
+        "lifecycle": app_lifecycle_unavailable(),
+    }
+
+
+def safe_app_rows(rows: list[dict[str, Any]], limit: int | None = 8) -> list[dict[str, Any]]:
+    selected = rows[:limit] if limit is not None else rows
+    safe: list[dict[str, Any]] = []
+    for index, item in enumerate(selected):
+        if isinstance(item, dict):
+            safe.append(safe_app_record(item, index))
     return safe
 
 
@@ -878,7 +921,7 @@ async def home(request: Request, up: Upstream = Depends(upstream), store: Databa
     )
 
     suggestions = safe_suggestion_rows([store.decode(item) for item in store.rows("SELECT * FROM suggestions WHERE status = 'new' ORDER BY created_at DESC LIMIT 3")])
-    apps = safe_app_rows(store.rows("SELECT * FROM apps WHERE pinned = 1 ORDER BY position, name LIMIT 8"))
+    apps = safe_home_app_rows(store.rows("SELECT * FROM apps WHERE pinned = 1 ORDER BY position, name LIMIT 8"))
     request_rows = data(requests, [])
     toolgate_pending = [
         verification_view("toolgate", item)
@@ -1325,51 +1368,98 @@ async def update_suggestion(suggestion_id: str, payload: dict[str, Any], store: 
 
 @app.get("/api/apps", dependencies=[Depends(require_auth)])
 async def apps(store: Database = Depends(db)):
-    return store.rows("SELECT * FROM apps ORDER BY pinned DESC, position, name")
+    rows = store.rows("SELECT * FROM apps ORDER BY pinned DESC, position, name")
+    safe_rows = safe_app_rows(rows, limit=None)
+    return {
+        "apps": safe_rows,
+        "source_status": {"status": "unknown" if safe_rows else "empty", "source": "agentgate-local-registry"},
+        "metadata_only": True,
+        "safe_fields": ["id", "name", "purpose", "status", "source", "source_ref", "pinned", "lifecycle"],
+        "creation": {
+            "status": "planned",
+            "source": "toolgate",
+            "requires_approval": True,
+            "reason": "App creation/deployment requires ToolGate approval.",
+        },
+    }
+
+
+@app.get("/api/apps/{app_id}", dependencies=[Depends(require_auth)])
+async def app_detail(app_id: str, store: Database = Depends(db)):
+    item = store.row("SELECT * FROM apps WHERE id = ?", (app_id,))
+    if not item:
+        raise HTTPException(404, "App not found")
+    return {"app": safe_app_record(item), "metadata_only": True}
 
 
 @app.post("/api/apps", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def create_app(payload: AppInput, store: Database = Depends(db)):
-    data = payload.model_dump(); data["url"] = valid_url(data["url"])
-    if data.get("health_url"): data["health_url"] = valid_url(data["health_url"])
-    return store.create_app(data)
+async def create_app(payload: AppInput):
+    return {
+        "status": "pending_approval",
+        "source": "toolgate",
+        "requires_approval": True,
+        "metadata_only": True,
+        "app": {
+            "name": safe_browser_string(payload.name, "App"),
+            "purpose": safe_browser_string(payload.description, "not provided"),
+            "source": safe_browser_string(payload.source, "manual"),
+            "source_ref": safe_browser_string(payload.source_ref, "not provided"),
+            "pinned": bool(payload.pinned),
+            "lifecycle": app_lifecycle_unavailable(),
+        },
+        "reason": "App creation/deployment must be approved through ToolGate before local registry mutation.",
+    }
 
 
 @app.patch("/api/apps/{app_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def update_app(app_id: str, payload: dict[str, Any], store: Database = Depends(db)):
-    allowed = {key: value for key, value in payload.items() if key in {"name", "description", "status", "pinned", "position", "url", "health_url"}}
-    if "url" in allowed: allowed["url"] = valid_url(allowed["url"])
-    if "health_url" in allowed and allowed["health_url"]: allowed["health_url"] = valid_url(allowed["health_url"])
-    if not allowed: raise HTTPException(422, "No supported fields")
-    if "pinned" in allowed: allowed["pinned"] = int(bool(allowed["pinned"]))
+    allowed = {key: value for key, value in payload.items() if key in {"name", "description", "status", "pinned", "position"}}
+    if not allowed:
+        raise HTTPException(422, "No supported fields")
+    if "pinned" in allowed:
+        allowed["pinned"] = int(bool(allowed["pinned"]))
     assignments = ", ".join(f"{key} = ?" for key in allowed) + ", updated_at = ?"
     store.execute(f"UPDATE apps SET {assignments} WHERE id = ?", (*allowed.values(), now(), app_id))
     item = store.row("SELECT * FROM apps WHERE id = ?", (app_id,))
-    if not item: raise HTTPException(404, "App not found")
-    return item
+    if not item:
+        raise HTTPException(404, "App not found")
+    return {"app": safe_app_record(item), "metadata_only": True}
 
 
 @app.delete("/api/apps/{app_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def delete_app(app_id: str, store: Database = Depends(db)):
-    if not store.row("SELECT id FROM apps WHERE id = ?", (app_id,)): raise HTTPException(404, "App not found")
+    if not store.row("SELECT id FROM apps WHERE id = ?", (app_id,)):
+        raise HTTPException(404, "App not found")
     store.execute("DELETE FROM apps WHERE id = ?", (app_id,))
-    return {"deleted": True}
+    return {"deleted": True, "metadata_only": True}
 
 
 @app.post("/api/apps/{app_id}/health-check", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def check_app(app_id: str, store: Database = Depends(db)):
-    item = store.row("SELECT * FROM apps WHERE id = ?", (app_id,))
-    if not item:
+    if not store.row("SELECT id FROM apps WHERE id = ?", (app_id,)):
         raise HTTPException(404, "App not found")
-    target = item.get("health_url") or item["url"]
-    try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=False) as client:
-            response = await client.get(target)
-        status = "healthy" if response.status_code < 400 else "unhealthy"
-    except httpx.HTTPError:
-        status = "unreachable"
-    store.execute("UPDATE apps SET status = ?, updated_at = ? WHERE id = ?", (status, now(), app_id))
-    return {"id": app_id, "status": status}
+    return JSONResponse(status_code=501, content={
+        "id": safe_browser_string(app_id, "unknown"),
+        "status": "planned",
+        "source": "toolgate",
+        "action": "health-check",
+        "metadata_only": True,
+        "reason": "App health checks require a safe source-bound lifecycle contract.",
+    })
+
+
+@app.post("/api/apps/{app_id}/{action}", dependencies=[Depends(require_auth), Depends(require_csrf)])
+async def app_lifecycle_action(app_id: str, action: Literal["start", "stop", "restart"], store: Database = Depends(db)):
+    if not store.row("SELECT id FROM apps WHERE id = ?", (app_id,)):
+        raise HTTPException(404, "App not found")
+    return JSONResponse(status_code=501, content={
+        "id": safe_browser_string(app_id, "unknown"),
+        "status": "planned",
+        "source": "toolgate",
+        "action": safe_browser_string(action, "updated"),
+        "metadata_only": True,
+        "reason": "No real approved ToolGate app lifecycle route is available.",
+    })
 
 
 @app.get("/api/gates/toolgate", dependencies=[Depends(require_auth)])
@@ -1676,13 +1766,14 @@ async def mcp_create_suggestion(payload: SuggestionInput, store: Database = Depe
 
 
 @app.post("/api/mcp/apps", dependencies=[Depends(require_mcp)])
-async def mcp_create_app(payload: AppInput, store: Database = Depends(db)):
-    data = payload.model_dump()
-    data["source"] = "brain"
-    data["url"] = valid_url(data["url"])
-    if data.get("health_url"):
-        data["health_url"] = valid_url(data["health_url"])
-    return store.create_app(data)
+async def mcp_create_app():
+    return JSONResponse(status_code=423, content={
+        "status": "blocked",
+        "source": "toolgate",
+        "requires_approval": True,
+        "message": "App creation requires ToolGate approval.",
+        "metadata_only": True,
+    })
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
