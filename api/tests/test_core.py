@@ -1118,8 +1118,8 @@ def test_approval_mutation_responses_are_metadata_only(monkeypatch, tmp_path):
             client.post("/api/runs/run-1/stop", headers=headers, json={}),
         ]
 
-    for response in responses:
-        assert response.status_code == 200
+    for index, response in enumerate(responses):
+        assert response.status_code == (423 if index == 1 else 200)
         encoded = str(response.json())
         for unsafe in ("cat /etc/passwd", "sk-test", "private prompt", "hidden prompt", "SECRET", "api.anthropic.com", "https://", "/home/alexeybe1kin", "args", "api_key", "command", "provider_url"):
             assert unsafe not in encoded

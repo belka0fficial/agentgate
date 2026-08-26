@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
@@ -20,17 +20,28 @@ import {
   relativeTime,
   type ChatSession,
 } from './api'
+import { filterAndSortChatSessions, type ChatSort } from './chat-controls-model'
 import { AgentGateHeader } from './page-header'
 
 export function ChatsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [ownerToken, setOwnerToken] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<ChatSort>('updated-desc')
   const chats = useQuery({
     queryKey: ['agentgate', 'chats'],
     queryFn: () => getAgentGate<{ sessions: ChatSession[] }>('/api/chats'),
   })
-  const rows = chats.data?.sessions ?? []
+  const sourceRows = chats.data?.sessions
+  const rows = useMemo(
+    () =>
+      filterAndSortChatSessions(sourceRows ?? [], {
+        query: searchQuery,
+        sort: sortOrder,
+      }),
+    [sourceRows, searchQuery, sortOrder]
+  )
   const needsOwnerLogin =
     chats.error instanceof Error &&
     chats.error.message.toLowerCase().includes('owner authentication')
@@ -56,12 +67,13 @@ export function ChatsPage() {
     <>
       <AgentGateHeader />
       <Main fluid className='px-4 sm:px-6'>
-        <section className='w-full overflow-x-auto'>
+        <section className='w-full overflow-x-auto' aria-busy={chats.isLoading}>
           <div className='mb-4 flex items-end justify-between gap-4 border-b pb-3'>
             <div>
               <h2 className='text-sm font-medium'>Recent sessions</h2>
               <p className='text-xs text-muted-foreground'>
-                Private Pi adapter conversations, ordered by latest activity.
+                Private Pi adapter conversations from /api/chats. Counts are
+                shown only when the source supplies them.
               </p>
             </div>
             <Button
@@ -80,7 +92,38 @@ export function ChatsPage() {
                 : 'Could not create chat'}
             </div>
           ) : null}
-          {needsOwnerLogin ? (
+          <div className='mb-4 grid gap-3 rounded-xl border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_220px]'>
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder='Search title, preview, model, mode, or session id'
+              aria-label='Search chats'
+            />
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value as ChatSort)}
+              className='h-9 rounded-md border bg-background px-3 text-sm'
+              aria-label='Sort chats'
+            >
+              <option value='updated-desc'>Latest activity first</option>
+              <option value='updated-asc'>Oldest activity first</option>
+              <option value='title-asc'>Title A-Z</option>
+              <option value='turns-desc'>Turns high-low</option>
+            </select>
+            <p className='text-xs text-muted-foreground sm:col-span-2'>
+              Showing {rows.length} of {(sourceRows ?? []).length} source
+              sessions. No synthetic totals are generated.
+            </p>
+          </div>
+          {chats.isLoading ? (
+            <div className='rounded-xl border bg-card p-8 text-sm text-muted-foreground'>
+              Loading sessions from Pi adapter...
+            </div>
+          ) : chats.error && !needsOwnerLogin ? (
+            <div className='rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive'>
+              Chat source degraded. Sessions could not be loaded.
+            </div>
+          ) : needsOwnerLogin ? (
             <form
               className='mb-4 grid gap-3 rounded-xl border bg-card p-4 text-sm'
               onSubmit={(event) => {
@@ -120,8 +163,13 @@ export function ChatsPage() {
                 </p>
               ) : null}
             </form>
-          ) : null}
-          {!needsOwnerLogin && rows.length === 0 ? (
+          ) : !needsOwnerLogin &&
+            (sourceRows ?? []).length > 0 &&
+            rows.length === 0 ? (
+            <div className='rounded-xl border bg-card p-8 text-sm text-muted-foreground'>
+              No source sessions match this filter.
+            </div>
+          ) : !needsOwnerLogin && rows.length === 0 ? (
             <div className='rounded-xl border bg-card p-8 text-sm text-muted-foreground'>
               No Pi sessions yet. Start a new chat to create one.
             </div>
@@ -181,6 +229,6 @@ export function ChatsPage() {
 }
 
 function sessionContextLabel(mode?: string) {
-  if (mode === 'incognito') return 'deep search'
+  if (mode === 'incognito') return 'incognito reported'
   return mode ?? 'operator'
 }

@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUp,
   Brain,
-  Camera,
   Clipboard,
   Download,
   EyeOff,
@@ -13,18 +12,14 @@ import {
   GitFork,
   Globe,
   Library,
-  Mic,
   MoreHorizontal,
   Paperclip,
   Pencil,
-  Phone,
-  Radio,
   RotateCcw,
   Share2,
   SlidersHorizontal,
   Square,
   Trash2,
-  Volume2,
   WifiOff,
   Wrench,
   X,
@@ -64,7 +59,18 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Main } from '@/components/layout/main'
-import { getAgentGate, relativeTime, type ChatMessage } from './api'
+import {
+  getAgentGate,
+  postAgentGate,
+  relativeTime,
+  type ChatMessage,
+} from './api'
+import {
+  chatActionAvailability,
+  forkPayloadForMessage,
+  safeChatUiError,
+  streamChatBody,
+} from './chat-controls-model'
 import { personas } from './personas'
 
 const chatStates = [
@@ -81,6 +87,7 @@ const chatStates = [
 ] as const
 
 type ChatState = (typeof chatStates)[number]
+type ChatSessionFork = { id?: string }
 
 export function ChatDetailPage({ chatId }: { chatId: string }) {
   const [quoteDraft, setQuoteDraft] = useState('')
@@ -90,7 +97,8 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     y: number
     chatState: ChatState
   } | null>(null)
-  const [memoryCandidate, setMemoryCandidate] = useState('')
+  const [selectionNotice, setSelectionNotice] = useState('')
+  const [forkError, setForkError] = useState('')
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const threadViewportRef = useRef<HTMLDivElement>(null)
   const threadEndRef = useRef<HTMLDivElement>(null)
@@ -135,18 +143,21 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     setShowJumpToLatest(!isAtLatest)
   }
 
-  function handleForkFromMessage(message: ChatMessage) {
-    const forkId = `${chatId}_fork_${message.id}`
-    const prefill = message.role === 'owner' ? message.content : ''
-    sessionStorage.setItem(
-      `agentgate:fork:${forkId}`,
-      JSON.stringify({
-        sourceChatId: chatId,
-        throughMessageId: message.id,
-        prefill,
-      })
-    )
-    void navigate({ to: '/chats/$id', params: { id: forkId } })
+  async function handleForkFromMessage(message: ChatMessage) {
+    setForkError('')
+    try {
+      const fork = await postAgentGate<ChatSessionFork>(
+        `/api/chats/${chatId}/fork`,
+        forkPayloadForMessage(message)
+      )
+      if (fork.id) {
+        void navigate({ to: '/chats/$id', params: { id: fork.id } })
+      } else {
+        setForkError('Fork route returned no session id.')
+      }
+    } catch (error) {
+      setForkError(safeChatUiError(error))
+    }
   }
 
   function handleThreadSelection() {
@@ -206,6 +217,11 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
                 </div>
               </div>
             </div>
+            {forkError ? (
+              <div className='mx-auto mb-2 w-full max-w-[1200px] px-4 text-xs text-destructive sm:px-6'>
+                {forkError}
+              </div>
+            ) : null}
             <div
               ref={threadViewportRef}
               data-ui='chat-thread'
@@ -223,7 +239,9 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
                       >
                         <MessageRow
                           message={message}
-                          onFork={handleForkFromMessage}
+                          onFork={(message) =>
+                            void handleForkFromMessage(message)
+                          }
                         />
                         <StateInlineSurface
                           state={chatState}
@@ -275,21 +293,25 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
       {selectionChip && selectionChip.chatState === chatState ? (
         <SelectionChip
           selection={selectionChip}
-          onQuote={(text) => {
-            setQuoteDraft(text)
+          onQuote={() => {
+            setSelectionNotice(
+              'Selected-text reply is planned until a backend message-span schema exists.'
+            )
             setSelectionChip(null)
             window.getSelection()?.removeAllRanges()
           }}
           onCopy={(text) => navigator.clipboard?.writeText(text)}
-          onMemory={(text) => {
-            setMemoryCandidate(text)
+          onMemory={() => {
+            setSelectionNotice(
+              'Selected-text memory capture is planned until an approval contract exists.'
+            )
             setSelectionChip(null)
           }}
         />
       ) : null}
-      {memoryCandidate ? (
+      {selectionNotice ? (
         <div className='fixed right-4 bottom-4 z-50 rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md'>
-          Memory candidate queued for approval
+          {selectionNotice}
         </div>
       ) : null}
     </div>
@@ -354,15 +376,9 @@ function StateInlineSurface({
   if (state === 'tool' && message.id === 'msg_02') return <InlineToolCall />
   if (state === 'approval' && message.id === 'msg_04')
     return (
-      <div className='flex max-w-[72ch] items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground'>
-        <span>
-          Approval details are available only from real source-bound requests in
-          Verifications.
-        </span>
-        <Button type='button' size='sm' variant='outline' disabled>
-          Open Verifications
-        </Button>
-      </div>
+      <p className='text-xs text-muted-foreground'>
+        Approval request available in Verifications.
+      </p>
     )
   if (state === 'artifact' && message.id === 'msg_06')
     return <ArtifactCard onOpen={onOpenArtifact} />
@@ -388,20 +404,10 @@ function StreamingCursor() {
 
 function InlineToolCall() {
   return (
-    <Collapsible className='max-w-[72ch] rounded-lg bg-muted/35 px-3 py-2'>
-      <CollapsibleTrigger className='flex w-full items-center justify-between gap-3 text-left font-mono text-[11px] text-muted-foreground'>
-        <span>memory.search - 6 records - 84ms</span>
-        <FilePenLine className='size-3.5' />
-      </CollapsibleTrigger>
-      <CollapsibleContent className='mt-3 space-y-2 border-t pt-3 text-xs'>
-        <TraceLine label='Args' value='query="release 0.8 checklist" limit=8' />
-        <TraceLine label='Result' value='6 records, 4 with direct evidence' />
-        <TraceLine
-          label='Preview'
-          value='release checklist, approval policy, changelog draft'
-        />
-      </CollapsibleContent>
-    </Collapsible>
+    <div className='max-w-[72ch] rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground'>
+      Tool activity is available as metadata only; arguments and results are
+      withheld.
+    </div>
   )
 }
 
@@ -442,7 +448,7 @@ function RunStateSurface({ state }: { state: ChatState }) {
       <InlineRunNotice
         tone='muted'
         text='Stopped by you. Partial output retained.'
-        actions={['Resume', 'Regenerate']}
+        actions={['Resume planned', 'Regenerate planned']}
       />
     )
   if (state === 'failed')
@@ -450,7 +456,7 @@ function RunStateSurface({ state }: { state: ChatState }) {
       <InlineRunNotice
         tone='destructive'
         text='The run failed while writing the draft. Nothing was published.'
-        actions={['Retry']}
+        actions={['Retry unavailable']}
       />
     )
   if (state === 'lost')
@@ -458,8 +464,8 @@ function RunStateSurface({ state }: { state: ChatState }) {
       <InlineRunNotice
         tone='muted'
         icon={<WifiOff />}
-        text='Connection lost mid-stream. Data is stale; retrying automatically.'
-        actions={['Retry now']}
+        text='Connection lost mid-stream. Data is stale; retry is unavailable.'
+        actions={['Retry unavailable']}
       />
     )
   return null
@@ -490,7 +496,16 @@ function InlineRunNotice({
       </div>
       <div className='flex gap-1'>
         {actions.map((action) => (
-          <Button key={action} type='button' size='sm' variant='ghost'>
+          <Button
+            key={action}
+            type='button'
+            size='sm'
+            variant='ghost'
+            disabled={
+              action.toLowerCase().includes('planned') ||
+              action.toLowerCase().includes('unavailable')
+            }
+          >
             {action}
           </Button>
         ))}
@@ -553,7 +568,7 @@ function SelectionChip({
         variant='ghost'
         onClick={() => onQuote(selection.text)}
       >
-        Quote & ask
+        Reply planned
       </Button>
       <Button
         type='button'
@@ -569,43 +584,21 @@ function SelectionChip({
         variant='ghost'
         onClick={() => onMemory(selection.text)}
       >
-        Add to memory
+        Memory planned
       </Button>
     </div>
   )
 }
 
-function TraceLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='grid gap-1 sm:grid-cols-[72px_1fr]'>
-      <span className='font-mono text-[11px] text-muted-foreground'>
-        {label}
-      </span>
-      <span>{value}</span>
-    </div>
-  )
+function getForkPrefill(_chatId: string) {
+  return ''
 }
-
-function getForkPrefill(chatId: string) {
-  const forkDraft = sessionStorage.getItem(`agentgate:fork:${chatId}`)
-  if (!forkDraft) return ''
-
-  try {
-    const parsed = JSON.parse(forkDraft) as { prefill?: string }
-    return parsed.prefill ?? ''
-  } catch {
-    return ''
-  }
-}
-
 async function streamChatTurn(
   sessionId: string,
   input: string,
   options: {
-    memoryOn: boolean
-    toolsOn: boolean
+    memoryIncognito: boolean
     reasoning: string
-    extendedThinking: boolean
   }
 ) {
   const response = await fetch(`/api/chats/${sessionId}/stream`, {
@@ -620,20 +613,12 @@ async function streamChatTurn(
           .find((row) => row.startsWith('agentgate_csrf='))
           ?.split('=')[1] ?? '',
     },
-    body: JSON.stringify({
-      input,
-      memory_enabled: options.memoryOn,
-      tools_enabled: options.toolsOn,
-      model_options: {
-        reasoning_effort: options.reasoning,
-        extended_thinking: options.extendedThinking,
-      },
-    }),
+    body: JSON.stringify(streamChatBody(input, options)),
   })
 
   if (!response.ok) {
-    const detail = await response.text()
-    throw new Error(detail || `Chat request failed: ${response.status}`)
+    await response.text()
+    throw new Error('Chat stream failed')
   }
 
   if (!response.body) return
@@ -662,142 +647,11 @@ function Composer({
   onSend?: () => void
 }) {
   const [value, setValue] = useState(() => getForkPrefill(chatId))
-  const [isVoiceMode, setIsVoiceMode] = useState(false)
-  const [presenceMode, setPresenceMode] = useState<'camera' | 'call' | null>(
-    null
-  )
-  const [presenceError, setPresenceError] = useState('')
-  const [wakeEnabled, setWakeEnabled] = useState(true)
-  const [voiceSeconds, setVoiceSeconds] = useState(0)
-  const [levels, setLevels] = useState<number[]>(Array(56).fill(10))
-  const [uiIncognito, setUiIncognito] = useState(true)
   const [memoryIncognito, setMemoryIncognito] = useState(false)
   const [reasoning, setReasoning] = useState('medium')
-  const [extendedThinking, setExtendedThinking] = useState(false)
-  const [memoryOn, setMemoryOn] = useState(true)
-  const [webOn, setWebOn] = useState(false)
-  const [toolsOn, setToolsOn] = useState(true)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
-  const presenceStreamRef = useRef<MediaStream | null>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-
-  useEffect(() => {
-    if (!isVoiceMode) return
-    let animationFrame = 0
-    let audioContext: AudioContext | null = null
-    let analyser: AnalyserNode | null = null
-    const timer = window.setInterval(() => {
-      setVoiceSeconds((seconds) => seconds + 1)
-    }, 1000)
-
-    async function startMic() {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setLevels(Array(56).fill(10))
-          return
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        })
-        mediaStreamRef.current = stream
-        audioContext = new AudioContext()
-        const source = audioContext.createMediaStreamSource(stream)
-        analyser = audioContext.createAnalyser()
-        analyser.fftSize = 256
-        analyser.smoothingTimeConstant = 0.74
-        source.connect(analyser)
-        const data = new Uint8Array(analyser.frequencyBinCount)
-
-        function tick() {
-          if (!analyser) return
-          analyser.getByteFrequencyData(data)
-          const sample = Array.from(data).slice(4, 60)
-          setLevels(
-            sample.map((value) => Math.max(8, Math.round((value / 255) * 58)))
-          )
-          animationFrame = window.requestAnimationFrame(tick)
-        }
-
-        tick()
-      } catch {
-        setLevels(Array(56).fill(10))
-      }
-    }
-
-    startMic()
-
-    return () => {
-      window.clearInterval(timer)
-      window.cancelAnimationFrame(animationFrame)
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-      void audioContext?.close()
-    }
-  }, [isVoiceMode])
-
-  useEffect(() => {
-    if (!presenceMode) return
-
-    let cancelled = false
-    const videoElement = videoRef.current
-
-    async function startPresence() {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setPresenceError('Camera access needs a secure local connection.')
-          return
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: presenceMode === 'call',
-        })
-
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop())
-          return
-        }
-
-        presenceStreamRef.current = stream
-        if (videoElement) videoElement.srcObject = stream
-      } catch {
-        setPresenceError(
-          presenceMode === 'call'
-            ? 'Camera or microphone permission was not granted.'
-            : 'Camera permission was not granted.'
-        )
-      }
-    }
-
-    void startPresence()
-
-    return () => {
-      cancelled = true
-      presenceStreamRef.current?.getTracks().forEach((track) => track.stop())
-      presenceStreamRef.current = null
-      if (videoElement) videoElement.srcObject = null
-    }
-  }, [presenceMode])
-
-  function startVoiceMode() {
-    setPresenceMode(null)
-    setVoiceSeconds(0)
-    setIsVoiceMode(true)
-  }
-
-  function cancelVoiceMode() {
-    setIsVoiceMode(false)
-    setVoiceSeconds(0)
-  }
-
-  function togglePresenceMode(mode: 'camera' | 'call') {
-    setIsVoiceMode(false)
-    setPresenceError('')
-    setPresenceMode((current) => (current === mode ? null : mode))
-  }
 
   return (
     <div className='z-20 bg-background/95 pt-3 pb-5 backdrop-blur'>
@@ -812,10 +666,8 @@ function Composer({
           setSendError('')
           setValue('')
           streamChatTurn(chatId, input, {
-            memoryOn: memoryOn && !memoryIncognito,
-            toolsOn,
+            memoryIncognito,
             reasoning,
-            extendedThinking,
           })
             .then(() => onSend?.())
             .catch((error: unknown) => {
@@ -828,7 +680,7 @@ function Composer({
           onQuoteConsumed?.()
         }}
       >
-        {!isVoiceMode && !presenceMode && quoteDraft ? (
+        {quoteDraft ? (
           <QuoteChip
             label='Replying to Hermes · msg_06'
             text={quoteDraft}
@@ -840,41 +692,22 @@ function Composer({
             {sendError}
           </div>
         ) : null}
-        {sendError ? (
-          <div className='border-b px-4 py-2 text-xs text-destructive'>
-            {sendError}
-          </div>
-        ) : null}
-        {presenceMode ? (
-          <PresenceCapture
-            mode={presenceMode}
-            videoRef={videoRef}
-            error={presenceError}
-            onCancel={() => setPresenceMode(null)}
-          />
-        ) : isVoiceMode ? (
-          <VoiceCapture
-            levels={levels}
-            seconds={voiceSeconds}
-            onCancel={cancelVoiceMode}
-          />
-        ) : (
-          <Textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder='Message Hermes...'
-            className='max-h-[200px] min-h-14 resize-none overflow-y-auto rounded-none border-0 !bg-transparent px-4 py-3 shadow-none focus-visible:ring-0 dark:!bg-transparent'
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                event.currentTarget.form?.requestSubmit()
-              }
-            }}
-          />
-        )}
+        <Textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder='Message Hermes...'
+          className='max-h-[200px] min-h-14 resize-none overflow-y-auto rounded-none border-0 !bg-transparent px-4 py-3 shadow-none focus-visible:ring-0 dark:!bg-transparent'
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }
+          }}
+        />
         <div className='flex flex-wrap items-center gap-1 bg-transparent px-2 py-2'>
           <InlineSelect
+            disabled
             value='gpt-5.2'
             items={['gpt-5.2', 'gpt-5.2-mini', 'o4-mini']}
             label='Model'
@@ -887,7 +720,7 @@ function Composer({
           <CapabilityPopover
             icon={<Brain />}
             label='Thinking'
-            active={reasoning !== 'medium' || extendedThinking}
+            active={reasoning !== 'medium'}
           >
             <div className='space-y-4'>
               <div className='space-y-2'>
@@ -905,42 +738,27 @@ function Composer({
                   </SelectContent>
                 </Select>
               </div>
-              <SwitchRow
-                id='extended-thinking'
-                label='Extended thinking'
-                checked={extendedThinking}
-                onCheckedChange={setExtendedThinking}
-              />
+              <p className='text-xs text-muted-foreground'>
+                Extended thinking controls are unavailable until the runtime
+                contract exposes them.
+              </p>
             </div>
           </CapabilityPopover>
           <CapabilityPopover
             icon={<SlidersHorizontal />}
             label='Context'
-            active={!memoryOn || webOn || !toolsOn}
+            active={false}
           >
             <div className='space-y-4'>
-              <SwitchRow
-                id='context-memory'
-                label='Memory'
-                checked={memoryOn}
-                onCheckedChange={setMemoryOn}
-              />
-              <SwitchRow
-                id='context-web'
-                label='Web search'
-                checked={webOn}
-                onCheckedChange={setWebOn}
-              />
-              <SwitchRow
-                id='context-tools'
-                label='Tools'
-                checked={toolsOn}
-                onCheckedChange={setToolsOn}
-              />
+              <p className='text-xs text-muted-foreground'>
+                Context switches are planned until source contracts expose
+                per-turn tool and web controls.
+              </p>
+
               <div className='space-y-2'>
-                <ToolToggle icon={<Library />} label='memory.search' />
-                <ToolToggle icon={<Wrench />} label='toolgate.run' />
-                <ToolToggle icon={<Globe />} label='web.lookup' />
+                <PlannedToolRow icon={<Library />} label='memory.search' />
+                <PlannedToolRow icon={<Wrench />} label='toolgate.run' />
+                <PlannedToolRow icon={<Globe />} label='web.lookup' />
               </div>
             </div>
           </CapabilityPopover>
@@ -948,78 +766,58 @@ function Composer({
             type='button'
             variant='ghost'
             size='icon'
-            aria-label='Attach file'
+            disabled
+            aria-label='Attach file unavailable'
           >
             <Paperclip />
           </Button>
           <Button
             type='button'
-            variant={isVoiceMode ? 'secondary' : 'ghost'}
-            size='icon'
-            aria-label='Start voice input'
-            onClick={startVoiceMode}
-          >
-            <Mic />
-          </Button>
-          <Button
-            type='button'
-            variant={presenceMode === 'camera' ? 'secondary' : 'ghost'}
-            size='icon'
-            aria-label='Start camera conversation'
-            onClick={() => togglePresenceMode('camera')}
-          >
-            <Camera />
-          </Button>
-          <Button
-            type='button'
-            variant={presenceMode === 'call' ? 'secondary' : 'ghost'}
-            size='icon'
-            aria-label='Start live call'
-            onClick={() => togglePresenceMode('call')}
-          >
-            <Phone />
-          </Button>
-          <Button
-            type='button'
-            variant={wakeEnabled ? 'secondary' : 'ghost'}
+            variant='ghost'
             size='sm'
-            className='gap-1.5 px-2.5'
-            aria-label='Toggle Call Hermes wake phrase'
-            aria-pressed={wakeEnabled}
-            onClick={() => setWakeEnabled((enabled) => !enabled)}
+            disabled
+            aria-label='Voice input planned'
           >
-            <Radio />
-            <span className='hidden lg:inline'>Call Hermes</span>
+            Voice planned
+          </Button>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            disabled
+            aria-label='Camera planned'
+          >
+            Camera planned
+          </Button>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            disabled
+            aria-label='Live call planned'
+          >
+            Live call planned
           </Button>
           <div className='ml-auto flex items-center gap-1'>
             <CapabilityPopover
               icon={<EyeOff />}
               label='Incognito'
-              active={uiIncognito || memoryIncognito}
+              active={memoryIncognito}
             >
               <div className='space-y-3'>
-                <SwitchRow
-                  id='ui-incognito'
-                  label='UI incognito'
-                  checked={uiIncognito}
-                  onCheckedChange={setUiIncognito}
+                <DisabledStatusRow
+                  label='UI/session incognito'
+                  status='planned'
+                  detail='No verified session-retention contract is exposed yet.'
                 />
                 <SwitchRow
                   id='memory-incognito'
-                  label='Memory incognito'
+                  label='Memory incognito (per turn)'
                   checked={memoryIncognito}
                   onCheckedChange={setMemoryIncognito}
                 />
               </div>
             </CapabilityPopover>
-            <Button
-              type='button'
-              variant='ghost'
-              size='icon'
-              aria-label='Fork session'
-            >
-              <GitFork />
-            </Button>
             <span className='hidden px-2 text-[10px] text-muted-foreground sm:inline'>
               Enter sends - Shift Enter adds line
             </span>
@@ -1030,7 +828,7 @@ function Composer({
             variant={isStreaming ? 'destructive' : 'default'}
             className='size-9 shrink-0'
             aria-label={isStreaming || sending ? 'Stop run' : 'Send message'}
-            disabled={sending}
+            disabled={sending || isStreaming}
           >
             {isStreaming || sending ? <Square /> : <ArrowUp />}
           </Button>
@@ -1145,105 +943,41 @@ function SwitchRow({
   )
 }
 
-function ToolToggle({ icon, label }: { icon: React.ReactNode; label: string }) {
-  const [enabled, setEnabled] = useState(true)
-
+function DisabledStatusRow({
+  label,
+  status,
+  detail,
+}: {
+  label: string
+  status: string
+  detail: string
+}) {
   return (
-    <div className='flex items-center justify-between gap-3 rounded-md px-1 py-1'>
+    <div className='rounded-md border bg-muted/35 p-2 text-xs text-muted-foreground'>
+      <div className='flex items-center justify-between gap-3'>
+        <span>{label}</span>
+        <Badge variant='outline'>{status}</Badge>
+      </div>
+      <p className='mt-1'>{detail}</p>
+    </div>
+  )
+}
+
+function PlannedToolRow({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <div className='flex items-center justify-between gap-3 rounded-md px-1 py-1 text-muted-foreground'>
       <div className='flex min-w-0 items-center gap-2'>
-        <span className='text-muted-foreground [&_svg]:size-3.5'>{icon}</span>
+        <span className='[&_svg]:size-3.5'>{icon}</span>
         <code className='truncate font-mono text-xs'>{label}</code>
       </div>
-      <Switch
-        checked={enabled}
-        onCheckedChange={setEnabled}
-        className='scale-75'
-      />
-    </div>
-  )
-}
-
-function VoiceCapture({
-  levels,
-  seconds,
-  onCancel,
-}: {
-  levels: number[]
-  seconds: number
-  onCancel: () => void
-}) {
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = String(seconds % 60).padStart(2, '0')
-
-  return (
-    <div className='flex min-h-20 items-center gap-4 px-4 py-3'>
-      <div className='flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground'>
-        <Volume2 className='size-4' />
-      </div>
-      <div className='flex min-w-0 flex-1 items-center gap-1.5'>
-        {levels.map((level, index) => (
-          <span
-            key={index}
-            className='min-w-0 flex-1 rounded-full bg-primary/80 transition-[height]'
-            style={{ height: `${level}px` }}
-          />
-        ))}
-      </div>
-      <code className='font-mono text-xs text-muted-foreground'>
-        {minutes}:{remainingSeconds}
-      </code>
-      <Button
-        type='button'
-        variant='ghost'
-        size='icon'
-        aria-label='Cancel voice input'
-        onClick={onCancel}
-      >
-        <X />
-      </Button>
-    </div>
-  )
-}
-
-function PresenceCapture({
-  mode,
-  videoRef,
-  error,
-  onCancel,
-}: {
-  mode: 'camera' | 'call'
-  videoRef: React.RefObject<HTMLVideoElement | null>
-  error: string
-  onCancel: () => void
-}) {
-  return (
-    <div className='relative min-h-48 overflow-hidden bg-background/70'>
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        className='absolute inset-0 size-full object-cover opacity-80'
-      />
-      <div className='absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-background/90 to-transparent p-3'>
-        <div className='flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase'>
-          {mode === 'call' ? <Phone /> : <Camera />}
-          {mode === 'call' ? 'Live call preview' : 'Camera context preview'}
-        </div>
-        <Button type='button' variant='secondary' size='sm' onClick={onCancel}>
-          <X />
-          End preview
-        </Button>
-      </div>
-      {error ? (
-        <div className='pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center'>
-          <Camera className='size-6 text-muted-foreground' />
-          <p className='max-w-sm text-sm text-muted-foreground'>{error}</p>
-        </div>
-      ) : null}
-      <div className='absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-3 font-mono text-[10px] text-muted-foreground'>
-        Local preview - media is attached only when you send or start the call
-      </div>
+      <Badge variant='outline'>planned</Badge>
     </div>
   )
 }
@@ -1291,22 +1025,24 @@ function MessageMeta({
             <Clipboard />
           </MetaAction>
           {!isOwner ? (
-            <MetaAction label='Regenerate response'>
+            <UnavailableMetaAction
+              availability={chatActionAvailability('regenerate', message)}
+            >
               <RotateCcw />
-            </MetaAction>
+            </UnavailableMetaAction>
           ) : null}
           <ForkAction onFork={onFork} />
           {!isOwner ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <MetaAction label='Share'>
-                    <Share2 />
-                  </MetaAction>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Share</TooltipContent>
-            </Tooltip>
+            <UnavailableMetaAction
+              availability={{
+                available: false,
+                status: 'planned',
+                reason:
+                  'Sharing is unavailable until a backend contract exists.',
+              }}
+            >
+              <Share2 />
+            </UnavailableMetaAction>
           ) : null}
           {message.trace?.length ? (
             <TraceTrigger trace={message.trace} />
@@ -1329,6 +1065,34 @@ function ForkAction({ onFork }: { onFork: () => void }) {
         </span>
       </TooltipTrigger>
       <TooltipContent>Fork</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function UnavailableMetaAction({
+  availability,
+  children,
+}: {
+  availability: ReturnType<typeof chatActionAvailability>
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            disabled
+            className='size-6 shrink-0 text-muted-foreground'
+            aria-label={availability.reason ?? 'Action unavailable'}
+          >
+            {children}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{availability.reason}</TooltipContent>
     </Tooltip>
   )
 }
@@ -1360,16 +1124,19 @@ function InlineSelect({
   value,
   items,
   label,
+  disabled = false,
 }: {
   value: string
   items: string[]
   label: string
+  disabled?: boolean
 }) {
   return (
     <Select defaultValue={value}>
       <SelectTrigger
         size='sm'
         aria-label={label}
+        disabled={disabled}
         className='w-auto gap-1 border-0 bg-transparent px-2 shadow-none hover:bg-muted focus:ring-0 dark:bg-transparent dark:hover:bg-muted'
       >
         <SelectValue />
@@ -1411,10 +1178,11 @@ function TraceContent({ trace }: { trace: NonNullable<ChatMessage['trace']> }) {
         >
           <code className='font-mono'>{item.tool}</code>
           <div className='min-w-0'>
-            <p className='truncate font-mono text-[11px] text-muted-foreground'>
-              {item.args}
+            <p className='text-muted-foreground'>
+              {item.details_withheld
+                ? 'Tool details withheld by the browser safety boundary.'
+                : 'Tool details unavailable.'}
             </p>
-            <p className='text-muted-foreground'>{item.result}</p>
           </div>
           <code className='font-mono text-[11px] text-muted-foreground'>
             {item.duration_ms} ms
@@ -1440,16 +1208,16 @@ function SessionActionsMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
-        <DropdownMenuItem>
+        <DropdownMenuItem disabled>
           <Pencil />
           Rename
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem disabled>
           <Download />
           Export
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant='destructive'>
+        <DropdownMenuItem disabled variant='destructive'>
           <Trash2 />
           Delete session
         </DropdownMenuItem>

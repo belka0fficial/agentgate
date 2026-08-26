@@ -25,9 +25,8 @@ export type ChatSession = {
 
 export type ToolTrace = {
   tool: string
-  args: string
-  duration_ms: number
-  result: string
+  duration_ms?: number | null
+  details_withheld: boolean
 }
 
 export type ChatMessage = {

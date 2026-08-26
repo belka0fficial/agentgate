@@ -151,7 +151,7 @@ def browser_unsafe_string(value: Any) -> bool:
         "http://", "https://", "file://", "/home/", "/users/", "/var/", "/etc/", "/root/", "/run/", "/tmp/",
         "c:/users/", "c:\\users\\", "\\users\\", ".sock", ".log", ".out", ".err", "stdout", "stderr", "log path",
         "bearer ", "authorization:", "api key:", "api_key:", "token=", "token:", "password=", "password:", "secret=", "secret:",
-        "prompt", "memory", "owner.txt", "hidden prompt", "system prompt", "api.openai.com", "api.anthropic.com",
+        "prompt:", "raw prompt", "hidden prompt", "system prompt", "private owner", "auth_headers", "api-key", "plain-provider-secret", "owner.txt", "api.openai.com", "api.anthropic.com",
         "generativelanguage.googleapis.com", "chatgpt.com/backend-api", "openrouter.ai/api", "raw_owner_prompt",
     )
     if re.search(r"(^|[^A-Za-z])[A-Za-z]:[\\/]", text):
@@ -162,10 +162,9 @@ def browser_unsafe_string(value: Any) -> bool:
 
 
 def safe_browser_string(value: Any, fallback: str = "unknown") -> str:
-    if value is None:
+    if not isinstance(value, str) or not value.strip():
         return fallback
-    text = str(value)
-    return "reference withheld" if browser_unsafe_string(text) else text
+    return "reference withheld" if browser_unsafe_string(value) else value
 
 
 def safe_doc_source_ref(value: Any, fallback: str = "docs/README.md") -> str:
@@ -528,55 +527,6 @@ def browser_unsafe_key(key: str) -> bool:
         "endpoint_url", "upstream_url",
     )
     return any(part in lowered or part in normalized for part in unsafe_parts)
-
-
-def browser_unsafe_string(value: str) -> bool:
-    lowered = value.lower()
-    if any(marker in lowered for marker in ("http://", "https://", "file://")):
-        return True
-    provider_markers = (
-        "api.openai.com",
-        "api.anthropic.com",
-        "generativelanguage.googleapis.com",
-        "chatgpt.com/backend-api",
-        "openrouter.ai/api",
-    )
-    if any(marker in lowered for marker in provider_markers):
-        return True
-    host_markers = (
-        ".sock",
-        "\\users\\",
-    )
-    if any(marker in lowered for marker in host_markers):
-        return True
-    # Fail closed for filesystem-looking host paths. Avoid treating URL paths
-    # as safe display metadata; browser-facing overview payloads must not carry
-    # host paths even when the root is not one of the common Linux directories.
-    if re.search(r"(^|[\s'\"(=:])/(?:home|users|var|etc|root|run|tmp|opt|srv|mnt|proc|dev|volumes|private|usr/local|usr/bin|usr/sbin|lib|boot|sys)(?:/|$)", lowered):
-        return True
-    if re.search(r"(^|[\s'\"(=:])[a-z]:[/\\](?:users|windows|program files|programdata|temp|tmp|projects|work|agentgate|secrets)(?:[/\\]|$)", lowered):
-        return True
-    secret_markers = (
-        "api_key", "authorization", "bearer ", "bearer:", "x-memorygate-key",
-        "token=", "token:", "password=", "password:", "secret=", "secret:",
-        "api key:", "api_key:", "api-key", "x-api-key", "x_goog_api_key", "x-goog-api-key",
-        "auth_headers", "aiza",
-        "hidden prompt", "system prompt", "raw_owner_prompt", "raw owner prompt", "private instruction", "private owner", "owner instruction",
-        "internal decision", "private detail", "private output", "private stdout", "private stderr",
-        "meet owner", "meet at", "meet bank",
-    )
-    if any(marker in lowered for marker in secret_markers):
-        return True
-    if "sk-" in lowered or "sk_" in lowered:
-        return True
-    stripped = value.strip()
-    return stripped.startswith(("sk-", "sk_proj_", "sk-proj-", "AIza")) or (stripped.startswith("sk_") and len(stripped) > 12)
-
-
-def safe_browser_string(value: Any, fallback: str = "not provided") -> str:
-    if not isinstance(value, str) or not value.strip():
-        return fallback
-    return "reference withheld" if browser_unsafe_string(value) else value
 
 
 def safe_browser_value(value: Any) -> Any:
@@ -1035,14 +985,57 @@ async def delete_chat(session_id: str, up: Upstream = Depends(upstream)):
     return await up.request("brain", "DELETE", f"/api/sessions/{session_id}")
 
 
+def safe_chat_messages(payload: Any) -> Any:
+    rows = payload.get("messages", []) if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        return {"messages": [], "metadata_only": True, "status": "unknown"}
+    safe_rows: list[dict[str, Any]] = []
+    for index, item in enumerate(rows):
+        if not isinstance(item, dict):
+            continue
+        safe_item: dict[str, Any] = {
+            "id": safe_browser_string(item.get("id"), f"message-{index}"),
+            "role": safe_browser_string(item.get("role"), "unknown"),
+            "content": item.get("content", "") if isinstance(item.get("content", ""), str) else "",
+            "created_at": safe_browser_string(item.get("created_at"), "unknown"),
+        }
+        trace = item.get("trace")
+        if isinstance(trace, list):
+            safe_item["trace"] = [
+                {
+                    "tool": safe_browser_string(entry.get("tool"), "tool withheld"),
+                    "duration_ms": entry.get("duration_ms") if isinstance(entry.get("duration_ms"), (int, float)) else None,
+                    "details_withheld": True,
+                }
+                for entry in trace
+                if isinstance(entry, dict)
+            ]
+        safe_rows.append(safe_item)
+    status = "live" if isinstance(payload, list) or (isinstance(payload, dict) and isinstance(payload.get("messages"), list)) else "degraded" if isinstance(payload, dict) and payload.get("error") else "unknown"
+    return {"messages": safe_rows, "metadata_only": True, "status": status}
+
+
 @app.get("/api/chats/{session_id}/messages", dependencies=[Depends(require_auth)])
 async def messages(session_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("brain", "GET", f"/api/sessions/{session_id}/messages")
+    payload = await up.request("brain", "GET", f"/api/sessions/{session_id}/messages")
+    return safe_chat_messages(payload)
+
+
+def safe_fork_response(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {"status": "unknown", "metadata_only": True}
+    safe: dict[str, Any] = {"metadata_only": True}
+    for key in ("id", "session_id", "status", "created_at", "updated_at"):
+        if key in payload:
+            safe[key] = safe_browser_string(payload[key], "unknown")
+    safe["details_withheld"] = True
+    return safe
 
 
 @app.post("/api/chats/{session_id}/fork", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def fork_chat(session_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("brain", "POST", f"/api/sessions/{session_id}/fork", json=payload)
+    result = await up.request("brain", "POST", f"/api/sessions/{session_id}/fork", json=payload)
+    return safe_fork_response(result)
 
 
 @app.post("/api/chats/{session_id}/stream", dependencies=[Depends(require_auth), Depends(require_csrf)])
@@ -1092,16 +1085,27 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
                             })
                     except (ValueError, TypeError):
                         pass
-                if line.startswith("data:") and ("approval" in event_name or "tool" in event_name or "failed" in event_name or "subagent" in event_name or "action" in event_name):
+                if line.startswith("data:"):
                     try:
                         raw_event = json.loads(line[5:].strip())
-                        safe_event = safe_approval_event(raw_event) if "approval" in event_name else safe_browser_payload(raw_event)
-                        if isinstance(safe_event, dict):
+                        if "approval" in event_name:
+                            safe_event = safe_approval_event(raw_event)
+                        elif isinstance(raw_event, dict):
+                            safe_event = {}
+                            for key, value in raw_event.items():
+                                if key in {"content", "delta", "text"} and isinstance(value, str):
+                                    safe_event[key] = value
+                                else:
+                                    safe_event[key] = safe_browser_payload(value)
                             safe_event["metadata_only"] = True
                             safe_event["event_payload_withheld"] = True
+                        else:
+                            safe_event = {"metadata_only": True, "event_payload_withheld": True}
                         safe_line = json.dumps(safe_event, separators=(",", ":"))
+                        yield f"event: {event_name}\n".encode()
                         yield f"data: {safe_line}\n".encode()
                     except (ValueError, TypeError):
+                        yield b'event: message\n'
                         yield b'data: {\"status\":\"unknown\",\"metadata_only\":true,\"event_payload_withheld\":true}\n'
                 elif line:
                     yield f"{line}\n".encode()
@@ -1410,9 +1414,16 @@ async def stop_run(run_id: str, up: Upstream = Depends(upstream)):
 
 
 @app.post("/api/runs/{run_id}/approval", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def approve_run(run_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    result = await up.request("brain", "POST", f"/v1/runs/{run_id}/approval", json=payload)
-    return decision_result_view("brain", run_id, result, str(payload.get("decision") or "approved"))
+async def approve_run(run_id: str, payload: dict[str, Any]):
+    return JSONResponse(status_code=423, content={
+        "id": safe_browser_string(run_id, "unknown"),
+        "source": "brain",
+        "status": "blocked",
+        "action": "approval not confirmed",
+        "metadata_only": True,
+        "raw_response_withheld": True,
+        "error": {"source": "agentgate", "message": "Brain approvals require a stored source-bound verification."},
+    })
 
 
 @app.post("/api/verifications/brain/{source_id:path}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
@@ -1869,7 +1880,7 @@ async def create_cron(payload: dict[str, Any], up: Upstream = Depends(upstream))
     try:
         result = await up.request("brain", "POST", "/api/jobs", json=payload)
     except HTTPException as exc:
-        return {"id": "unknown", "source": "brain", "status": "degraded", "action": "created", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": "unknown", "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "created")
 
 
@@ -1880,7 +1891,7 @@ async def update_cron(job_id: str, payload: dict[str, Any], up: Upstream = Depen
     try:
         result = await up.request("brain", "PATCH", f"/api/jobs/{job_id}", json=payload)
     except HTTPException as exc:
-        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "updated", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "updated")
 
 
@@ -1891,7 +1902,7 @@ async def delete_cron(job_id: str, up: Upstream = Depends(upstream)):
     try:
         result = await up.request("brain", "DELETE", f"/api/jobs/{job_id}")
     except HTTPException as exc:
-        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "deleted", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "deleted")
 
 
@@ -1902,7 +1913,7 @@ async def cron_action(job_id: str, action: Literal["pause", "resume", "run"], up
     try:
         result = await up.request("brain", "POST", f"/api/jobs/{job_id}/{action}")
     except HTTPException as exc:
-        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": safe_browser_string(action, "updated"), "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": safe_browser_string(action, "updated"), "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, action)
 
 
