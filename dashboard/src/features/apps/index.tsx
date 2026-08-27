@@ -148,13 +148,13 @@ export function Apps() {
         <ProfileDropdown />
       </Header>
 
-      <Main fixed>
+      <Main fixed fluid className='px-4 sm:px-6'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>
               Apps / Projects
             </h1>
-            <p className='max-w-3xl text-sm text-muted-foreground'>
+            <p className='text-sm text-muted-foreground'>
               Source-bound local app registry metadata. Host paths, commands,
               environment, provider URLs, logs, secrets, and unrestricted tool
               arguments stay server-side. Creation and deployment remain
@@ -262,7 +262,7 @@ export function Apps() {
                           >
                             {app.name}
                           </button>
-                          <p className='mt-1 max-w-lg text-xs text-muted-foreground'>
+                          <p className='mt-1 text-xs text-muted-foreground'>
                             {app.purpose ?? 'Purpose not provided'}
                           </p>
                           {app.pinned ? (
@@ -278,7 +278,7 @@ export function Apps() {
                         </TableCell>
                         <TableCell>
                           <p className='text-sm'>{app.source}</p>
-                          <p className='max-w-44 truncate font-mono text-xs text-muted-foreground'>
+                          <p className='font-mono text-xs break-all text-muted-foreground'>
                             {app.source_ref ??
                               app.local_ref ??
                               'opaque reference unavailable'}
@@ -288,7 +288,7 @@ export function Apps() {
                           <Badge variant={badgeVariant(lifecycleStatus(app))}>
                             {lifecycleStatus(app)}
                           </Badge>
-                          <p className='mt-1 max-w-xs text-xs text-muted-foreground'>
+                          <p className='mt-1 text-xs text-muted-foreground'>
                             {app.lifecycle?.reason ??
                               'Lifecycle metadata only.'}
                           </p>

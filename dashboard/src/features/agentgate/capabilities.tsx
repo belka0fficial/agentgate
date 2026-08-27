@@ -32,7 +32,7 @@ export function CapabilitiesPage() {
     <>
       <AgentGateHeader title='Capabilities' eyebrow='Tools and skills' />
       <Main>
-        <div className='mb-6 max-w-4xl space-y-2'>
+        <div className='mb-6 w-full space-y-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Badge variant={badgeVariant(status)}>{status}</Badge>
             <span className='text-sm text-muted-foreground'>

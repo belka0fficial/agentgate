@@ -85,7 +85,7 @@ function OwnerPasswordPanel() {
   }
 
   return (
-    <section className='max-w-4xl border-t pt-6'>
+    <section className='w-full border-t pt-6'>
       <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
         <div>
           <h2 className='text-base font-medium'>Owner password</h2>
@@ -162,7 +162,7 @@ export function SettingsProfile() {
   }, [query])
 
   return (
-    <div className='w-full max-w-6xl space-y-8'>
+    <div className='w-full space-y-8'>
       <div className='space-y-2'>
         <div className='flex items-center gap-2'>
           <h1 className='text-xl font-semibold tracking-tight'>Settings</h1>
@@ -170,7 +170,7 @@ export function SettingsProfile() {
             searchable control plane
           </span>
         </div>
-        <p className='max-w-3xl text-sm leading-6 text-muted-foreground'>
+        <p className='text-sm leading-6 text-muted-foreground'>
           Settings are plain inputs and searchable rows, not decorative cards.
           Search covers settings sections, navigation targets, chat/session
           concepts, agents, model routes, passwords, tools, skills, and gate
@@ -178,7 +178,7 @@ export function SettingsProfile() {
         </p>
       </div>
 
-      <div className='max-w-3xl space-y-2'>
+      <div className='w-full space-y-2'>
         <Label htmlFor='settings-search'>Search settings and navigation</Label>
         <div className='relative'>
           <Search className='absolute top-2.5 left-3 size-4 text-muted-foreground' />
@@ -194,7 +194,7 @@ export function SettingsProfile() {
 
       <OwnerPasswordPanel />
 
-      <section className='max-w-5xl border-t pt-6'>
+      <section className='w-full border-t pt-6'>
         <h2 className='mb-3 text-base font-medium'>Settings index</h2>
         <div className='divide-y rounded-md border'>
           {filteredSections.map((section) => (
@@ -214,7 +214,7 @@ export function SettingsProfile() {
                     {section.status}
                   </Badge>
                 </div>
-                <p className='max-w-2xl text-sm text-muted-foreground'>
+                <p className='text-sm text-muted-foreground'>
                   {section.description}
                 </p>
               </div>

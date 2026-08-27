@@ -41,7 +41,7 @@ export function CompanionPage() {
     <>
       <AgentGateHeader title='Companion' eyebrow='Main agent profile' />
       <Main>
-        <section className='max-w-4xl space-y-6'>
+        <section className='grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
           <div className='space-y-2'>
             <div className='flex flex-wrap items-center gap-2'>
               <Bot className='size-5 text-muted-foreground' />
@@ -62,7 +62,7 @@ export function CompanionPage() {
             </p>
           </div>
 
-          <dl className='grid gap-4 border-t pt-5 text-sm md:grid-cols-2'>
+          <dl className='grid gap-4 rounded-lg border p-4 text-sm md:grid-cols-2 xl:grid-cols-1'>
             <Info label='Mode' value={profile.data?.mode || 'not configured'} />
             <Info
               label='Primary model'
@@ -83,11 +83,20 @@ export function CompanionPage() {
             <Info label='Source' value='AgentGate local profile' />
           </dl>
 
-          <Button asChild>
-            <Link to='/character'>
-              {configured ? 'Edit in Agent Studio' : 'Create companion'}
-            </Link>
-          </Button>
+          <div className='rounded-lg border bg-muted/20 p-4'>
+            <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
+              Next action
+            </p>
+            <p className='mt-2 text-sm text-muted-foreground'>
+              Use Agent Studio to create or edit the main companion. Permissions
+              still belong to ToolGate.
+            </p>
+            <Button asChild className='mt-4'>
+              <Link to='/character'>
+                {configured ? 'Edit in Agent Studio' : 'Create companion'}
+              </Link>
+            </Button>
+          </div>
         </section>
       </Main>
     </>
@@ -142,13 +151,15 @@ export function WorkforcePage() {
     <>
       <AgentGateHeader title='Agents' eyebrow='Inspect and route' />
       <Main>
-        <div className='mb-6 max-w-3xl space-y-2'>
-          <p className='text-sm leading-6 text-muted-foreground'>
-            Source-bound agent metadata from the Pi runtime. This is the Agents
-            screen for inspecting available agents and choosing one in chats;
-            hidden prompts, credentials, and broad runtime internals stay
-            server-side.
-          </p>
+        <div className='mb-6 flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='space-y-2'>
+            <p className='text-sm leading-6 text-muted-foreground'>
+              Source-bound agent metadata from the Pi runtime. This is the
+              Agents screen for inspecting available agents and choosing one in
+              chats; hidden prompts, credentials, and broad runtime internals
+              stay server-side.
+            </p>
+          </div>
           <Button variant='outline' size='sm' onClick={() => agents.refetch()}>
             <RefreshCw className='mr-2 size-4' />
             Refresh

@@ -175,13 +175,13 @@ export function JobsPage() {
                     <TableRow key={item.id}>
                       <TableCell>
                         <p className='font-medium'>{item.name}</p>
-                        <p className='max-w-sm text-xs text-muted-foreground'>
+                        <p className='text-xs text-muted-foreground'>
                           {item.owner === 'system'
                             ? 'Built-in system job; locked metadata only.'
                             : 'Runtime job metadata only; prompts stay server-side.'}
                         </p>
                         {item.source_ref ? (
-                          <p className='mt-1 max-w-sm truncate text-xs text-muted-foreground'>
+                          <p className='mt-1 text-xs break-all text-muted-foreground'>
                             Source: {item.source_ref}
                           </p>
                         ) : null}
@@ -206,7 +206,7 @@ export function JobsPage() {
                             {item.last_run ?? '—'}
                           </code>
                         </div>
-                        <p className='mt-1 max-w-56 truncate text-xs text-muted-foreground'>
+                        <p className='mt-1 text-xs text-muted-foreground'>
                           {item.output?.raw_withheld === true
                             ? `Output ${item.output.status ?? 'withheld'}.`
                             : 'Output withheld from overview.'}{' '}
@@ -309,7 +309,7 @@ export function JobsPage() {
                   <TableRow key={item.id}>
                     <TableCell>
                       <p className='font-medium'>{item.name}</p>
-                      <p className='max-w-sm text-xs text-muted-foreground'>
+                      <p className='text-xs text-muted-foreground'>
                         Arguments/results withheld. Actions planned pending
                         ToolGate approval contract.
                       </p>

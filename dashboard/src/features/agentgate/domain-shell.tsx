@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Main } from '@/components/layout/main'
 import { AgentGateHeader } from './page-header'
 
@@ -27,27 +26,40 @@ export function DomainShell({
     <>
       <AgentGateHeader title={title} eyebrow={eyebrow} />
       <Main>
-        <Card className='max-w-3xl'>
-          <CardHeader>
-            <div className='flex flex-wrap items-center gap-2'>
-              <CardTitle>{title}</CardTitle>
+        <section className='grid w-full gap-4 xl:grid-cols-[minmax(0,1fr)_380px]'>
+          <div className='space-y-4'>
+            <div className='flex flex-wrap items-center gap-2 border-b pb-4'>
+              <h2 className='text-lg font-medium'>{title}</h2>
               <Badge variant='outline'>{status}</Badge>
             </div>
-          </CardHeader>
-          <CardContent className='space-y-5 text-sm leading-6 text-muted-foreground'>
-            <p>{purpose}</p>
-            <div className='rounded-xl border bg-muted/25 p-4'>
-              <p className='font-mono text-[11px] tracking-wide text-muted-foreground uppercase'>
+            <div className='rounded-lg border p-4'>
+              <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
+                What this screen is for
+              </p>
+              <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+                {purpose}
+              </p>
+            </div>
+            <div className='rounded-lg border p-4'>
+              <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
                 Source of truth
               </p>
-              <p className='mt-2 text-foreground'>{source}</p>
+              <p className='mt-2 text-sm leading-6 text-foreground'>{source}</p>
             </div>
-            <div>{next}</div>
-            <Button asChild variant='outline'>
+          </div>
+
+          <aside className='rounded-lg border bg-muted/20 p-4'>
+            <p className='text-xs font-medium tracking-wide text-muted-foreground uppercase'>
+              Next useful slice
+            </p>
+            <div className='mt-2 text-sm leading-6 text-muted-foreground'>
+              {next}
+            </div>
+            <Button asChild variant='outline' className='mt-4'>
               <Link to='/chats'>Ask in chat</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </aside>
+        </section>
       </Main>
     </>
   )

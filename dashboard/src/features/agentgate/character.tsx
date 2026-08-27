@@ -130,7 +130,7 @@ export function CharacterListPage() {
     <>
       <AgentGateHeader title='Character' eyebrow='Agent Studio' />
       <Main>
-        <div className='mb-6 max-w-3xl space-y-2'>
+        <div className='mb-6 w-full space-y-2'>
           <p className='text-sm text-muted-foreground'>
             Create the main companion yourself. No default Conker, no forced
             template cards. This form asks for the model route, fallback model,
@@ -145,7 +145,7 @@ export function CharacterListPage() {
           </div>
         </div>
 
-        <form className='max-w-5xl space-y-8' onSubmit={submit}>
+        <form className='w-full space-y-8' onSubmit={submit}>
           <section className='space-y-4'>
             <h2 className='text-base font-medium'>Identity</h2>
             <div className='grid gap-4 md:grid-cols-2'>

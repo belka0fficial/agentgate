@@ -246,7 +246,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
   }
 
   return (
-    <div className='grid gap-6 lg:max-w-5xl'>
+    <div className='grid w-full gap-6'>
       <div className='flex flex-col gap-3 rounded-xl border bg-card/50 p-4 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <p className='text-sm font-medium'>Gateway control plane</p>
@@ -314,7 +314,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           {gatewayRows.map((row) => (
             <div
               key={row.name}
-              className='grid gap-2 border-b p-4 last:border-b-0 md:grid-cols-[180px_1fr_220px_140px] md:items-center'
+              className='grid gap-2 border-b p-4 last:border-b-0 md:grid-cols-[180px_minmax(220px,1fr)_minmax(220px,0.8fr)_120px] md:items-center'
             >
               <div className='font-medium'>{row.name}</div>
               <div className='text-sm text-muted-foreground'>{row.role}</div>
@@ -390,7 +390,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           title='Providers and current route'
           desc='Provider keys and upstream URLs stay server-side. This page only shows safe labels and readiness metadata.'
         />
-        <div className='grid gap-4 xl:grid-cols-[1fr_320px]'>
+        <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]'>
           <div className='grid gap-3'>
             {(block.providers ?? []).map((provider) => (
               <ProviderCard key={provider.id} provider={provider} />
@@ -730,7 +730,7 @@ function ProviderCard({ provider }: { provider: ModelProvider }) {
         </div>
       </CardHeader>
       <CardContent className='grid gap-3 text-sm'>
-        <div className='grid gap-3 sm:grid-cols-3'>
+        <div className='grid gap-3 sm:grid-cols-3 xl:grid-cols-4'>
           <Field label='Configured' value={String(provider.configured)} />
           <Field
             label='Models visible'
@@ -797,7 +797,7 @@ function EmptyCard({ title, desc }: { title: string; desc: string }) {
 
 function GatewaySkeleton() {
   return (
-    <div className='grid gap-4 lg:max-w-5xl'>
+    <div className='grid w-full gap-4'>
       <Skeleton className='h-24 rounded-xl' />
       <div className='grid gap-4 md:grid-cols-3'>
         <Skeleton className='h-28 rounded-xl' />
