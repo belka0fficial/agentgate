@@ -11,7 +11,7 @@ from typing import Any, Literal
 from urllib.parse import quote, urlparse
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -135,9 +135,7 @@ class CharacterInput(BaseModel):
     owner_name: str = Field(default="", max_length=120)
     personality: str = Field(default="", max_length=10_000)
     background: str = Field(default="", max_length=10_000)
-    speaking_style: str = Field(default="", max_length=5_000)
     boundaries: str = Field(default="", max_length=5_000)
-    avatar_url: str | None = Field(default=None, max_length=2_000)
 
 
 
@@ -284,7 +282,6 @@ def character_context(item: dict[str, Any]) -> str:
     for label, key in (
         ("Personality", "personality"),
         ("Background", "background"),
-        ("Speaking style", "speaking_style"),
         ("Boundaries", "boundaries"),
     ):
         if item.get(key):
@@ -549,8 +546,7 @@ def safe_browser_value(value: Any) -> Any:
 
 
 def safe_browser_error(value: Any, source: str = "upstream") -> dict[str, str]:
-    source_value = value.get("source") if isinstance(value, dict) else None
-    return {"source": safe_browser_string(source_value, source), "message": "source unavailable"}
+    return {"source": source, "message": "source unavailable"}
 
 
 def safe_browser_payload(value: Any) -> Any:
@@ -1171,29 +1167,208 @@ async def home(request: Request, up: Upstream = Depends(upstream), store: Databa
     }
 
 
+SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}")
+
+
+class SessionCreateInput(BaseModel):
+    title: str = Field(default="New AgentGate conversation", min_length=1, max_length=160)
+    agent_id: str | None = Field(default="agent_pi_operator", max_length=80)
+
+
+class SessionRenameInput(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+
+
+class SessionDeleteInput(BaseModel):
+    confirm_source: Literal["brain"]
+    confirm_session_id: str = Field(min_length=1, max_length=128)
+
+
+def validate_session_id(value: Any) -> str:
+    if not isinstance(value, str) or not SESSION_ID_RE.fullmatch(value) or browser_unsafe_string(value):
+        raise HTTPException(422, "Session id must be a source-bound brain id")
+    return value
+
+
+def encoded_session_path(session_id: str, suffix: str = "") -> str:
+    safe_id = validate_session_id(session_id)
+    return f"/api/sessions/{quote(safe_id, safe='')}{suffix}"
+
+
+def safe_session_text(value: Any, fallback: str) -> str:
+    text = safe_browser_string(value, fallback)
+    if text == "reference withheld":
+        return text
+    return text[:240]
+
+
+def safe_session_status(value: Any, *, absent: str = "unknown") -> str:
+    return normalized_status(value, absent=absent)
+
+
+def session_rows_from_payload(payload: Any) -> list[Any]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in ("sessions", "items", "results"):
+            if isinstance(payload.get(key), list):
+                return payload[key]
+    return []
+
+
+def safe_chat_session(item: Any) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    raw_id = item.get("id") or item.get("session_id") or item.get("source_id")
+    try:
+        session_id = validate_session_id(raw_id)
+    except HTTPException:
+        return None
+    row: dict[str, Any] = {
+        "id": session_id,
+        "source": "brain",
+        "source_id": session_id,
+        "title": safe_session_text(item.get("title") or item.get("name"), "Untitled session"),
+        "preview": safe_session_text(item.get("preview") or item.get("summary") or item.get("last_message"), "No preview reported"),
+        "updated_at": safe_browser_string(item.get("updated_at") or item.get("last_activity_at") or item.get("created_at"), "unknown"),
+        "status": safe_session_status(item.get("status") or item.get("state"), absent="live"),
+        "metadata_only": True,
+        "details_withheld": True,
+    }
+    for key in ("created_at", "last_message_at"):
+        if key in item:
+            row[key] = safe_browser_string(item.get(key), "unknown")
+    if isinstance(item.get("message_count"), int) and item["message_count"] >= 0:
+        row["message_count"] = item["message_count"]
+    elif isinstance(item.get("turn_count"), int) and item["turn_count"] >= 0:
+        row["message_count"] = item["turn_count"]
+    for key in ("model", "mode", "agent_id", "run_id"):
+        if key in item:
+            value = safe_browser_string(item.get(key), "unknown")
+            if value != "reference withheld":
+                row[key] = value
+    return row
+
+
+def safe_chat_sessions_response(payload: Any) -> dict[str, Any]:
+    rows = [row for row in (safe_chat_session(item) for item in session_rows_from_payload(payload)) if row]
+    explicit = normalized_status(payload.get("status") or payload.get("state"), absent="unknown") if isinstance(payload, dict) else "unknown"
+    status = explicit if explicit != "unknown" else "live" if rows else "empty" if isinstance(payload, (dict, list)) else "unknown"
+    return {
+        "sessions": rows,
+        "status": status,
+        "source": "brain",
+        "source_status": {"source": "brain", "status": status},
+        "metadata_only": True,
+        "safe_fields": ["id", "source", "source_id", "title", "preview", "updated_at", "status", "message_count", "model", "mode"],
+    }
+
+
+def safe_chat_detail_response(payload: Any) -> dict[str, Any]:
+    source = payload.get("session") if isinstance(payload, dict) and isinstance(payload.get("session"), dict) else payload
+    row = safe_chat_session(source)
+    if not row:
+        return {"session": None, "status": "missing", "source": "brain", "metadata_only": True}
+    return {"session": row, "status": row["status"], "source": "brain", "metadata_only": True}
+
+
+def safe_chat_mutation_response(payload: Any, *, status_fallback: str = "live") -> dict[str, Any]:
+    if isinstance(payload, dict):
+        raw_status = str(payload.get("status") or "").lower()
+        raw_id = payload.get("id") or payload.get("session_id")
+        if status_fallback == "deleted" and raw_status == "deleted":
+            try:
+                safe_id = validate_session_id(raw_id)
+            except HTTPException:
+                safe_id = "unknown"
+            if safe_id != "unknown":
+                return {"metadata_only": True, "source": "brain", "id": safe_id, "status": "deleted"}
+    row = safe_chat_session(payload)
+    if row:
+        return {"session": row, "status": row["status"], "source": "brain", "metadata_only": True}
+    if isinstance(payload, dict):
+        raw_id = payload.get("id") or payload.get("session_id")
+        try:
+            safe_id = validate_session_id(raw_id)
+        except HTTPException:
+            safe_id = "unknown"
+        if safe_id != "unknown":
+            return {"metadata_only": True, "source": "brain", "id": safe_id, "status": safe_session_status(payload.get("status"), absent=status_fallback)}
+    return {"metadata_only": True, "source": "brain", "status": status_fallback, "details_withheld": True}
+
+
+def safe_upstream_http_error(exc: HTTPException, source: str = "brain") -> HTTPException:
+    status_code = exc.status_code if isinstance(exc.status_code, int) else 503
+    status = "blocked" if status_code in {401, 403} else "missing" if status_code == 404 else "degraded" if status_code >= 500 else "unknown"
+    return HTTPException(status_code, {"source": source, "status": status, "message": "source unavailable"})
+
+
+def validate_session_title(value: str) -> str:
+    title = value.strip()
+    if not title or browser_unsafe_string(title) or any(ord(ch) < 32 for ch in title):
+        raise HTTPException(422, "Session title must be safe browser text")
+    return title
+
+
 @app.get("/api/chats", dependencies=[Depends(require_auth)])
 async def chats(limit: int = 100, up: Upstream = Depends(upstream)):
-    return await up.request("brain", "GET", "/api/sessions", params={"limit": min(limit, 100), "offset": 0, "include_children": True})
+    safe_limit = max(1, min(limit, 100))
+    try:
+        payload = await up.request("brain", "GET", "/api/sessions", params={"limit": safe_limit, "offset": 0, "include_children": True})
+    except HTTPException as exc:
+        status = "blocked" if exc.status_code in {401, 403} else "offline" if exc.status_code == 503 else "degraded"
+        return {"sessions": [], "status": status, "source": "brain", "source_status": {"source": "brain", "status": status}, "metadata_only": True, "error": safe_browser_error(exc.detail, "brain")}
+    return safe_chat_sessions_response(payload)
 
 
 @app.post("/api/chats", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def create_chat(payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("brain", "POST", "/api/sessions", json=payload)
+async def create_chat(payload: SessionCreateInput, up: Upstream = Depends(upstream)):
+    body: dict[str, Any] = {"title": validate_session_title(payload.title)}
+    if payload.agent_id:
+        agent_id = safe_browser_string(payload.agent_id, "")
+        if not agent_id or agent_id == "reference withheld" or not re.fullmatch(r"[A-Za-z0-9._:@-]{1,80}", agent_id):
+            raise HTTPException(422, "Agent id must be a source-bound safe id")
+        body["agent_id"] = agent_id
+    try:
+        result = await up.request("brain", "POST", "/api/sessions", json=body)
+    except HTTPException as exc:
+        raise safe_upstream_http_error(exc) from exc
+    return safe_chat_mutation_response(result)
 
 
 @app.get("/api/chats/{session_id}", dependencies=[Depends(require_auth)])
 async def chat(session_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("brain", "GET", f"/api/sessions/{session_id}")
+    path = encoded_session_path(session_id)
+    try:
+        payload = await up.request("brain", "GET", path)
+    except HTTPException as exc:
+        raise safe_upstream_http_error(exc) from exc
+    return safe_chat_detail_response(payload)
 
 
 @app.patch("/api/chats/{session_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def update_chat(session_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    return await up.request("brain", "PATCH", f"/api/sessions/{session_id}", json=payload)
+async def update_chat(session_id: str, payload: SessionRenameInput, up: Upstream = Depends(upstream)):
+    path = encoded_session_path(session_id)
+    body = {"title": validate_session_title(payload.title)}
+    try:
+        result = await up.request("brain", "PATCH", path, json=body)
+    except HTTPException as exc:
+        raise safe_upstream_http_error(exc) from exc
+    return safe_chat_mutation_response(result)
 
 
 @app.delete("/api/chats/{session_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
-async def delete_chat(session_id: str, up: Upstream = Depends(upstream)):
-    return await up.request("brain", "DELETE", f"/api/sessions/{session_id}")
+async def delete_chat(session_id: str, payload: SessionDeleteInput = Body(...), up: Upstream = Depends(upstream)):
+    safe_id = validate_session_id(session_id)
+    if payload.confirm_session_id != safe_id:
+        raise HTTPException(422, "Delete requires explicit source confirmation for this brain session")
+    path = encoded_session_path(safe_id)
+    body = {"confirm_source": "brain", "confirm_session_id": safe_id}
+    try:
+        result = await up.request("brain", "DELETE", path, json=body, params={"confirm_source": "brain"})
+    except HTTPException as exc:
+        raise safe_upstream_http_error(exc) from exc
+    return safe_chat_mutation_response(result, status_fallback="deleted")
 
 
 def safe_chat_messages(payload: Any) -> Any:
@@ -1228,24 +1403,29 @@ def safe_chat_messages(payload: Any) -> Any:
 
 @app.get("/api/chats/{session_id}/messages", dependencies=[Depends(require_auth)])
 async def messages(session_id: str, up: Upstream = Depends(upstream)):
-    payload = await up.request("brain", "GET", f"/api/sessions/{session_id}/messages")
+    path = encoded_session_path(session_id, "/messages")
+    try:
+        payload = await up.request("brain", "GET", path)
+    except HTTPException as exc:
+        raise safe_upstream_http_error(exc) from exc
     return safe_chat_messages(payload)
 
 
 def safe_fork_response(payload: Any) -> dict[str, Any]:
-    if not isinstance(payload, dict):
-        return {"status": "unknown", "metadata_only": True}
-    safe: dict[str, Any] = {"metadata_only": True}
-    for key in ("id", "session_id", "status", "created_at", "updated_at"):
-        if key in payload:
-            safe[key] = safe_browser_string(payload[key], "unknown")
-    safe["details_withheld"] = True
-    return safe
+    source = payload.get("session") if isinstance(payload, dict) and isinstance(payload.get("session"), dict) else payload
+    row = safe_chat_session(source)
+    if row:
+        return {"session": row, "status": row["status"], "source": "brain", "metadata_only": True, "details_withheld": True}
+    return {"status": "unknown", "source": "brain", "metadata_only": True, "details_withheld": True}
 
 
 @app.post("/api/chats/{session_id}/fork", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def fork_chat(session_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
-    result = await up.request("brain", "POST", f"/api/sessions/{session_id}/fork", json=payload)
+    path = encoded_session_path(session_id, "/fork")
+    try:
+        result = await up.request("brain", "POST", path, json=safe_browser_payload(payload))
+    except HTTPException as exc:
+        raise safe_upstream_http_error(exc) from exc
     return safe_fork_response(result)
 
 
@@ -1253,6 +1433,7 @@ async def fork_chat(session_id: str, payload: dict[str, Any], up: Upstream = Dep
 async def stream_chat(session_id: str, payload: ChatInput, request: Request):
     up: Upstream = request.app.state.upstream
     store: Database = request.app.state.db
+    safe_session_id = validate_session_id(session_id)
     body: dict[str, Any] = {"input": payload.input}
     if payload.model: body["model"] = payload.model
     if payload.provider: body["provider"] = payload.provider
@@ -1276,7 +1457,8 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
     async def events() -> AsyncIterator[bytes]:
         client = httpx.AsyncClient(timeout=None)
         try:
-            response = await client.send(client.build_request("POST", f"{up.base('brain')}/api/sessions/{session_id}/chat/stream", headers={**up.headers("brain"), "Accept": "text/event-stream"}, json=body), stream=True)
+            stream_path = encoded_session_path(safe_session_id, "/chat/stream")
+            response = await client.send(client.build_request("POST", f"{up.base('brain')}{stream_path}", headers={**up.headers("brain"), "Accept": "text/event-stream"}, json=body), stream=True)
             if response.is_error:
                 yield f"event: run.failed\ndata: {json.dumps({'message': 'Brain stream failed', 'status': response.status_code})}\n\n".encode()
                 return
@@ -1291,7 +1473,7 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
                         if source_id:
                             store.upsert_verification({
                                 "source": "brain", "source_id": source_id, "run_id": str(approval.get("run_id") or "") or None,
-                                "session_id": session_id, "status": "pending", "summary": approval,
+                                "session_id": safe_session_id, "status": "pending", "summary": approval,
                                 "expires_at": approval.get("expires_at"),
                             })
                     except (ValueError, TypeError):
@@ -2074,7 +2256,7 @@ async def cron_jobs(up: Upstream = Depends(upstream)):
     except HTTPException as exc:
         return {
             "jobs": system_builtin_job_rows(),
-            "error": safe_browser_error(exc.detail),
+            "error": safe_browser_error(exc.detail, "brain"),
             "metadata_only": True,
             "raw_response_withheld": True,
         }
@@ -2114,6 +2296,12 @@ def system_builtin_job_rows() -> list[dict[str, Any]]:
         })
     return rows
 
+
+
+def validate_job_id(value: Any) -> str:
+    if not isinstance(value, str) or not SESSION_ID_RE.fullmatch(value) or browser_unsafe_string(value):
+        raise HTTPException(422, "Job id must be a safe source-bound id")
+    return value
 
 def is_system_builtin_job(job_id: str) -> bool:
     return job_id in SYSTEM_BUILTIN_JOB_IDS
@@ -2264,7 +2452,7 @@ async def automations(up: Upstream = Depends(upstream)):
         try:
             return await up.request(name, "GET", path)
         except HTTPException as exc:
-            return {"error": safe_browser_error(exc.detail)}
+            return {"error": safe_browser_error(exc.detail, name)}
     jobs, toolgate_automations = await asyncio.gather(
         optional("brain", "/api/jobs"),
         optional("toolgate", "/v2/automations"),
@@ -2285,7 +2473,7 @@ async def system(up: Upstream = Depends(upstream)):
         try:
             return await up.request("systemgate", "GET", path)
         except HTTPException as exc:
-            return {"error": safe_browser_error(exc.detail)}
+            return {"error": safe_browser_error(exc.detail, "systemgate")}
     vitals, containers, backups = await asyncio.gather(
         optional("/vitals"),
         optional("/containers"),
@@ -2299,34 +2487,37 @@ async def create_cron(payload: dict[str, Any], up: Upstream = Depends(upstream))
     try:
         result = await up.request("brain", "POST", "/api/jobs", json=payload)
     except HTTPException as exc:
-        return {"id": "unknown", "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": "unknown", "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail, "brain"), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "created")
 
 
 @app.patch("/api/cron/jobs/{job_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def update_cron(job_id: str, payload: dict[str, Any], up: Upstream = Depends(upstream)):
+    job_id = validate_job_id(job_id)
     if is_system_builtin_job(job_id):
         return JSONResponse(status_code=423, content=locked_system_job_response(job_id, "updated"))
     try:
         result = await up.request("brain", "PATCH", f"/api/jobs/{job_id}", json=payload)
     except HTTPException as exc:
-        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail, "brain"), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "updated")
 
 
 @app.delete("/api/cron/jobs/{job_id}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def delete_cron(job_id: str, up: Upstream = Depends(upstream)):
+    job_id = validate_job_id(job_id)
     if is_system_builtin_job(job_id):
         return JSONResponse(status_code=423, content=locked_system_job_response(job_id, "deleted"))
     try:
         result = await up.request("brain", "DELETE", f"/api/jobs/{job_id}")
     except HTTPException as exc:
-        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "error": safe_browser_error(exc.detail, "brain"), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "deleted")
 
 
 @app.post("/api/cron/jobs/{job_id}/{action}", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "stop"], up: Upstream = Depends(upstream)):
+    job_id = validate_job_id(job_id)
     if is_system_builtin_job(job_id):
         return JSONResponse(status_code=423, content=locked_system_job_response(job_id, action))
     upstream_id = quote(job_id, safe="")
@@ -2334,7 +2525,7 @@ async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "st
         try:
             jobs = await up.request("brain", "GET", "/api/jobs")
         except HTTPException as exc:
-            return JSONResponse(status_code=exc.status_code, content={"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": "stop", "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True})
+            return JSONResponse(status_code=exc.status_code, content={"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": "stop", "error": safe_browser_error(exc.detail, "brain"), "metadata_only": True, "raw_response_withheld": True})
         matching = next((item for item in job_items(jobs) if str(item.get("id") or item.get("job_id") or "") == job_id), None)
         active = isinstance(matching, dict) and has_active_runtime(matching)
         if not matching:
@@ -2355,7 +2546,7 @@ async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "st
                 "metadata_only": True,
                 "raw_response_withheld": True,
             })
-        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": safe_browser_string(action, "updated"), "error": safe_browser_error(exc.detail), "metadata_only": True, "raw_response_withheld": True}
+        return {"id": safe_browser_string(job_id, "unknown"), "source": "brain", "status": "degraded", "action": "not_confirmed", "requested_action": safe_browser_string(action, "updated"), "error": safe_browser_error(exc.detail, "brain"), "metadata_only": True, "raw_response_withheld": True}
     return safe_action_result("brain", result, "stopping" if action == "stop" and isinstance(result, dict) and str(result.get("status") or result.get("state") or "").lower() == "stopping" else "stopped" if action == "stop" else action)
 
 
@@ -2363,15 +2554,17 @@ async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "st
 async def character(store: Database = Depends(db)):
     item = store.row("SELECT * FROM character_profile WHERE id = 'primary'")
     profile = item or CharacterInput().model_dump()
-    return {**profile, "context_preview": character_context(profile)}
+    safe_profile = {key: profile.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}
+    return {**safe_profile, "context_preview": character_context(safe_profile)}
 
 
 @app.put("/api/character", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def save_character(payload: CharacterInput, store: Database = Depends(db)):
-    item = {"id": "primary", **payload.model_dump(), "updated_at": now()}
-    store.execute("""INSERT INTO character_profile VALUES (:id,:name,:owner_name,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at)
-        ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,personality=:personality,background=:background,speaking_style=:speaking_style,boundaries=:boundaries,avatar_url=:avatar_url,updated_at=:updated_at""", item)
-    return {**item, "context_preview": character_context(item)}
+    item = {"id": "primary", **payload.model_dump(), "speaking_style": "", "avatar_url": None, "updated_at": now()}
+    store.execute("""INSERT INTO character_profile (id,name,owner_name,personality,background,speaking_style,boundaries,avatar_url,updated_at) VALUES (:id,:name,:owner_name,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at)
+        ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,personality=:personality,background=:background,boundaries=:boundaries,updated_at=:updated_at""", item)
+    safe_item = {key: item.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}
+    return {**safe_item, "context_preview": character_context(safe_item)}
 
 
 @app.post("/api/mcp/suggestions", dependencies=[Depends(require_mcp)])

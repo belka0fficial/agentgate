@@ -18,9 +18,20 @@ export type ChatSession = {
   title: string
   preview: string
   updated_at: string
+  status?: string
+  source?: string
+  source_id?: string
   message_count?: number
   model?: string
   mode?: string
+}
+
+export type ChatMutationResult = {
+  session?: ChatSession | null
+  id?: string
+  status: string
+  source: string
+  metadata_only?: boolean
 }
 
 export type ToolTrace = {
@@ -111,9 +122,34 @@ export async function postAgentGate<T>(
   body?: unknown,
   headers: Record<string, string> = {}
 ): Promise<T> {
+  return mutateAgentGate<T>('POST', path, body, headers)
+}
+
+export async function patchAgentGate<T>(
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<T> {
+  return mutateAgentGate<T>('PATCH', path, body, headers)
+}
+
+export async function deleteAgentGate<T>(
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<T> {
+  return mutateAgentGate<T>('DELETE', path, body, headers)
+}
+
+async function mutateAgentGate<T>(
+  method: 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<T> {
   const csrfToken = path === '/api/auth/login' ? null : await getCsrfToken()
   const response = await fetch(path, {
-    method: 'POST',
+    method,
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
@@ -315,19 +351,6 @@ export async function saveModelRoute(
     `/api/model/routes/${encodeURIComponent(agentId)}/save`,
     payload
   )
-}
-
-export async function deleteAgentGate<T>(path: string): Promise<T> {
-  await getCsrfToken()
-  const response = await fetch(path, {
-    method: 'DELETE',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      'X-CSRF-Token': cachedCsrfToken ?? '',
-    },
-  })
-  return parseResponse<T>(response)
 }
 
 export const relativeTime = (value?: string) => {

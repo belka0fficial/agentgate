@@ -2,7 +2,7 @@
 
 AgentGate is the private dashboard layer for a local personal-agent stack. This repository contains the presentation layer only: a high-contrast desktop/mobile UI for command, approvals, chats, system visibility, gates, character settings, and supporting agent surfaces.
 
-The main work currently represented here is the UI overhaul completed in August 2026: a denser command center, a lab-style animated core, wider chat layouts with built-in voice/camera/live-call controls, and a cleaned dark visual language shaped around AgentGate instead of the original template baseline.
+The main work currently represented here is the UI overhaul completed in August 2026: a denser command center, a lab-style animated core, wider chat layouts and a cleaned dark visual language shaped around AgentGate instead of the original template baseline.
 
 ## Scope
 

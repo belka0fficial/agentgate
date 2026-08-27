@@ -19,7 +19,6 @@ import {
   SidebarHeader,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { getAgentGate } from '@/features/agentgate/api'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
@@ -57,7 +56,6 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
-          <ThemeSwitch className='size-10 scale-100 rounded-md' />
           <Button asChild variant='ghost' size='icon' className='size-10'>
             <Link to='/settings/gateways' aria-label='Settings'>
               <SettingsIcon />

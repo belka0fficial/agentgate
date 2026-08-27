@@ -5,19 +5,15 @@ import {
   ArrowRight,
   Bot,
   Brain,
-  Laptop,
   MessageSquarePlus,
-  Moon,
   Play,
   Plus,
   Settings,
   ShieldCheck,
   Sparkles,
-  Sun,
   Wrench,
 } from 'lucide-react'
 import { useSearch } from '@/context/search-provider'
-import { useTheme } from '@/context/theme-provider'
 import {
   CommandDialog,
   CommandEmpty,
@@ -60,7 +56,6 @@ const knownScopes = new Set(['>', '@', '#'])
 
 export function CommandMenu() {
   const navigate = useNavigate()
-  const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
   const [query, setQuery] = React.useState('')
   const sessions = useQuery({
@@ -219,7 +214,7 @@ export function CommandMenu() {
               <PaletteItem
                 key={persona.id}
                 icon={<Bot />}
-                value={`@ persona ${persona.name} ${persona.role} ${persona.identity} ${persona.voice}`}
+                value={`@ persona ${persona.name} ${persona.role} ${persona.identity}`}
                 title={persona.name}
                 detail={`${persona.role} · ${persona.identity}`}
                 shortcut='@'
@@ -317,27 +312,6 @@ export function CommandMenu() {
                 onSelect={() =>
                   runCommand(() => navigate({ to: '/character' }))
                 }
-              />
-              <PaletteItem
-                icon={<Sun />}
-                value='settings theme light'
-                title='Theme: light'
-                detail='Switch appearance'
-                onSelect={() => runCommand(() => setTheme('light'))}
-              />
-              <PaletteItem
-                icon={<Moon />}
-                value='settings theme dark'
-                title='Theme: dark'
-                detail='Switch appearance'
-                onSelect={() => runCommand(() => setTheme('dark'))}
-              />
-              <PaletteItem
-                icon={<Laptop />}
-                value='settings theme system'
-                title='Theme: system'
-                detail='Follow OS preference'
-                onSelect={() => runCommand(() => setTheme('system'))}
               />
             </CommandGroup>
           </>

@@ -13,7 +13,6 @@ export type ChatAction =
   | 'fork'
   | 'regenerate'
   | 'share'
-  | 'read-aloud'
   | 'file-attachment'
   | 'selected-reply'
   | 'selected-memory'
@@ -121,13 +120,6 @@ export function chatActionAvailability(
       available: false,
       status: 'planned',
       reason: 'Sharing is unavailable until a backend contract exists.',
-    }
-  }
-  if (action === 'read-aloud') {
-    return {
-      available: false,
-      status: 'planned',
-      reason: 'Read-aloud is planned for the later voice/audio phase.',
     }
   }
   if (action === 'file-attachment') {

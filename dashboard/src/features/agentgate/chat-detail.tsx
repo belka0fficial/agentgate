@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUp,
@@ -20,7 +20,6 @@ import {
   SlidersHorizontal,
   Square,
   Trash2,
-  Volume2,
   WifiOff,
   Wrench,
 } from 'lucide-react'
@@ -60,10 +59,14 @@ import {
 } from '@/components/ui/tooltip'
 import { Main } from '@/components/layout/main'
 import {
+  deleteAgentGate,
   getAgentGate,
+  patchAgentGate,
   postAgentGate,
   relativeTime,
   type ChatMessage,
+  type ChatMutationResult,
+  type ChatSession,
 } from './api'
 import {
   chatActionAvailability,
@@ -102,6 +105,8 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
   } | null>(null)
   const [selectionNotice, setSelectionNotice] = useState('')
   const [forkError, setForkError] = useState('')
+  const [mutationError, setMutationError] = useState('')
+  const [mutationNotice, setMutationNotice] = useState('')
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const threadViewportRef = useRef<HTMLDivElement>(null)
   const threadEndRef = useRef<HTMLDivElement>(null)
@@ -112,12 +117,50 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     select: (location) => location.href,
   })
   const chatState = getChatStateFromHref(locationHref)
+  const sessionDetail = useQuery({
+    queryKey: ['agentgate', 'chats', chatId, 'detail'],
+    queryFn: () =>
+      getAgentGate<{ session: ChatSession | null; status: string }>(
+        `/api/chats/${encodeURIComponent(chatId)}`
+      ),
+  })
   const conversation = useQuery({
     queryKey: ['agentgate', 'chats', chatId, 'messages'],
     queryFn: () =>
       getAgentGate<{ messages: ChatMessage[] }>(
-        `/api/chats/${chatId}/messages`
+        `/api/chats/${encodeURIComponent(chatId)}/messages`
       ),
+  })
+  const renameSession = useMutation({
+    mutationFn: (title: string) =>
+      patchAgentGate<ChatMutationResult>(
+        `/api/chats/${encodeURIComponent(chatId)}`,
+        { title }
+      ),
+    onSuccess: async () => {
+      setMutationError('')
+      setMutationNotice('Session renamed from brain source.')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agentgate', 'chats'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['agentgate', 'chats', chatId, 'detail'],
+        }),
+      ])
+    },
+    onError: (error) => setMutationError(safeChatUiError(error)),
+  })
+  const deleteSession = useMutation({
+    mutationFn: () =>
+      deleteAgentGate<ChatMutationResult>(
+        `/api/chats/${encodeURIComponent(chatId)}`,
+        { confirm_source: 'brain', confirm_session_id: chatId }
+      ),
+    onSuccess: async () => {
+      setMutationError('')
+      await queryClient.invalidateQueries({ queryKey: ['agentgate', 'chats'] })
+      void navigate({ to: '/chats' })
+    },
+    onError: (error) => setMutationError(safeChatUiError(error)),
   })
 
   const scrollThreadToLatest = useCallback(
@@ -150,7 +193,7 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
     setForkError('')
     try {
       const fork = await postAgentGate<ChatSessionFork>(
-        `/api/chats/${chatId}/fork`,
+        `/api/chats/${encodeURIComponent(chatId)}/fork`,
         forkPayloadForMessage(message)
       )
       if (fork.id) {
@@ -209,20 +252,36 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
               <div className='flex min-w-0 items-start justify-between gap-4'>
                 <div className='min-w-0'>
                   <h1 className='truncate text-2xl font-bold tracking-tight'>
-                    AgentGate conversation
+                    {sessionDetail.data?.session?.title ??
+                      'AgentGate conversation'}
                   </h1>
                   <p className='truncate font-mono text-xs text-muted-foreground'>
                     {chatId} - private Pi session - {messages.length} turns
                   </p>
                 </div>
                 <div className='flex shrink-0 items-center gap-1'>
-                  <SessionActionsMenu />
+                  <SessionActionsMenu
+                    chatId={chatId}
+                    title={sessionDetail.data?.session?.title}
+                    isMutating={
+                      renameSession.isPending || deleteSession.isPending
+                    }
+                    onRefresh={() => {
+                      void queryClient.invalidateQueries({
+                        queryKey: ['agentgate', 'chats', chatId],
+                      })
+                    }}
+                    onRename={(title) => renameSession.mutate(title)}
+                    onDelete={() => deleteSession.mutate()}
+                  />
                 </div>
               </div>
             </div>
-            {forkError ? (
-              <div className='mx-auto mb-2 w-full max-w-[1200px] px-4 text-xs text-destructive sm:px-6'>
-                {forkError}
+            {forkError || mutationError || mutationNotice ? (
+              <div
+                className={`mx-auto mb-2 w-full max-w-[1200px] px-4 text-xs sm:px-6 ${mutationNotice && !forkError && !mutationError ? 'text-muted-foreground' : 'text-destructive'}`}
+              >
+                {forkError || mutationError || mutationNotice}
               </div>
             ) : null}
             <div
@@ -668,20 +727,23 @@ async function streamChatTurn(
     provider?: string
   }
 ) {
-  const response = await fetch(`/api/chats/${sessionId}/stream`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      'X-CSRF-Token':
-        document.cookie
-          .split('; ')
-          .find((row) => row.startsWith('agentgate_csrf='))
-          ?.split('=')[1] ?? '',
-    },
-    body: JSON.stringify(streamChatBody(input, options)),
-  })
+  const response = await fetch(
+    `/api/chats/${encodeURIComponent(sessionId)}/stream`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        'X-CSRF-Token':
+          document.cookie
+            .split('; ')
+            .find((row) => row.startsWith('agentgate_csrf='))
+            ?.split('=')[1] ?? '',
+      },
+      body: JSON.stringify(streamChatBody(input, options)),
+    }
+  )
 
   if (!response.ok) {
     await response.text()
@@ -854,33 +916,6 @@ function Composer({
           >
             <Paperclip />
           </UnavailableMetaAction>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            disabled
-            aria-label='Voice input planned'
-          >
-            Voice planned
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            disabled
-            aria-label='Camera planned'
-          >
-            Camera planned
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            disabled
-            aria-label='Live call planned'
-          >
-            Live call planned
-          </Button>
           <div className='ml-auto flex items-center gap-1'>
             <CapabilityPopover
               icon={<EyeOff />}
@@ -1088,13 +1123,6 @@ function MessageMeta({
               <RotateCcw />
             </UnavailableMetaAction>
           ) : null}
-          {!isOwner ? (
-            <UnavailableMetaAction
-              availability={chatActionAvailability('read-aloud', message)}
-            >
-              <Volume2 />
-            </UnavailableMetaAction>
-          ) : null}
           <ForkAction onFork={onFork} />
           {!isOwner ? (
             <UnavailableMetaAction
@@ -1256,7 +1284,37 @@ function TraceContent({ trace }: { trace: NonNullable<ChatMessage['trace']> }) {
   )
 }
 
-function SessionActionsMenu() {
+function SessionActionsMenu({
+  chatId,
+  title,
+  isMutating,
+  onRefresh,
+  onRename,
+  onDelete,
+}: {
+  chatId: string
+  title?: string
+  isMutating: boolean
+  onRefresh: () => void
+  onRename: (title: string) => void
+  onDelete: () => void
+}) {
+  function requestRename() {
+    const nextTitle = window.prompt(
+      'Rename this brain session. Raw prompts/tool output are never exported.',
+      title ?? ''
+    )
+    const safeTitle = nextTitle?.trim()
+    if (safeTitle) onRename(safeTitle)
+  }
+
+  function requestDelete() {
+    const typed = window.prompt(
+      `Delete brain session ${chatId}. Type the exact session id to confirm.`
+    )
+    if (typed === chatId) onDelete()
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1266,21 +1324,26 @@ function SessionActionsMenu() {
           size='icon'
           className='size-7'
           aria-label='Session actions'
+          disabled={isMutating}
         >
           <MoreHorizontal className='size-4' />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem onClick={onRefresh}>
+          <RotateCcw />
+          Refresh source history
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={requestRename}>
           <Pencil />
           Rename
         </DropdownMenuItem>
         <DropdownMenuItem disabled>
           <Download />
-          Export
+          Export unavailable - no safe contract
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled variant='destructive'>
+        <DropdownMenuItem variant='destructive' onClick={requestDelete}>
           <Trash2 />
           Delete session
         </DropdownMenuItem>

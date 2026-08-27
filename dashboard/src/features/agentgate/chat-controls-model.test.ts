@@ -108,11 +108,6 @@ describe('chat text controls model', () => {
       status: 'planned',
       reason: 'Sharing is unavailable until a backend contract exists.',
     })
-    expect(chatActionAvailability('read-aloud', agentMessage)).toEqual({
-      available: false,
-      status: 'planned',
-      reason: 'Read-aloud is planned for the later voice/audio phase.',
-    })
     expect(chatActionAvailability('file-attachment')).toEqual({
       available: false,
       status: 'planned',

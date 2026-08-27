@@ -1470,7 +1470,7 @@ def test_error_and_approval_redaction_catches_plain_hidden_prompt_text(monkeypat
     from agentgate.main import app, safe_browser_error, safe_browser_string, verification_view
 
     assert safe_browser_string("hidden prompt: meet owner at bank at 9pm") == "reference withheld"
-    assert safe_browser_error({"source": "brain", "message": "failed hidden prompt: meet owner at bank at 9pm"}) == {"source": "brain", "message": "source unavailable"}
+    assert safe_browser_error({"source": "brain", "message": "failed hidden prompt: meet owner at bank at 9pm"}, "brain") == {"source": "brain", "message": "source unavailable"}
     view = verification_view("toolgate", {"payload": {"message": "hidden prompt: meet owner at 9pm", "title": "private owner instruction"}})
     encoded_view = str(view)
     assert "hidden prompt" not in encoded_view

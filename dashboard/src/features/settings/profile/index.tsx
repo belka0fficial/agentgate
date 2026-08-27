@@ -1,13 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import {
-  ArrowRight,
-  Bell,
-  Monitor,
-  Palette,
-  Router,
-  ShieldCheck,
-  UserCog,
-} from 'lucide-react'
+import { ArrowRight, Bell, Router, ShieldCheck, UserCog } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -44,24 +36,11 @@ const sections = [
     status: 'existing',
   },
   {
-    title: 'Appearance',
-    href: '/settings/appearance',
-    description: 'Theme and visual preferences for the local dashboard.',
-    icon: Palette,
-    status: 'existing',
-  },
-  {
     title: 'Notifications',
     href: '/settings/notifications',
-    description: 'Notification preferences for local alerts and owner attention.',
+    description:
+      'Notification preferences for local alerts and owner attention.',
     icon: Bell,
-    status: 'existing',
-  },
-  {
-    title: 'Display',
-    href: '/settings/display',
-    description: 'Density, layout, and screen presentation preferences.',
-    icon: Monitor,
     status: 'existing',
   },
 ]
@@ -74,37 +53,43 @@ export function SettingsProfile() {
     >
       <div>
         <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
-        {sections.map((section) => {
-          const Icon = section.icon
-          return (
-            <Link key={section.href} to={section.href} className='group block'>
-              <Card className='h-full transition-colors group-hover:border-primary/40 group-hover:bg-muted/30'>
-                <CardHeader className='space-y-3'>
-                  <div className='flex items-start justify-between gap-3'>
-                    <span className='rounded-lg border bg-background p-2 text-muted-foreground group-hover:text-foreground'>
-                      <Icon className='size-5' />
-                    </span>
-                    <Badge
-                      variant={section.status === 'active' ? 'default' : 'outline'}
-                      className='capitalize'
-                    >
-                      {section.status}
-                    </Badge>
-                  </div>
-                  <div>
-                    <CardTitle className='flex items-center gap-2 text-base'>
-                      {section.title}
-                      <ArrowRight className='size-4 opacity-0 transition-opacity group-hover:opacity-100' />
-                    </CardTitle>
-                    <CardDescription className='mt-2 leading-6'>
-                      {section.description}
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
-          )
-        })}
+          {sections.map((section) => {
+            const Icon = section.icon
+            return (
+              <Link
+                key={section.href}
+                to={section.href}
+                className='group block'
+              >
+                <Card className='h-full transition-colors group-hover:border-primary/40 group-hover:bg-muted/30'>
+                  <CardHeader className='space-y-3'>
+                    <div className='flex items-start justify-between gap-3'>
+                      <span className='rounded-lg border bg-background p-2 text-muted-foreground group-hover:text-foreground'>
+                        <Icon className='size-5' />
+                      </span>
+                      <Badge
+                        variant={
+                          section.status === 'active' ? 'default' : 'outline'
+                        }
+                        className='capitalize'
+                      >
+                        {section.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <CardTitle className='flex items-center gap-2 text-base'>
+                        {section.title}
+                        <ArrowRight className='size-4 opacity-0 transition-opacity group-hover:opacity-100' />
+                      </CardTitle>
+                      <CardDescription className='mt-2 leading-6'>
+                        {section.description}
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
 
         <Card className='mt-6 border-dashed bg-muted/20'>

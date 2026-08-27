@@ -18,6 +18,7 @@ import {
   loginAgentGateOwner,
   postAgentGate,
   relativeTime,
+  type ChatMutationResult,
   type ChatSession,
 } from './api'
 import { filterAndSortChatSessions, type ChatSort } from './chat-controls-model'
@@ -54,12 +55,15 @@ export function ChatsPage() {
   })
   const createChat = useMutation({
     mutationFn: () =>
-      postAgentGate<ChatSession>('/api/chats', {
+      postAgentGate<ChatMutationResult>('/api/chats', {
         title: 'New AgentGate conversation',
         agent_id: 'agent_pi_operator',
       }),
-    onSuccess: (session) => {
-      void navigate({ to: '/chats/$id', params: { id: session.id } })
+    onSuccess: (result) => {
+      const sessionId = result.session?.id ?? result.id
+      if (sessionId) {
+        void navigate({ to: '/chats/$id', params: { id: sessionId } })
+      }
     },
   })
 
@@ -134,10 +138,10 @@ export function ChatsPage() {
               <div>
                 <h3 className='font-medium'>Owner login required</h3>
                 <p className='text-xs text-muted-foreground'>
-                  AgentGate is connected to the Pi adapter. Enter the owner
-                  token once to receive the adapter httpOnly session cookie. The
-                  token is sent only to <code>/api/auth/login</code> and is not
-                  stored in localStorage or bundled into the app.
+                  Enter the owner token to query the Pi adapter and receive an
+                  httpOnly session cookie. The token is sent only to{' '}
+                  <code>/api/auth/login</code> and is not stored in localStorage
+                  or bundled into the app.
                 </p>
               </div>
               <div className='flex gap-2'>
