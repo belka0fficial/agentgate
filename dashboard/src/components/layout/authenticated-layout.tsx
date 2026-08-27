@@ -58,10 +58,10 @@ function FirstRunCompanionRedirect() {
   })
 
   useEffect(() => {
-    if (
-      character.data?.configured === false &&
-      location.pathname !== '/character'
-    ) {
+    const currentPath = window.location.pathname
+    const canStayWithoutCompanion =
+      currentPath === '/character' || currentPath.startsWith('/settings')
+    if (character.data?.configured === false && !canStayWithoutCompanion) {
       void navigate({ to: '/character' })
     }
   }, [character.data?.configured, location.pathname, navigate])

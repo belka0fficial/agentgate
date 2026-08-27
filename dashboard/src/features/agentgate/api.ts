@@ -432,3 +432,13 @@ export const relativeTime = (value?: string) => {
   if (minutes < 2880) return `${Math.round(minutes / 60)}h ago`
   return `${Math.round(minutes / 1440)}d ago`
 }
+
+export function changeAgentGateOwnerPassword(
+  current_key: string,
+  new_key: string
+) {
+  return putAgentGate<OwnerSession>('/api/auth/password', {
+    current_key,
+    new_key,
+  })
+}

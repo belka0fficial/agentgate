@@ -9,12 +9,21 @@ export type Persona = {
 
 export const personas: Persona[] = [
   {
+    id: 'blank',
+    name: 'Create your companion',
+    role: 'Main Companion',
+    identity:
+      'Start from a blank companion profile and choose the identity yourself.',
+    default: true,
+    boundaries:
+      'Tool permissions, external effects, secrets, and system actions remain controlled by ToolGate and owner approvals.',
+  },
+  {
     id: 'conker',
     name: 'Conker',
-    role: 'Main Companion / Chief',
+    role: 'Companion template',
     identity:
       'Reluctant but loyal local AI chief for owner-facing work, source-bound decisions, and honest execution.',
-    default: true,
     boundaries:
       'Tool permissions, external effects, secrets, and system actions remain controlled by ToolGate and owner approvals.',
   },
@@ -43,15 +52,5 @@ export const personas: Persona[] = [
 ]
 
 export function soulForPersona(persona: Persona) {
-  return `# SOUL.md
-
-## Identity
-${persona.name} — ${persona.identity}
-
-## Role
-${persona.role}
-
-## Boundaries
-${persona.boundaries}
-`
+  return `# SOUL.md\n\n## Identity\n${persona.name} — ${persona.identity}\n\n## Role\n${persona.role}\n\n## Boundaries\n${persona.boundaries}\n`
 }

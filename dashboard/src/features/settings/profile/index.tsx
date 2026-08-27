@@ -1,7 +1,13 @@
+import { type FormEvent, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Bell, Router, ShieldCheck, UserCog } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { changeAgentGateOwnerPassword } from '@/features/agentgate/api'
 
 const sections = [
   {
@@ -32,11 +38,98 @@ const sections = [
     title: 'Safety',
     href: '/settings/account',
     description:
-      'Owner access, approval boundaries, and data withheld from the browser.',
+      'Change the owner password stored by AgentGate. Existing server env keys remain server-side.',
     icon: ShieldCheck,
-    status: 'planned',
+    status: 'active',
   },
 ]
+
+function OwnerPasswordPanel() {
+  const [currentKey, setCurrentKey] = useState('')
+  const [newKey, setNewKey] = useState('')
+  const [message, setMessage] = useState('')
+  const mutation = useMutation({
+    mutationFn: () => changeAgentGateOwnerPassword(currentKey, newKey),
+    onSuccess: () => {
+      setCurrentKey('')
+      setNewKey('')
+      setMessage(
+        'Owner password updated. Use it next time you unlock AgentGate.'
+      )
+    },
+    onError: (error) => {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Could not update owner password'
+      )
+    },
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (currentKey.trim() && newKey.trim()) mutation.mutate()
+  }
+
+  return (
+    <Card className='max-w-3xl'>
+      <CardHeader>
+        <div className='flex items-start justify-between gap-3'>
+          <div>
+            <CardTitle className='text-base'>Owner password</CardTitle>
+            <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+              Manage the dashboard unlock password. The browser never receives
+              or displays the stored verifier.
+            </p>
+          </div>
+          <Badge variant='default'>active</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <form
+          className='grid gap-4 sm:grid-cols-[1fr_1fr_auto]'
+          onSubmit={submit}
+        >
+          <div className='grid gap-2'>
+            <Label htmlFor='current-owner-key'>Current password</Label>
+            <Input
+              id='current-owner-key'
+              type='password'
+              value={currentKey}
+              onChange={(event) => setCurrentKey(event.target.value)}
+              autoComplete='current-password'
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='new-owner-key'>New password</Label>
+            <Input
+              id='new-owner-key'
+              type='password'
+              value={newKey}
+              onChange={(event) => setNewKey(event.target.value)}
+              autoComplete='new-password'
+              minLength={12}
+            />
+          </div>
+          <Button
+            className='self-end'
+            type='submit'
+            disabled={
+              mutation.isPending ||
+              !currentKey.trim() ||
+              newKey.trim().length < 12
+            }
+          >
+            Update
+          </Button>
+        </form>
+        {message ? (
+          <p className='mt-3 text-sm text-muted-foreground'>{message}</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
 
 export function SettingsProfile() {
   return (
@@ -53,6 +146,8 @@ export function SettingsProfile() {
           avatar cruft, no search bar pretending to configure things.
         </p>
       </div>
+
+      <OwnerPasswordPanel />
 
       <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
         {sections.map((section) => {

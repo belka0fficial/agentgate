@@ -33,6 +33,11 @@ class Login(BaseModel):
         return self.owner_token or self.key or ""
 
 
+class OwnerPasswordChange(BaseModel):
+    current_key: str = Field(min_length=1, max_length=4096)
+    new_key: str = Field(min_length=12, max_length=4096)
+
+
 class ChatInput(BaseModel):
     input: str = Field(min_length=1, max_length=100_000)
     provider: str | None = None
@@ -997,6 +1002,28 @@ async def session(request: Request):
     session_token = request.cookies.get(COOKIE_NAME, "")
     csrf_token = issue_csrf_token(session_token, request.app.state.settings) if session_token else None
     return owner_session_payload(True, csrf_token)
+
+
+@app.put("/api/auth/password", dependencies=[Depends(require_auth), Depends(require_csrf)])
+async def change_owner_password(payload: OwnerPasswordChange, request: Request, store: Database = Depends(db)):
+    settings = request.app.state.settings
+    current = payload.current_key.strip()
+    new_key = payload.new_key.strip()
+    if len(new_key) < 12:
+        raise HTTPException(422, "Owner password must be at least 12 characters")
+    if not (validate_admin_key(current, settings) or validate_stored_owner_key(current, store, settings)):
+        raise HTTPException(401, "Current owner password is invalid")
+    store.execute(
+        "INSERT INTO owner_config (id, verifier, updated_at) VALUES ('primary', ?, ?) ON CONFLICT(id) DO UPDATE SET verifier=excluded.verifier, updated_at=excluded.updated_at",
+        (owner_key_verifier(new_key, settings), now()),
+    )
+    return {
+        "status": "updated",
+        "auth_mode": "owner_key",
+        "metadata_only": True,
+        "credentials_included": False,
+        "token_included": False,
+    }
 
 
 def dependency_status_from_payload(payload: Any) -> str:
@@ -2499,6 +2526,27 @@ def toolgate_source_status(payload: Any) -> dict[str, str]:
     status = source_status(payload, "toolgate")
     return {"status": status["status"], "source": "toolgate"}
 
+
+def safe_systemgate_collection(payload: Any, *, key: str = "results") -> Any:
+    if not isinstance(payload, dict):
+        return safe_browser_payload(payload)
+    rows = payload.get(key)
+    if isinstance(rows, list):
+        status = "live" if rows else "empty"
+        shaped: dict[str, Any] = {
+            key: safe_browser_payload(rows),
+            "status": status,
+            "source": "systemgate",
+            "metadata_only": True,
+        }
+        if payload.get("error"):
+            shaped["warning"] = safe_browser_error(payload.get("error"), "systemgate")
+        return shaped
+    if payload.get("error"):
+        return {"error": safe_browser_error(payload.get("error"), "systemgate")}
+    return safe_browser_payload(payload)
+
+
 @app.get("/api/automations", dependencies=[Depends(require_auth)])
 async def automations(up: Upstream = Depends(upstream)):
     async def optional(name: str, path: str):
@@ -2532,7 +2580,7 @@ async def system(up: Upstream = Depends(upstream)):
         optional("/containers"),
         optional("/backups"),
     )
-    return {"vitals": safe_browser_payload(vitals), "containers": safe_browser_payload(containers), "backups": safe_browser_payload(backups)}
+    return {"vitals": safe_browser_payload(vitals), "containers": safe_systemgate_collection(containers), "backups": safe_browser_payload(backups)}
 
 
 @app.post("/api/cron/jobs", dependencies=[Depends(require_auth), Depends(require_csrf)])
@@ -2622,12 +2670,11 @@ async def character(store: Database = Depends(db)):
     item = store.row("SELECT * FROM character_profile WHERE id = 'primary'")
     profile = item or {
         "id": "primary",
-        **CharacterInput(
-            name="Conker",
-            personality="Reluctant local-first companion chief.",
-            background="Main Companion",
-            boundaries="No actions without ToolGate approval. No voice, camera, or live-call runtime.",
-        ).model_dump(),
+        "name": "",
+        "owner_name": "",
+        "personality": "",
+        "background": "",
+        "boundaries": "",
         "updated_at": "",
     }
     safe_profile = {key: profile.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}

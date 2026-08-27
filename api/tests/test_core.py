@@ -2124,3 +2124,99 @@ def test_character_profile_exposes_local_avatar_emotion_package_not_avatar_url(m
         assert saved["configured"] is True
         assert saved["avatar"]["asset"] == "conker-head-local-svg"
         assert "avatar_url" not in saved
+
+
+def test_owner_password_can_be_changed_from_settings(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        response = client.put(
+            "/api/auth/password",
+            headers=csrf_headers(client),
+            json={"current_key": "test-owner-key-1234", "new_key": "new-owner-password-123"},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "updated"
+        assert payload["token_included"] is False
+        assert "new-owner-password-123" not in str(payload)
+        assert client.post("/api/auth/login", json={"key": "new-owner-password-123"}).status_code == 200
+
+
+def test_unconfigured_character_is_blank_not_conker(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        profile = client.get("/api/character").json()
+        assert profile["configured"] is False
+        assert profile["name"] == ""
+        assert profile["avatar"]["emotion_pack"] == "conker-basic-v1"
+
+
+def test_system_containers_error_payload_is_sanitized_warning(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path == "/containers":
+            return {
+                "results": [],
+                "error": "404 Client Error for http+docker://localhost/v1.52/images/sha256:abc/json: Not Found",
+            }
+        return {"status": "ok"}
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/system")
+
+    assert response.status_code == 200
+    containers = response.json()["containers"]
+    assert containers["results"] == []
+    assert containers["status"] == "empty"
+    assert containers["warning"] == {"source": "systemgate", "message": "source unavailable"}
+    encoded = str(containers)
+    assert "http+docker" not in encoded
+    assert "sha256" not in encoded
+
+
+def test_system_containers_error_only_payload_is_sanitized(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    async def fake_request(name, method, path, **kwargs):
+        if path == "/containers":
+            return {"error": "404 Client Error for http+docker://localhost/v1.52/images/sha256:abc/json: Not Found"}
+        return {"status": "ok"}
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        app.state.upstream.request = fake_request
+        response = client.get("/api/system")
+
+    assert response.status_code == 200
+    containers = response.json()["containers"]
+    assert containers == {"error": {"source": "systemgate", "message": "source unavailable"}}
+    encoded = str(containers)
+    assert "http+docker" not in encoded
+    assert "sha256" not in encoded

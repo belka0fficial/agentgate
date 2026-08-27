@@ -50,8 +50,8 @@ export function CharacterListPage() {
       <Main>
         <p className='mb-6 max-w-2xl text-sm text-muted-foreground'>
           Configure the text identity used by AgentGate chats. Runtime
-          permissions remain in ToolGate. If this is your first run, pick Conker
-          and save him as the main companion.
+          permissions remain in ToolGate. If this is your first run, create or
+          choose the main companion yourself. Templates are optional.
         </p>
         <section className='grid gap-4 md:grid-cols-2'>
           {personas.map((persona) => (
@@ -120,7 +120,7 @@ export function CharacterListPage() {
               disabled={save.isPending}
             >
               <Save className='mr-2 size-4' />
-              Save as main companion
+              Save main companion
             </Button>
             <span className='text-xs text-muted-foreground'>
               Avatar emotions:{' '}
