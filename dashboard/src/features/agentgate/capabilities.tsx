@@ -14,7 +14,7 @@ function badgeVariant(
   status: string
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'blocked' || status === 'offline') return 'destructive'
-  if (status === 'degraded' || status === 'stale') return 'secondary'
+  if (status === 'degraded' || status === 'stale') return 'destructive'
   if (status === 'live') return 'default'
   return 'outline'
 }

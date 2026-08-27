@@ -28,6 +28,10 @@ export default defineConfig({
         secure: false,
         configure(proxy) {
           proxy.on('proxyReq', (proxyReq) => {
+            // Browser writes are same-origin to Vite. The dev proxy is the
+            // trusted local facade to AgentGate, so do not forward the
+            // browser Origin after changeOrigin rewrites Host to the API.
+            proxyReq.removeHeader('origin')
             if (ownerToken) {
               proxyReq.setHeader('Authorization', `Bearer ${ownerToken}`)
             }

@@ -52,8 +52,8 @@ export function SettingsDialog({
           <div className='mt-6 rounded-lg border border-dashed bg-muted/20 p-4 text-sm leading-6 text-muted-foreground'>
             Provider add/delete is not exposed yet because provider credentials
             and upstream URLs must stay server-side. Add/delete will become a
-            real setting only when Pi adapter provides a safe owner-authenticated
-            provider registry endpoint.
+            real setting only when Pi adapter provides a safe
+            owner-authenticated provider registry endpoint.
           </div>
           <div className='sr-only'>
             <Button type='button'>Gateway settings active</Button>

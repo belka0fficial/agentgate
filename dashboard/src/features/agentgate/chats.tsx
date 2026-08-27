@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
@@ -67,6 +67,16 @@ export function ChatsPage() {
     },
   })
 
+  const { isPending: isCreatingChat, mutate: mutateCreateChat } = createChat
+
+  useEffect(() => {
+    const handler = () => {
+      if (!isCreatingChat) mutateCreateChat()
+    }
+    window.addEventListener('agentgate:new-chat', handler)
+    return () => window.removeEventListener('agentgate:new-chat', handler)
+  }, [isCreatingChat, mutateCreateChat])
+
   return (
     <>
       <AgentGateHeader />
@@ -83,8 +93,8 @@ export function ChatsPage() {
             <Button
               type='button'
               size='sm'
-              onClick={() => createChat.mutate()}
-              disabled={createChat.isPending}
+              onClick={() => mutateCreateChat()}
+              disabled={isCreatingChat}
             >
               New chat
             </Button>

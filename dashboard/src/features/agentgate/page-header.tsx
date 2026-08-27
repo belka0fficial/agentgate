@@ -140,7 +140,7 @@ function getActions(
         {
           label: 'New chat',
           icon: <MessageSquarePlus />,
-          to: '/chats',
+          onClick: () => window.dispatchEvent(new Event('agentgate:new-chat')),
           primary: true,
         },
         { label: 'Memory', icon: <MemoryStick />, to: '/memory' },

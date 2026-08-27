@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -872,8 +874,10 @@ def safe_brain_verification_rows(rows: list[dict[str, Any]]) -> list[dict[str, A
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    if len(settings.admin_key) < 16 or len(settings.session_secret) < 32 or len(settings.mcp_key) < 16:
-        raise RuntimeError("AGENTGATE_ADMIN_KEY, AGENTGATE_MCP_KEY (16+ chars), and AGENTGATE_SESSION_SECRET (32+ chars) are required")
+    if len(settings.session_secret) < 32 or len(settings.mcp_key) < 16:
+        raise RuntimeError("AGENTGATE_MCP_KEY (16+ chars) and AGENTGATE_SESSION_SECRET (32+ chars) are required")
+    if settings.admin_key and len(settings.admin_key) < 16:
+        raise RuntimeError("AGENTGATE_ADMIN_KEY must be 16+ chars when configured")
     app.state.settings = settings
     app.state.db = Database(settings.data_dir)
     app.state.db.initialize()
@@ -906,8 +910,9 @@ async def health(request: Request):
 
 
 @app.post("/api/auth/login")
-async def login(payload: Login, response: Response, request: Request):
-    if not validate_admin_key(payload.credential, request.app.state.settings):
+async def login(payload: Login, response: Response, request: Request, store: Database = Depends(db)):
+    settings = request.app.state.settings
+    if not (validate_admin_key(payload.credential, settings) or validate_stored_owner_key(payload.credential, store, settings)):
         raise HTTPException(401, "Invalid key")
     session_token = issue_session(request.app.state.settings)
     csrf_token = issue_csrf_token(session_token, request.app.state.settings)
@@ -937,6 +942,54 @@ def owner_session_payload(authenticated: bool, csrf_token: str | None) -> dict[s
         "credentials_included": False,
         "token_included": False,
     }
+
+
+def owner_key_verifier(value: str, settings) -> str:
+    return hmac.new(settings.session_secret.encode(), f"owner-key:{value}".encode(), hashlib.sha256).hexdigest()
+
+
+def stored_owner_configured(store: Database) -> bool:
+    return store.row("SELECT id FROM owner_config WHERE id = 'primary'") is not None
+
+
+def validate_stored_owner_key(value: str, store: Database, settings) -> bool:
+    row = store.row("SELECT verifier FROM owner_config WHERE id = 'primary'")
+    if not row:
+        return False
+    return hmac.compare_digest(row.get("verifier", ""), owner_key_verifier(value, settings))
+
+
+def owner_setup_required(store: Database, settings) -> bool:
+    return not settings.admin_key and not stored_owner_configured(store)
+
+
+@app.get("/api/auth/bootstrap")
+async def auth_bootstrap(request: Request, store: Database = Depends(db)):
+    setup_required = owner_setup_required(store, request.app.state.settings)
+    return {
+        "status": "setup_required" if setup_required else "configured",
+        "setup_required": setup_required,
+        "auth_mode": "owner_key",
+        "metadata_only": True,
+    }
+
+
+@app.post("/api/auth/bootstrap")
+async def auth_bootstrap_create(payload: Login, response: Response, request: Request, store: Database = Depends(db)):
+    settings = request.app.state.settings
+    if not owner_setup_required(store, settings):
+        raise HTTPException(409, "Owner password is already configured")
+    credential = payload.credential.strip()
+    if len(credential) < 12:
+        raise HTTPException(422, "Owner password must be at least 12 characters")
+    store.execute("INSERT INTO owner_config (id, verifier, updated_at) VALUES ('primary', ?, ?)", (owner_key_verifier(credential, settings), now()))
+    session_token = issue_session(settings)
+    csrf_token = issue_csrf_token(session_token, settings)
+    response.set_cookie(COOKIE_NAME, session_token, httponly=True, samesite="strict", max_age=43_200)
+    response.set_cookie(CSRF_COOKIE_NAME, csrf_token, httponly=False, samesite="strict", max_age=43_200)
+    result = owner_session_payload(True, csrf_token)
+    result["setup_completed"] = True
+    return result
 
 
 @app.get("/api/auth/session", dependencies=[Depends(require_auth)])
@@ -2550,12 +2603,35 @@ async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "st
     return safe_action_result("brain", result, "stopping" if action == "stop" and isinstance(result, dict) and str(result.get("status") or result.get("state") or "").lower() == "stopping" else "stopped" if action == "stop" else action)
 
 
+CONKER_AVATAR_PACKAGE = {
+    "id": "conker-head",
+    "asset": "conker-head-local-svg",
+    "emotion_pack": "conker-basic-v1",
+    "default_emotion": "smug",
+    "emotions": [
+        {"id": "neutral", "label": "Neutral", "asset": "conker-head-neutral"},
+        {"id": "annoyed", "label": "Annoyed", "asset": "conker-head-annoyed"},
+        {"id": "smug", "label": "Smug", "asset": "conker-head-smug"},
+        {"id": "focused", "label": "Focused", "asset": "conker-head-focused"},
+    ],
+}
+
+
 @app.get("/api/character", dependencies=[Depends(require_auth)])
 async def character(store: Database = Depends(db)):
     item = store.row("SELECT * FROM character_profile WHERE id = 'primary'")
-    profile = item or CharacterInput().model_dump()
+    profile = item or {
+        "id": "primary",
+        **CharacterInput(
+            name="Conker",
+            personality="Reluctant local-first companion chief.",
+            background="Main Companion",
+            boundaries="No actions without ToolGate approval. No voice, camera, or live-call runtime.",
+        ).model_dump(),
+        "updated_at": "",
+    }
     safe_profile = {key: profile.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}
-    return {**safe_profile, "context_preview": character_context(safe_profile)}
+    return {**safe_profile, "configured": item is not None, "avatar": CONKER_AVATAR_PACKAGE, "context_preview": character_context(safe_profile)}
 
 
 @app.put("/api/character", dependencies=[Depends(require_auth), Depends(require_csrf)])
@@ -2564,7 +2640,7 @@ async def save_character(payload: CharacterInput, store: Database = Depends(db))
     store.execute("""INSERT INTO character_profile (id,name,owner_name,personality,background,speaking_style,boundaries,avatar_url,updated_at) VALUES (:id,:name,:owner_name,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at)
         ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,personality=:personality,background=:background,boundaries=:boundaries,updated_at=:updated_at""", item)
     safe_item = {key: item.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}
-    return {**safe_item, "context_preview": character_context(safe_item)}
+    return {**safe_item, "configured": True, "avatar": CONKER_AVATAR_PACKAGE, "context_preview": character_context(safe_item)}
 
 
 @app.post("/api/mcp/suggestions", dependencies=[Depends(require_mcp)])

@@ -2072,3 +2072,55 @@ def test_safe_automation_rows_ignores_malformed_ids():
     from agentgate.main import safe_automation_rows
     rows = safe_automation_rows([{"id": {"not": "hashable"}, "status": "planned"}], "brain", {"system:id"})
     assert rows[0]["id"] == "brain-1"
+
+
+
+def test_first_run_owner_bootstrap_sets_server_side_password(monkeypatch, tmp_path):
+    monkeypatch.delenv("AGENTGATE_ADMIN_KEY", raising=False)
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    with TestClient(app) as client:
+        status = client.get("/api/auth/bootstrap").json()
+        assert status == {
+            "status": "setup_required",
+            "setup_required": True,
+            "auth_mode": "owner_key",
+            "metadata_only": True,
+        }
+        weak = client.post("/api/auth/bootstrap", json={"key": "short"})
+        assert weak.status_code == 422
+        created = client.post("/api/auth/bootstrap", json={"key": "long-enough-owner-key"}).json()
+        assert created["owner_authenticated"] is True
+        assert created["token_included"] is False
+        assert "long-enough-owner-key" not in str(created)
+        assert client.post("/api/auth/login", json={"key": "long-enough-owner-key"}).status_code == 200
+        assert client.get("/api/auth/bootstrap").json()["setup_required"] is False
+
+
+def test_character_profile_exposes_local_avatar_emotion_package_not_avatar_url(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        profile = client.get("/api/character").json()
+        assert profile["configured"] is False
+        assert profile["avatar"]["emotion_pack"] == "conker-basic-v1"
+        assert {item["id"] for item in profile["avatar"]["emotions"]} >= {"neutral", "annoyed", "smug", "focused"}
+        assert "avatar_url" not in profile
+        saved = client.put(
+            "/api/character",
+            headers=csrf_headers(client),
+            json={"name": "Conker", "personality": "chief", "background": "main", "boundaries": "ToolGate approval"},
+        ).json()
+        assert saved["configured"] is True
+        assert saved["avatar"]["asset"] == "conker-head-local-svg"
+        assert "avatar_url" not in saved

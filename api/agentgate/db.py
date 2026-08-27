@@ -53,6 +53,9 @@ class Database:
                     personality TEXT NOT NULL, background TEXT NOT NULL, speaking_style TEXT NOT NULL,
                     boundaries TEXT NOT NULL, avatar_url TEXT, updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS owner_config (
+                    id TEXT PRIMARY KEY, verifier TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS verification_refs (
                     id TEXT PRIMARY KEY, source TEXT NOT NULL, source_id TEXT NOT NULL,
                     run_id TEXT, session_id TEXT, status TEXT NOT NULL, summary_json TEXT NOT NULL,

@@ -1,12 +1,15 @@
-import { Outlet } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { OwnerGate } from '@/features/agentgate/owner-gate'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { SkipToMain } from '@/components/skip-to-main'
+import { getCharacterProfile } from '@/features/agentgate/api'
+import { OwnerGate } from '@/features/agentgate/owner-gate'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -18,6 +21,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
     <SearchProvider>
       <LayoutProvider>
         <OwnerGate>
+          <FirstRunCompanionRedirect />
           <SidebarProvider defaultOpen={defaultOpen}>
             <SkipToMain />
             <AppSidebar />
@@ -42,4 +46,25 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
       </LayoutProvider>
     </SearchProvider>
   )
+}
+
+function FirstRunCompanionRedirect() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const character = useQuery({
+    queryKey: ['agentgate', 'character'],
+    queryFn: getCharacterProfile,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (
+      character.data?.configured === false &&
+      location.pathname !== '/character'
+    ) {
+      void navigate({ to: '/character' })
+    }
+  }, [character.data?.configured, location.pathname, navigate])
+
+  return null
 }

@@ -1,15 +1,65 @@
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Main } from '@/components/layout/main'
+import { ConkerAvatar } from './conker-avatar'
+import { conkerEmotionPack } from './conker-emotions'
 import { DomainShell } from './domain-shell'
+import { AgentGateHeader } from './page-header'
 
 export function CompanionPage() {
   return (
-    <DomainShell
-      title='Companion'
-      eyebrow='Conker Journal'
-      status='planned'
-      purpose='The Main Companion space will be the human-facing place for proactive findings, completed work, requests that need the owner, and normal quick chat.'
-      source='AgentGate Journal view over runtime events, approvals, runs, apps, and owner review state.'
-      next='Next slice: migrate useful Suggestions into source-bound Journal entries instead of keeping Suggestions as a top-level destination.'
-    />
+    <>
+      <AgentGateHeader title='Companion' eyebrow='Conker Journal' />
+      <Main>
+        <section className='grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]'>
+          <Card className='overflow-hidden'>
+            <CardHeader className='border-b bg-muted/10'>
+              <CardTitle className='flex items-center gap-3 text-base'>
+                <ConkerAvatar className='size-14' emotion='smug' />
+                <span>Conker</span>
+                <Badge variant='secondary'>main companion</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-4 p-5 text-sm text-muted-foreground'>
+              <p>
+                Your local-first chief companion. Avatar state is a small, local
+                emotion package only; it does not enable voice, camera, live
+                calls, or appearance/theme controls.
+              </p>
+              <div className='grid grid-cols-2 gap-2'>
+                {conkerEmotionPack.map((emotion) => (
+                  <div
+                    key={emotion.id}
+                    className='flex items-center gap-2 rounded-lg border bg-card p-2'
+                  >
+                    <ConkerAvatar className='size-8' emotion={emotion.id} />
+                    <span className='text-xs text-foreground'>
+                      {emotion.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className='text-base'>Companion workspace</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-3 text-sm text-muted-foreground'>
+              <p>
+                This space will collect proactive findings, completed work, and
+                owner-gated requests. Current operational routes remain in
+                Chats, Approvals, Jobs, Apps, Memory, Capabilities, and System.
+              </p>
+              <p>
+                Source: AgentGate local profile + runtime metadata. No fake live
+                journal entries are generated.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+      </Main>
+    </>
   )
 }
 

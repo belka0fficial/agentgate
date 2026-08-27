@@ -39,4 +39,36 @@ describe('AgentGate API helpers', () => {
       'csrf-cookie-value'
     )
   })
+
+  it('turns structured backend errors into readable text', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: { source: 'brain', status: 'blocked' } }),
+        {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(postAgentGate('/api/chats')).rejects.toThrow('brain blocked')
+  })
+
+  it('does not request CSRF before first-run owner setup', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ owner_authenticated: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { setupAgentGateOwner } = await import('./api')
+    await setupAgentGateOwner('new-owner-password')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/bootstrap')
+    expect(fetchMock.mock.calls[0][1].headers['X-CSRF-Token']).toBeUndefined()
+  })
 })

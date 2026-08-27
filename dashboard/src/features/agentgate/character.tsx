@@ -1,12 +1,16 @@
 import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, Save, UserRound } from 'lucide-react'
+import { ArrowLeft, Save } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Main } from '@/components/layout/main'
+import { getCharacterProfile, putAgentGate } from './api'
+import { ConkerAvatar } from './conker-avatar'
+import { conkerEmotionPack } from './conker-emotions'
 import { AgentGateHeader } from './page-header'
 import { personas, soulForPersona } from './personas'
 
@@ -15,16 +19,39 @@ export function CharacterPage() {
 }
 
 export function CharacterListPage() {
+  const queryClient = useQueryClient()
+  const profile = useQuery({
+    queryKey: ['agentgate', 'character'],
+    queryFn: getCharacterProfile,
+    retry: false,
+  })
   const [selected, setSelected] = useState(
     personas.find((item) => item.default) ?? personas[0]
   )
+  const save = useMutation({
+    mutationFn: () =>
+      putAgentGate('/api/character', {
+        name: selected.name,
+        owner_name: '',
+        personality: selected.identity,
+        background: selected.role,
+        boundaries: selected.boundaries,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['agentgate', 'character'],
+      })
+    },
+  })
+
   return (
     <>
       <AgentGateHeader title='Character' />
       <Main>
         <p className='mb-6 max-w-2xl text-sm text-muted-foreground'>
           Configure the text identity used by AgentGate chats. Runtime
-          permissions remain in ToolGate.
+          permissions remain in ToolGate. If this is your first run, pick Conker
+          and save him as the main companion.
         </p>
         <section className='grid gap-4 md:grid-cols-2'>
           {personas.map((persona) => (
@@ -51,11 +78,12 @@ export function CharacterListPage() {
         </section>
         <section className='mt-8 rounded-xl border bg-card p-5'>
           <div className='mb-4 flex items-center gap-3'>
-            <UserRound className='size-5 text-primary' />
+            <ConkerAvatar className='size-10' emotion='smug' />
             <div>
               <h2 className='font-medium'>Text character profile</h2>
               <p className='text-xs text-muted-foreground'>
-                Current source: AgentGate local profile
+                Current source: AgentGate local profile ·{' '}
+                {profile.data?.configured ? 'configured' : 'setup needed'}
               </p>
             </div>
           </div>
@@ -85,10 +113,26 @@ export function CharacterListPage() {
               />
             </div>
           </div>
-          <div className='mt-5 flex items-center gap-2 text-xs text-muted-foreground'>
-            <Save className='size-3.5' />
-            Text-only character editing is available through the AgentGate
-            profile contract.
+          <div className='mt-5 flex flex-wrap items-center gap-3'>
+            <Button
+              type='button'
+              onClick={() => save.mutate()}
+              disabled={save.isPending}
+            >
+              <Save className='mr-2 size-4' />
+              Save as main companion
+            </Button>
+            <span className='text-xs text-muted-foreground'>
+              Avatar emotions:{' '}
+              {conkerEmotionPack.map((item) => item.label).join(', ')}.
+            </span>
+            {save.error ? (
+              <span className='text-xs text-destructive'>
+                {save.error instanceof Error
+                  ? save.error.message
+                  : 'Save failed'}
+              </span>
+            ) : null}
           </div>
         </section>
         <section className='mt-8 rounded-xl border bg-card p-5'>

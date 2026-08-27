@@ -64,14 +64,32 @@ async function parseResponse<T>(response: Response): Promise<T> {
   const payload = text && isJson ? JSON.parse(text) : text
 
   if (!response.ok) {
-    const message =
+    const detail =
       typeof payload === 'object' && payload && 'detail' in payload
-        ? String((payload as { detail?: unknown }).detail)
-        : `Request failed: ${response.status}`
+        ? (payload as { detail?: unknown }).detail
+        : undefined
+    const message = readableErrorMessage(detail, response.status)
     throw new Error(message)
   }
 
   return (payload || {}) as T
+}
+
+function readableErrorMessage(detail: unknown, status: number) {
+  if (typeof detail === 'string' && detail.trim()) return detail
+  if (typeof detail === 'object' && detail) {
+    const record = detail as Record<string, unknown>
+    if (typeof record.message === 'string' && record.message.trim()) {
+      return record.message
+    }
+    if (typeof record.status === 'string' && record.source) {
+      return `${record.source} ${record.status}`
+    }
+    if (typeof record.error === 'string' && record.error.trim()) {
+      return record.error
+    }
+  }
+  return `Request failed: ${status}`
 }
 
 export async function getAgentGate<T>(path: string): Promise<T> {
@@ -81,6 +99,15 @@ export async function getAgentGate<T>(path: string): Promise<T> {
   })
   return parseResponse<T>(response)
 }
+
+export type BootstrapStatus = {
+  status: 'configured' | 'setup_required'
+  setup_required: boolean
+  auth_mode: string
+  metadata_only?: boolean
+}
+
+export type BootstrapResult = OwnerSession & { setup_completed?: boolean }
 
 export type OwnerSession = {
   status: string
@@ -141,13 +168,24 @@ export async function deleteAgentGate<T>(
   return mutateAgentGate<T>('DELETE', path, body, headers)
 }
 
-async function mutateAgentGate<T>(
-  method: 'POST' | 'PATCH' | 'DELETE',
+export async function putAgentGate<T>(
   path: string,
   body?: unknown,
   headers: Record<string, string> = {}
 ): Promise<T> {
-  const csrfToken = path === '/api/auth/login' ? null : await getCsrfToken()
+  return mutateAgentGate<T>('PUT', path, body, headers)
+}
+
+async function mutateAgentGate<T>(
+  method: 'POST' | 'PATCH' | 'DELETE' | 'PUT',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {}
+): Promise<T> {
+  const csrfToken =
+    path === '/api/auth/login' || path === '/api/auth/bootstrap'
+      ? null
+      : await getCsrfToken()
   const response = await fetch(path, {
     method,
     credentials: 'same-origin',
@@ -165,6 +203,16 @@ async function mutateAgentGate<T>(
     cachedCsrfToken = maybeSession.csrf_token ?? null
   }
   return parsed
+}
+
+export async function getOwnerBootstrap() {
+  return getAgentGate<BootstrapStatus>('/api/auth/bootstrap')
+}
+
+export async function setupAgentGateOwner(ownerToken: string) {
+  return postAgentGate<BootstrapResult>('/api/auth/bootstrap', {
+    key: ownerToken,
+  })
 }
 
 export async function loginAgentGateOwner(ownerToken: string) {
@@ -190,6 +238,28 @@ export type DependencyHealth = {
   name: string
   status: string
   detail?: { source?: string; message?: string } | string
+}
+
+export type CharacterProfile = {
+  id: string
+  name: string
+  owner_name?: string
+  personality?: string
+  background?: string
+  boundaries?: string
+  updated_at?: string
+  configured?: boolean
+  avatar?: {
+    id: string
+    asset: string
+    emotion_pack: string
+    default_emotion: string
+    emotions: { id: string; label: string; asset: string }[]
+  }
+}
+
+export function getCharacterProfile() {
+  return getAgentGate<CharacterProfile>('/api/character')
 }
 
 export type ModelProvider = {
