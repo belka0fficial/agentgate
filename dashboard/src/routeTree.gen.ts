@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedWorkforceRouteImport } from './routes/_authenticated/workforce'
 import { Route as AuthenticatedSystemRouteImport } from './routes/_authenticated/system'
 import { Route as AuthenticatedSuggestionsRouteImport } from './routes/_authenticated/suggestions'
 import { Route as AuthenticatedOrchestrationRouteImport } from './routes/_authenticated/orchestration'
@@ -21,6 +20,7 @@ import { Route as AuthenticatedCompanionRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCapabilitiesRouteImport } from './routes/_authenticated/capabilities'
 import { Route as AuthenticatedAutomationsRouteImport } from './routes/_authenticated/automations'
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
+import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -56,11 +56,6 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedWorkforceRoute = AuthenticatedWorkforceRouteImport.update({
-  id: '/workforce',
-  path: '/workforce',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSystemRoute = AuthenticatedSystemRouteImport.update({
@@ -110,6 +105,11 @@ const AuthenticatedAutomationsRoute =
 const AuthenticatedApprovalsRoute = AuthenticatedApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const errors503Route = errors503RouteImport.update({
@@ -273,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/agents': typeof AuthenticatedAgentsRoute
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/automations': typeof AuthenticatedAutomationsRoute
   '/capabilities': typeof AuthenticatedCapabilitiesRoute
@@ -282,7 +283,6 @@ export interface FileRoutesByFullPath {
   '/orchestration': typeof AuthenticatedOrchestrationRoute
   '/suggestions': typeof AuthenticatedSuggestionsRoute
   '/system': typeof AuthenticatedSystemRoute
-  '/workforce': typeof AuthenticatedWorkforceRoute
   '/character/$id': typeof AuthenticatedCharacterIdRoute
   '/chats/$id': typeof AuthenticatedChatsIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -311,6 +311,7 @@ export interface FileRoutesByTo {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/agents': typeof AuthenticatedAgentsRoute
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/automations': typeof AuthenticatedAutomationsRoute
   '/capabilities': typeof AuthenticatedCapabilitiesRoute
@@ -320,7 +321,6 @@ export interface FileRoutesByTo {
   '/orchestration': typeof AuthenticatedOrchestrationRoute
   '/suggestions': typeof AuthenticatedSuggestionsRoute
   '/system': typeof AuthenticatedSystemRoute
-  '/workforce': typeof AuthenticatedWorkforceRoute
   '/': typeof AuthenticatedIndexRoute
   '/character/$id': typeof AuthenticatedCharacterIdRoute
   '/chats/$id': typeof AuthenticatedChatsIdRoute
@@ -353,6 +353,7 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
   '/_authenticated/automations': typeof AuthenticatedAutomationsRoute
   '/_authenticated/capabilities': typeof AuthenticatedCapabilitiesRoute
@@ -362,7 +363,6 @@ export interface FileRoutesById {
   '/_authenticated/orchestration': typeof AuthenticatedOrchestrationRoute
   '/_authenticated/suggestions': typeof AuthenticatedSuggestionsRoute
   '/_authenticated/system': typeof AuthenticatedSystemRoute
-  '/_authenticated/workforce': typeof AuthenticatedWorkforceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/character/$id': typeof AuthenticatedCharacterIdRoute
   '/_authenticated/chats/$id': typeof AuthenticatedChatsIdRoute
@@ -396,6 +396,7 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/agents'
     | '/approvals'
     | '/automations'
     | '/capabilities'
@@ -405,7 +406,6 @@ export interface FileRouteTypes {
     | '/orchestration'
     | '/suggestions'
     | '/system'
-    | '/workforce'
     | '/character/$id'
     | '/chats/$id'
     | '/errors/$error'
@@ -434,6 +434,7 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/agents'
     | '/approvals'
     | '/automations'
     | '/capabilities'
@@ -443,7 +444,6 @@ export interface FileRouteTypes {
     | '/orchestration'
     | '/suggestions'
     | '/system'
-    | '/workforce'
     | '/'
     | '/character/$id'
     | '/chats/$id'
@@ -475,6 +475,7 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/_authenticated/agents'
     | '/_authenticated/approvals'
     | '/_authenticated/automations'
     | '/_authenticated/capabilities'
@@ -484,7 +485,6 @@ export interface FileRouteTypes {
     | '/_authenticated/orchestration'
     | '/_authenticated/suggestions'
     | '/_authenticated/system'
-    | '/_authenticated/workforce'
     | '/_authenticated/'
     | '/_authenticated/character/$id'
     | '/_authenticated/chats/$id'
@@ -532,13 +532,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/workforce': {
-      id: '/_authenticated/workforce'
-      path: '/workforce'
-      fullPath: '/workforce'
-      preLoaderRoute: typeof AuthenticatedWorkforceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/system': {
@@ -602,6 +595,13 @@ declare module '@tanstack/react-router' {
       path: '/approvals'
       fullPath: '/approvals'
       preLoaderRoute: typeof AuthenticatedApprovalsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/agents': {
+      id: '/_authenticated/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AuthenticatedAgentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/(errors)/503': {
@@ -825,6 +825,7 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
   AuthenticatedAutomationsRoute: typeof AuthenticatedAutomationsRoute
   AuthenticatedCapabilitiesRoute: typeof AuthenticatedCapabilitiesRoute
@@ -834,7 +835,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOrchestrationRoute: typeof AuthenticatedOrchestrationRoute
   AuthenticatedSuggestionsRoute: typeof AuthenticatedSuggestionsRoute
   AuthenticatedSystemRoute: typeof AuthenticatedSystemRoute
-  AuthenticatedWorkforceRoute: typeof AuthenticatedWorkforceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedCharacterIdRoute: typeof AuthenticatedCharacterIdRoute
   AuthenticatedChatsIdRoute: typeof AuthenticatedChatsIdRoute
@@ -849,6 +849,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
   AuthenticatedAutomationsRoute: AuthenticatedAutomationsRoute,
   AuthenticatedCapabilitiesRoute: AuthenticatedCapabilitiesRoute,
@@ -858,7 +859,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOrchestrationRoute: AuthenticatedOrchestrationRoute,
   AuthenticatedSuggestionsRoute: AuthenticatedSuggestionsRoute,
   AuthenticatedSystemRoute: AuthenticatedSystemRoute,
-  AuthenticatedWorkforceRoute: AuthenticatedWorkforceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedCharacterIdRoute: AuthenticatedCharacterIdRoute,
   AuthenticatedChatsIdRoute: AuthenticatedChatsIdRoute,

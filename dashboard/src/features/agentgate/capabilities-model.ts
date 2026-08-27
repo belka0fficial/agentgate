@@ -91,10 +91,17 @@ export function capabilitySections(data: CapabilitiesResponse | undefined) {
 
 export function capabilityStatus(data: CapabilitiesResponse | undefined) {
   if (!data) return 'unknown'
-  const statuses = Object.values(data.sources ?? {}).map((item) => item.status)
+  const sectionStatusValues = Object.values(data.section_statuses ?? {})
+  const statuses = [
+    ...sectionStatusValues,
+    ...Object.values(data.sources ?? {}).map((item) => item.status),
+  ]
   if (statuses.some((status) => status === 'blocked')) return 'blocked'
   if (statuses.some((status) => status === 'offline')) return 'offline'
-  if (statuses.some((status) => status === 'degraded')) return 'degraded'
+  if (statuses.some((status) => status === 'stale')) return 'stale'
+  if (statuses.some((status) => status === 'degraded')) {
+    return statuses.some((status) => status === 'live') ? 'partial' : 'degraded'
+  }
   if (statuses.length === 0 || statuses.every((status) => status === 'empty'))
     return 'empty'
   if (statuses.every((status) => status === 'live')) return 'live'

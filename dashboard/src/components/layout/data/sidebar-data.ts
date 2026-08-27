@@ -1,6 +1,6 @@
 import {
   Boxes,
-  BriefcaseBusiness,
+  Bot,
   Command,
   GitBranch,
   LayoutDashboard,
@@ -10,7 +10,6 @@ import {
   Package,
   ShieldCheck,
 } from 'lucide-react'
-import { ConkerAvatar } from '@/features/agentgate/conker-avatar'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -30,12 +29,12 @@ export const sidebarData: SidebarData = {
     {
       title: 'AgentGate',
       items: [
-        { title: 'Companion', url: '/companion', icon: ConkerAvatar },
+        { title: 'Companion', url: '/companion', icon: Bot },
         { title: 'Chats', url: '/chats', icon: MessagesSquare },
         { title: 'Approvals', url: '/approvals', icon: ShieldCheck },
         { title: 'Command', url: '/', icon: LayoutDashboard },
         { title: 'Orchestration', url: '/orchestration', icon: GitBranch },
-        { title: 'Workforce', url: '/workforce', icon: BriefcaseBusiness },
+        { title: 'Agents', url: '/agents', icon: Bot },
         { title: 'Jobs', url: '/jobs', icon: Boxes },
         { title: 'Capabilities', url: '/capabilities', icon: Package },
         { title: 'Memory', url: '/memory', icon: MemoryStick },

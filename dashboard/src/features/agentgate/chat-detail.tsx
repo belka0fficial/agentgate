@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUp,
   Brain,
@@ -77,7 +77,13 @@ import {
   streamChatBody,
   type MarkdownInlinePart,
 } from './chat-controls-model'
-import { personas } from './personas'
+
+type AgentChoice = {
+  id: string
+  name?: string
+  label?: string
+  status?: string
+}
 
 const chatStates = [
   'default',
@@ -781,6 +787,7 @@ function Composer({
   const [memoryIncognito, setMemoryIncognito] = useState(false)
   const [reasoning, setReasoning] = useState('medium')
   const [selectedModel, setSelectedModel] = useState('source-default')
+  const [selectedAgent, setSelectedAgent] = useState('source-default')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -788,12 +795,21 @@ function Composer({
     queryKey: ['agentgate', 'models', 'chat-composer'],
     queryFn: () => getAgentGate<unknown>('/api/models'),
   })
+  const agentMetadata = useQuery({
+    queryKey: ['agentgate', 'agents', 'chat-composer'],
+    queryFn: () => getAgentGate<{ agents: AgentChoice[] }>('/api/agents'),
+  })
   const modelChoices = chatModelChoices(modelMetadata.data).filter(
     (choice) => choice.status === 'live'
   )
   const selectedModelChoice = modelChoices.find(
     (choice) => choice.value === selectedModel
   )
+  const agentChoices = agentMetadata.data?.agents ?? []
+  const agentItems = [
+    'source-default',
+    ...agentChoices.map((agent) => agent.id),
+  ]
 
   return (
     <div className='z-20 bg-background/95 pt-3 pb-5 backdrop-blur'>
@@ -810,6 +826,9 @@ function Composer({
           streamChatTurn(chatId, input, {
             memoryIncognito,
             reasoning,
+            ...(selectedAgent !== 'source-default'
+              ? { agentId: selectedAgent }
+              : {}),
             ...(selectedModelChoice
               ? {
                   model: selectedModelChoice.value,
@@ -861,10 +880,27 @@ function Composer({
             onValueChange={setSelectedModel}
           />
           <InlineSelect
-            value='Hermes'
-            items={personas.map((persona) => persona.name)}
-            label='Persona'
+            disabled={!agentItems.length}
+            value={selectedAgent}
+            items={agentItems}
+            label='Agent from /api/agents'
+            onValueChange={setSelectedAgent}
+            formatItem={(item) =>
+              item === 'source-default'
+                ? 'Source default agent'
+                : agentChoices.find((agent) => agent.id === item)?.name ||
+                  agentChoices.find((agent) => agent.id === item)?.label ||
+                  item
+            }
           />
+          <Button
+            asChild
+            variant='ghost'
+            size='sm'
+            className='h-8 px-2 text-xs'
+          >
+            <Link to='/agents'>Agents</Link>
+          </Button>
           <CapabilityPopover
             icon={<Brain />}
             label='Thinking'
@@ -926,7 +962,7 @@ function Composer({
                 <DisabledStatusRow
                   label='UI/session incognito'
                   status='planned'
-                  detail='No verified session-retention contract is exposed yet.'
+                  detail='UI incognito is a local composer state. Memory incognito below is sent only when the runtime accepts the turn payload.'
                 />
                 <SwitchRow
                   id='memory-incognito'
@@ -1215,12 +1251,14 @@ function InlineSelect({
   label,
   disabled = false,
   onValueChange,
+  formatItem,
 }: {
   value: string
   items: string[]
   label: string
   disabled?: boolean
   onValueChange?: (value: string) => void
+  formatItem?: (value: string) => string
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
@@ -1235,7 +1273,7 @@ function InlineSelect({
       <SelectContent>
         {items.map((item) => (
           <SelectItem key={item} value={item}>
-            {item}
+            {formatItem ? formatItem(item) : item}
           </SelectItem>
         ))}
       </SelectContent>

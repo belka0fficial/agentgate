@@ -42,6 +42,7 @@ class ChatInput(BaseModel):
     input: str = Field(min_length=1, max_length=100_000)
     provider: str | None = None
     model: str | None = None
+    agent_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:@-]{0,79}$")
     intensity: str | None = None
     memory_incognito: bool = False
 
@@ -138,11 +139,18 @@ SYSTEM_BUILTIN_JOB_IDS = {item["id"] for item in SYSTEM_BUILTIN_JOBS}
 
 
 class CharacterInput(BaseModel):
-    name: str = Field(default="Brain", max_length=120)
+    name: str = Field(default="", max_length=120)
     owner_name: str = Field(default="", max_length=120)
     personality: str = Field(default="", max_length=10_000)
     background: str = Field(default="", max_length=10_000)
     boundaries: str = Field(default="", max_length=5_000)
+    mode: str = Field(default="companion", max_length=80)
+    primary_model: str = Field(default="", max_length=160)
+    fallback_model: str = Field(default="", max_length=160)
+    allowed_tools: str = Field(default="", max_length=4_000)
+    allowed_skills: str = Field(default="", max_length=4_000)
+    avatar_label: str = Field(default="", max_length=240)
+    emotion_pack: str = Field(default="", max_length=240)
 
 
 
@@ -1517,6 +1525,7 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
     body: dict[str, Any] = {"input": payload.input}
     if payload.model: body["model"] = payload.model
     if payload.provider: body["provider"] = payload.provider
+    if payload.agent_id: body["agent_id"] = payload.agent_id
     if payload.intensity: body["model_options"] = {"reasoning_effort": payload.intensity}
     if payload.memory_incognito:
         body["instructions"] = "Do not create, update, or persist long-term memory for this turn."
@@ -2651,20 +2660,6 @@ async def cron_action(job_id: str, action: Literal["pause", "resume", "run", "st
     return safe_action_result("brain", result, "stopping" if action == "stop" and isinstance(result, dict) and str(result.get("status") or result.get("state") or "").lower() == "stopping" else "stopped" if action == "stop" else action)
 
 
-CONKER_AVATAR_PACKAGE = {
-    "id": "conker-head",
-    "asset": "conker-head-local-svg",
-    "emotion_pack": "conker-basic-v1",
-    "default_emotion": "smug",
-    "emotions": [
-        {"id": "neutral", "label": "Neutral", "asset": "conker-head-neutral"},
-        {"id": "annoyed", "label": "Annoyed", "asset": "conker-head-annoyed"},
-        {"id": "smug", "label": "Smug", "asset": "conker-head-smug"},
-        {"id": "focused", "label": "Focused", "asset": "conker-head-focused"},
-    ],
-}
-
-
 @app.get("/api/character", dependencies=[Depends(require_auth)])
 async def character(store: Database = Depends(db)):
     item = store.row("SELECT * FROM character_profile WHERE id = 'primary'")
@@ -2675,19 +2670,26 @@ async def character(store: Database = Depends(db)):
         "personality": "",
         "background": "",
         "boundaries": "",
+        "mode": "companion",
+        "primary_model": "",
+        "fallback_model": "",
+        "allowed_tools": "",
+        "allowed_skills": "",
+        "avatar_label": "",
+        "emotion_pack": "",
         "updated_at": "",
     }
-    safe_profile = {key: profile.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}
-    return {**safe_profile, "configured": item is not None, "avatar": CONKER_AVATAR_PACKAGE, "context_preview": character_context(safe_profile)}
+    safe_profile = {key: safe_browser_string(profile.get(key, ""), "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "mode", "primary_model", "fallback_model", "allowed_tools", "allowed_skills", "avatar_label", "emotion_pack", "updated_at")}
+    return {**safe_profile, "configured": item is not None, "context_preview": character_context(safe_profile)}
 
 
 @app.put("/api/character", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def save_character(payload: CharacterInput, store: Database = Depends(db)):
     item = {"id": "primary", **payload.model_dump(), "speaking_style": "", "avatar_url": None, "updated_at": now()}
-    store.execute("""INSERT INTO character_profile (id,name,owner_name,personality,background,speaking_style,boundaries,avatar_url,updated_at) VALUES (:id,:name,:owner_name,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at)
-        ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,personality=:personality,background=:background,boundaries=:boundaries,updated_at=:updated_at""", item)
-    safe_item = {key: item.get(key, "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "updated_at")}
-    return {**safe_item, "configured": True, "avatar": CONKER_AVATAR_PACKAGE, "context_preview": character_context(safe_item)}
+    store.execute("""INSERT INTO character_profile (id,name,owner_name,personality,background,speaking_style,boundaries,avatar_url,updated_at,mode,primary_model,fallback_model,allowed_tools,allowed_skills,avatar_label,emotion_pack) VALUES (:id,:name,:owner_name,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at,:mode,:primary_model,:fallback_model,:allowed_tools,:allowed_skills,:avatar_label,:emotion_pack)
+        ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,personality=:personality,background=:background,boundaries=:boundaries,mode=:mode,primary_model=:primary_model,fallback_model=:fallback_model,allowed_tools=:allowed_tools,allowed_skills=:allowed_skills,avatar_label=:avatar_label,emotion_pack=:emotion_pack,updated_at=:updated_at""", item)
+    safe_item = {key: safe_browser_string(item.get(key, ""), "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "mode", "primary_model", "fallback_model", "allowed_tools", "allowed_skills", "avatar_label", "emotion_pack", "updated_at")}
+    return {**safe_item, "configured": True, "context_preview": character_context(safe_item)}
 
 
 @app.post("/api/mcp/suggestions", dependencies=[Depends(require_mcp)])

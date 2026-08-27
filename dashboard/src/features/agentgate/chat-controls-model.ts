@@ -71,12 +71,14 @@ export function streamChatBody(
     reasoning: string
     model?: string
     provider?: string
+    agentId?: string
   }
 ) {
   return {
     input,
     ...(options.provider ? { provider: options.provider } : {}),
     ...(options.model ? { model: options.model } : {}),
+    ...(options.agentId ? { agent_id: options.agentId } : {}),
     ...(options.reasoning && options.reasoning !== 'medium'
       ? { intensity: options.reasoning }
       : {}),

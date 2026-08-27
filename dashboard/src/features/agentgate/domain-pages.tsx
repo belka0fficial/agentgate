@@ -1,65 +1,107 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { Bot, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Main } from '@/components/layout/main'
-import { ConkerAvatar } from './conker-avatar'
-import { conkerEmotionPack } from './conker-emotions'
+import { getAgentGate } from './api'
 import { DomainShell } from './domain-shell'
 import { AgentGateHeader } from './page-header'
 
+type AgentRecord = {
+  id: string
+  name?: string
+  label?: string
+  status?: string
+  source?: string
+}
+
+function statusVariant(status: string | undefined) {
+  if (status === 'live') return 'default'
+  if (status === 'blocked' || status === 'offline') return 'destructive'
+  return 'outline'
+}
+
 export function CompanionPage() {
+  const profile = useQuery({
+    queryKey: ['agentgate', 'character'],
+    queryFn: () =>
+      getAgentGate<{
+        configured?: boolean
+        name?: string
+        mode?: string
+        primary_model?: string
+        fallback_model?: string
+        emotion_pack?: string
+        avatar_label?: string
+      }>('/api/character'),
+  })
+  const configured = Boolean(profile.data?.configured)
   return (
     <>
-      <AgentGateHeader title='Companion' eyebrow='Conker Journal' />
+      <AgentGateHeader title='Companion' eyebrow='Main agent profile' />
       <Main>
-        <section className='grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]'>
-          <Card className='overflow-hidden'>
-            <CardHeader className='border-b bg-muted/10'>
-              <CardTitle className='flex items-center gap-3 text-base'>
-                <ConkerAvatar className='size-14' emotion='smug' />
-                <span>Conker</span>
-                <Badge variant='secondary'>main companion</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-4 p-5 text-sm text-muted-foreground'>
-              <p>
-                Your local-first chief companion. Avatar state is a small, local
-                emotion package only; it does not enable voice, camera, live
-                calls, or appearance/theme controls.
-              </p>
-              <div className='grid grid-cols-2 gap-2'>
-                {conkerEmotionPack.map((emotion) => (
-                  <div
-                    key={emotion.id}
-                    className='flex items-center gap-2 rounded-lg border bg-card p-2'
-                  >
-                    <ConkerAvatar className='size-8' emotion={emotion.id} />
-                    <span className='text-xs text-foreground'>
-                      {emotion.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className='text-base'>Companion workspace</CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-3 text-sm text-muted-foreground'>
-              <p>
-                This space will collect proactive findings, completed work, and
-                owner-gated requests. Current operational routes remain in
-                Chats, Approvals, Jobs, Apps, Memory, Capabilities, and System.
-              </p>
-              <p>
-                Source: AgentGate local profile + runtime metadata. No fake live
-                journal entries are generated.
-              </p>
-            </CardContent>
-          </Card>
+        <section className='max-w-4xl space-y-6'>
+          <div className='space-y-2'>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Bot className='size-5 text-muted-foreground' />
+              <h2 className='text-lg font-medium'>
+                {configured
+                  ? profile.data?.name || 'Unnamed companion'
+                  : 'No main companion selected'}
+              </h2>
+              <Badge variant={configured ? 'default' : 'outline'}>
+                {configured ? 'configured' : 'setup needed'}
+              </Badge>
+            </div>
+            <p className='text-sm leading-6 text-muted-foreground'>
+              This page reflects the source-bound main companion profile. No
+              mascot logo is forced here. Create or edit the companion in Agent
+              Studio, including model route, tools, skills, avatar label, and
+              emotion pack metadata.
+            </p>
+          </div>
+
+          <dl className='grid gap-4 border-t pt-5 text-sm md:grid-cols-2'>
+            <Info label='Mode' value={profile.data?.mode || 'not configured'} />
+            <Info
+              label='Primary model'
+              value={profile.data?.primary_model || 'source default'}
+            />
+            <Info
+              label='Fallback model'
+              value={profile.data?.fallback_model || 'none'}
+            />
+            <Info
+              label='Emotion pack'
+              value={profile.data?.emotion_pack || 'none'}
+            />
+            <Info
+              label='Avatar'
+              value={profile.data?.avatar_label || 'none selected'}
+            />
+            <Info label='Source' value='AgentGate local profile' />
+          </dl>
+
+          <Button asChild>
+            <Link to='/character'>
+              {configured ? 'Edit in Agent Studio' : 'Create companion'}
+            </Link>
+          </Button>
         </section>
       </Main>
     </>
+  )
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='space-y-1'>
+      <dt className='text-xs tracking-wide text-muted-foreground uppercase'>
+        {label}
+      </dt>
+      <dd className='font-medium'>{value}</dd>
+    </div>
   )
 }
 
@@ -90,14 +132,63 @@ export function OrchestrationPage() {
 }
 
 export function WorkforcePage() {
+  const agents = useQuery({
+    queryKey: ['agentgate', 'agents'],
+    queryFn: () =>
+      getAgentGate<{ agents: AgentRecord[]; error?: unknown }>('/api/agents'),
+  })
+  const rows = agents.data?.agents ?? []
   return (
-    <DomainShell
-      title='Workforce'
-      eyebrow='Agents and teams'
-      status='planned'
-      purpose='Workforce will classify Companions, Workers, Teams, and temporary Subagents without turning every runtime helper into a character.'
-      source='Pi runtime for agent/team definitions and runtime instances; AgentGate for character/profile presentation joins.'
-      next='Next slice: add metadata-only Agent Studio after the operational foundation is truthful.'
-    />
+    <>
+      <AgentGateHeader title='Agents' eyebrow='Inspect and route' />
+      <Main>
+        <div className='mb-6 max-w-3xl space-y-2'>
+          <p className='text-sm leading-6 text-muted-foreground'>
+            Source-bound agent metadata from the Pi runtime. This is the Agents
+            screen for inspecting available agents and choosing one in chats;
+            hidden prompts, credentials, and broad runtime internals stay
+            server-side.
+          </p>
+          <Button variant='outline' size='sm' onClick={() => agents.refetch()}>
+            <RefreshCw className='mr-2 size-4' />
+            Refresh
+          </Button>
+        </div>
+
+        {agents.isError ? (
+          <p className='text-sm text-destructive'>Agent source unavailable.</p>
+        ) : rows.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>
+            No agents reported by the source.
+          </p>
+        ) : (
+          <div className='divide-y rounded-md border'>
+            {rows.map((agent) => (
+              <div
+                key={agent.id}
+                className='flex flex-wrap items-center justify-between gap-3 p-4'
+              >
+                <div>
+                  <h2 className='font-medium'>
+                    {agent.name || agent.label || agent.id}
+                  </h2>
+                  <p className='text-xs text-muted-foreground'>
+                    {agent.id} · source: {agent.source || 'brain'}
+                  </p>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <Badge variant={statusVariant(agent.status)}>
+                    {agent.status || 'unknown'}
+                  </Badge>
+                  <Button asChild variant='outline' size='sm'>
+                    <Link to='/chats'>Use in chat</Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Main>
+    </>
   )
 }

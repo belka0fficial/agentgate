@@ -91,3 +91,44 @@ it('preserves offline as distinct from blocked for overall status', () => {
     })
   ).toBe('offline')
 })
+
+it('reports partial when some capability sections are live and others are degraded', () => {
+  expect(
+    capabilityStatus({
+      sources: {
+        brain: { source: 'brain', status: 'degraded' },
+        toolgate: { source: 'toolgate', status: 'degraded' },
+      },
+      section_statuses: {
+        tools: 'live',
+        toolsets: 'degraded',
+        skills: 'degraded',
+        automations: 'empty',
+      },
+    })
+  ).toBe('partial')
+})
+
+it('does not downgrade blocked sections to partial', () => {
+  expect(
+    capabilityStatus({
+      section_statuses: {
+        tools: 'live',
+        toolsets: 'blocked',
+        skills: 'degraded',
+      },
+    })
+  ).toBe('blocked')
+})
+
+it('does not downgrade offline sections to partial', () => {
+  expect(
+    capabilityStatus({
+      section_statuses: {
+        tools: 'live',
+        toolsets: 'offline',
+        skills: 'degraded',
+      },
+    })
+  ).toBe('offline')
+})

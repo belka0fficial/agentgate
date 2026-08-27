@@ -2101,7 +2101,7 @@ def test_first_run_owner_bootstrap_sets_server_side_password(monkeypatch, tmp_pa
         assert client.get("/api/auth/bootstrap").json()["setup_required"] is False
 
 
-def test_character_profile_exposes_local_avatar_emotion_package_not_avatar_url(monkeypatch, tmp_path):
+def test_character_profile_does_not_expose_forced_mascot_avatar(monkeypatch, tmp_path):
     monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
     monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
     monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
@@ -2113,8 +2113,7 @@ def test_character_profile_exposes_local_avatar_emotion_package_not_avatar_url(m
         client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
         profile = client.get("/api/character").json()
         assert profile["configured"] is False
-        assert profile["avatar"]["emotion_pack"] == "conker-basic-v1"
-        assert {item["id"] for item in profile["avatar"]["emotions"]} >= {"neutral", "annoyed", "smug", "focused"}
+        assert "avatar" not in profile
         assert "avatar_url" not in profile
         saved = client.put(
             "/api/character",
@@ -2122,7 +2121,6 @@ def test_character_profile_exposes_local_avatar_emotion_package_not_avatar_url(m
             json={"name": "Conker", "personality": "chief", "background": "main", "boundaries": "ToolGate approval"},
         ).json()
         assert saved["configured"] is True
-        assert saved["avatar"]["asset"] == "conker-head-local-svg"
         assert "avatar_url" not in saved
 
 
@@ -2162,7 +2160,7 @@ def test_unconfigured_character_is_blank_not_conker(monkeypatch, tmp_path):
         profile = client.get("/api/character").json()
         assert profile["configured"] is False
         assert profile["name"] == ""
-        assert profile["avatar"]["emotion_pack"] == "conker-basic-v1"
+        assert "avatar" not in profile
 
 
 def test_system_containers_error_payload_is_sanitized_warning(monkeypatch, tmp_path):
@@ -2220,3 +2218,115 @@ def test_system_containers_error_only_payload_is_sanitized(monkeypatch, tmp_path
     encoded = str(containers)
     assert "http+docker" not in encoded
     assert "sha256" not in encoded
+
+
+def test_character_profile_persists_runtime_configuration(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+    from agentgate.main import app
+
+    with TestClient(app) as client:
+        assert client.post("/api/auth/login", json={"key": "test-owner-key-1234"}).status_code == 200
+        headers = csrf_headers(client)
+        response = client.put(
+            "/api/character",
+            headers=headers,
+            json={
+                "name": "Ada",
+                "owner_name": "Owner",
+                "personality": "Careful local companion.",
+                "background": "Main companion",
+                "boundaries": "ToolGate controls effects.",
+                "mode": "companion",
+                "primary_model": "gpt-5.5",
+                "fallback_model": "gpt-5-mini",
+                "allowed_tools": "memory.search, toolgate.run",
+                "allowed_skills": "research, coding",
+                "avatar_label": "uploaded portrait pending",
+                "emotion_pack": "owner-basic",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["configured"] is True
+    assert payload["mode"] == "companion"
+    assert payload["primary_model"] == "gpt-5.5"
+    assert payload["fallback_model"] == "gpt-5-mini"
+    assert payload["allowed_tools"] == "memory.search, toolgate.run"
+    assert payload["allowed_skills"] == "research, coding"
+    assert payload["avatar_label"] == "uploaded portrait pending"
+    assert payload["emotion_pack"] == "owner-basic"
+
+
+
+def test_chat_stream_forwards_selected_agent_id_to_brain(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+    import agentgate.main as main_module
+
+    sent_payloads = []
+
+    class FakeStreamResponse:
+        is_error = False
+        status_code = 200
+
+        async def aiter_lines(self):
+            yield 'event: message'
+            yield 'data: {"delta":"ok"}'
+            yield ''
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def build_request(self, method, url, **kwargs):
+            sent_payloads.append(kwargs.get("json"))
+            return {"method": method, "url": url, **kwargs}
+
+        async def send(self, request, stream=False):
+            return FakeStreamResponse()
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr(main_module.httpx, "AsyncClient", FakeAsyncClient)
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        response = client.post(
+            "/api/chats/sess_abc123/stream",
+            headers=csrf_headers(client),
+            json={"input": "hello", "agent_id": "agent_researcher"},
+        )
+
+    assert response.status_code == 200
+    assert sent_payloads
+    assert sent_payloads[0]["input"] == "hello"
+    assert sent_payloads[0]["agent_id"] == "agent_researcher"
+
+
+
+def test_chat_stream_rejects_invalid_agent_id(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENTGATE_ADMIN_KEY", "test-owner-key-1234")
+    monkeypatch.setenv("AGENTGATE_SESSION_SECRET", "test-session-secret-12345678901234567890")
+    monkeypatch.setenv("AGENTGATE_MCP_KEY", "test-mcp-key-123456")
+    monkeypatch.setenv("AGENTGATE_DATA_DIR", str(tmp_path))
+
+    from agentgate.main import app
+
+    with TestClient(app) as client:
+        client.post("/api/auth/login", json={"key": "test-owner-key-1234"})
+        response = client.post(
+            "/api/chats/sess_abc123/stream",
+            headers=csrf_headers(client),
+            json={"input": "hello", "agent_id": "../secret"},
+        )
+
+    assert response.status_code == 422

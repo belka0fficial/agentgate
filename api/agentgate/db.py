@@ -62,6 +62,19 @@ class Database:
                     expires_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
             """)
+            existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(character_profile)").fetchall()}
+            character_profile_migrations = {
+                "mode": "ALTER TABLE character_profile ADD COLUMN mode TEXT NOT NULL DEFAULT ''",
+                "primary_model": "ALTER TABLE character_profile ADD COLUMN primary_model TEXT NOT NULL DEFAULT ''",
+                "fallback_model": "ALTER TABLE character_profile ADD COLUMN fallback_model TEXT NOT NULL DEFAULT ''",
+                "allowed_tools": "ALTER TABLE character_profile ADD COLUMN allowed_tools TEXT NOT NULL DEFAULT ''",
+                "allowed_skills": "ALTER TABLE character_profile ADD COLUMN allowed_skills TEXT NOT NULL DEFAULT ''",
+                "avatar_label": "ALTER TABLE character_profile ADD COLUMN avatar_label TEXT NOT NULL DEFAULT ''",
+                "emotion_pack": "ALTER TABLE character_profile ADD COLUMN emotion_pack TEXT NOT NULL DEFAULT ''",
+            }
+            for name, statement in character_profile_migrations.items():
+                if name not in existing_columns:
+                    conn.execute(statement)
 
     def rows(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         with self.connection() as conn:

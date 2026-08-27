@@ -44,7 +44,7 @@ export function DomainShell({
             </div>
             <div>{next}</div>
             <Button asChild variant='outline'>
-              <Link to='/chats'>Ask Conker about this</Link>
+              <Link to='/chats'>Ask in chat</Link>
             </Button>
           </CardContent>
         </Card>

@@ -47,11 +47,11 @@ type ToolbarAction =
 
 const titles: Record<string, { title: string; eyebrow: string }> = {
   '/': { title: 'Command', eyebrow: 'Source-bound console' },
-  '/companion': { title: 'Companion', eyebrow: 'Conker Journal' },
+  '/companion': { title: 'Companion', eyebrow: 'Main agent profile' },
   '/chats': { title: 'Chats', eyebrow: 'Sessions' },
   '/approvals': { title: 'Approvals', eyebrow: 'Owner gate' },
   '/orchestration': { title: 'Orchestration', eyebrow: 'Flows and runs' },
-  '/workforce': { title: 'Workforce', eyebrow: 'Agents and teams' },
+  '/agents': { title: 'Agents', eyebrow: 'Inspect and route' },
   '/jobs': { title: 'Jobs', eyebrow: 'Scheduled agent work' },
   '/capabilities': { title: 'Capabilities', eyebrow: 'Tools and skills' },
   '/memory': { title: 'Memory', eyebrow: 'Context store' },
@@ -239,7 +239,7 @@ function getActions(
   if (path.startsWith('/companion')) {
     return {
       primary: [
-        { label: 'Ask Conker', icon: <Send />, to: '/chats', primary: true },
+        { label: 'Ask in chat', icon: <Send />, to: '/chats', primary: true },
         { label: 'Approvals', icon: <ShieldCheck />, to: '/approvals' },
         { label: 'Memory', icon: <MemoryStick />, to: '/memory' },
       ],

@@ -247,15 +247,15 @@ export type CharacterProfile = {
   personality?: string
   background?: string
   boundaries?: string
+  mode?: string
+  primary_model?: string
+  fallback_model?: string
+  allowed_tools?: string
+  allowed_skills?: string
+  avatar_label?: string
+  emotion_pack?: string
   updated_at?: string
   configured?: boolean
-  avatar?: {
-    id: string
-    asset: string
-    emotion_pack: string
-    default_emotion: string
-    emotions: { id: string; label: string; asset: string }[]
-  }
 }
 
 export function getCharacterProfile() {

@@ -73,8 +73,14 @@ describe('chat text controls model', () => {
       streamChatBody('hello', {
         memoryIncognito: true,
         reasoning: 'high',
+        agentId: 'agent_researcher',
       })
-    ).toEqual({ input: 'hello', intensity: 'high', memory_incognito: true })
+    ).toEqual({
+      input: 'hello',
+      agent_id: 'agent_researcher',
+      intensity: 'high',
+      memory_incognito: true,
+    })
 
     expect(
       JSON.stringify(
