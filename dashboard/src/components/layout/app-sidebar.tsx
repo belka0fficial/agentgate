@@ -101,10 +101,12 @@ function SystemInfoPanel() {
     queryFn: () => getAgentGate<SystemInfo>('/api/system'),
   })
   const data = system.data
+  const containers = Array.isArray(data?.containers) ? data.containers : []
+  const packages = Array.isArray(data?.packages) ? data.packages : []
   const rows: [string, string][] = [
     ['Host', unavailable()],
     ['OS / kernel', unavailable()],
-    ['Uptime', data?.containers?.[0]?.uptime ?? unavailable()],
+    ['Uptime', containers[0]?.uptime ?? unavailable()],
     [
       'CPU',
       `${data?.vitals?.cpu_percent ?? '—'}% · ${
@@ -144,7 +146,7 @@ function SystemInfoPanel() {
           <div className='grid gap-5 lg:grid-cols-2'>
             <InfoSection title='Host'>{rows.map(renderCopyRow)}</InfoSection>
             <InfoSection title='Containers'>
-              {(data?.containers ?? []).map((container) => (
+              {containers.map((container) => (
                 <CopyRow
                   key={container.name}
                   label={container.name}
@@ -153,7 +155,7 @@ function SystemInfoPanel() {
               ))}
             </InfoSection>
             <InfoSection title='Packages'>
-              {(data?.packages ?? []).map((pkg) => (
+              {packages.map((pkg) => (
                 <CopyRow
                   key={pkg.name}
                   label={pkg.name}
