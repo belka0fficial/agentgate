@@ -1304,6 +1304,8 @@ async def stream_chat(session_id: str, payload: ChatInput, request: Request):
                         elif isinstance(raw_event, dict):
                             safe_event = {}
                             for key, value in raw_event.items():
+                                if browser_unsafe_key(str(key)) or browser_unsafe_string(str(key)):
+                                    continue
                                 if key in {"content", "delta", "text"} and isinstance(value, str):
                                     safe_event[key] = value
                                 else:
@@ -1639,12 +1641,15 @@ async def approve_run(run_id: str, payload: dict[str, Any]):
 
 @app.post("/api/verifications/brain/{source_id:path}/decision", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def decide_brain(source_id: str, payload: dict[str, Any], store: Database = Depends(db), up: Upstream = Depends(upstream)):
+    decision = payload.get("decision")
+    if decision not in {"approved", "rejected"}:
+        raise HTTPException(422, "Decision must be approved or rejected")
     item = store.row("SELECT * FROM verification_refs WHERE source IN ('brain', 'hermes') AND source_id = ?", (source_id,))
     if not item or not item.get("run_id"):
         raise HTTPException(404, "Brain approval is no longer available")
-    result = await up.request("brain", "POST", f"/v1/runs/{item['run_id']}/approval", json=payload)
-    store.upsert_verification({"source": "brain", "source_id": source_id, "run_id": item["run_id"], "session_id": item.get("session_id"), "status": payload.get("decision", "approved"), "summary": store.decode(item).get("summary", {}), "expires_at": item.get("expires_at")})
-    return decision_result_view("brain", source_id, result, str(payload.get("decision") or "approved"))
+    result = await up.request("brain", "POST", f"/v1/runs/{item['run_id']}/approval", json={"decision": decision})
+    store.upsert_verification({"source": "brain", "source_id": source_id, "run_id": item["run_id"], "session_id": item.get("session_id"), "status": decision, "summary": store.decode(item).get("summary", {}), "expires_at": item.get("expires_at")})
+    return decision_result_view("brain", source_id, result, str(decision))
 
 
 @app.get("/api/suggestions", dependencies=[Depends(require_auth)])
