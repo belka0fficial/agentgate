@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Main } from '@/components/layout/main'
-import { AgentGateHeader } from '@/features/agentgate/page-header'
+import { ContentSection } from '@/features/settings/components/content-section'
 
 export const Route = createFileRoute('/_authenticated/settings/display')({
   component: DisplayDeferredPage,
@@ -8,13 +7,13 @@ export const Route = createFileRoute('/_authenticated/settings/display')({
 
 function DisplayDeferredPage() {
   return (
-    <>
-      <AgentGateHeader title='Display unavailable' />
-      <Main>
-        <p className='text-sm text-muted-foreground'>
-          Display and layout controls are deferred from the text-only MVP.
-        </p>
-      </Main>
-    </>
+    <ContentSection
+      title='Display unavailable'
+      desc='Display and layout controls are deferred from the text-only MVP.'
+    >
+      <p className='text-sm text-muted-foreground'>
+        No display settings are exposed until a real product contract exists.
+      </p>
+    </ContentSection>
   )
 }
