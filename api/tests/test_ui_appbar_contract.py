@@ -14,11 +14,18 @@ def test_global_appbar_is_full_width_and_search_dominant():
     assert 'Search AgentGate' in header
     assert "aria-label='Open chats'" in header
     assert "aria-label='Open approvals'" in header
+    assert "aria-label='Open Command'" in header
+    assert "<Link to='/' aria-label='Open Command'" in header
+    assert '<LayoutDashboard />' in header
+    assert 'border-b' not in header
     assert 'max-w-[42vw]' not in header
     assert '@7xl/content:max-w-7xl' not in header
     assert '<h1' not in header
     assert "className='w-full'" in header
     assert 'aria-label={`${currentTitle}: ${currentContext} application controls`}' in header
+    assert "className='sticky top-0 z-30 bg-background/95" in header
+    assert "className='size-9 shrink-0'" in header
+    assert header.index("aria-label='Open Command'") < header.index('<ToolbarSearch')
 
 
 def test_settings_parent_owns_the_persistent_appbar():

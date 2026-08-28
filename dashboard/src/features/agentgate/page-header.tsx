@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import {
   Copy,
+  LayoutDashboard,
   MessageSquarePlus,
   MoreHorizontal,
   Search,
@@ -63,14 +64,24 @@ export function AgentGateHeader({
   return (
     <header
       aria-label={`${currentTitle}: ${currentContext} application controls`}
-      className='sticky top-0 z-30 border-b bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'
+      className='sticky top-0 z-30 bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'
     >
       <div className='w-full'>
         <div className='flex min-h-14 min-w-0 flex-wrap items-center gap-2 py-2 md:flex-nowrap md:py-0'>
           <SidebarTrigger
             aria-label='Open navigation'
-            className='size-9 shrink-0 md:hidden'
+            className='size-9 shrink-0'
           />
+          <Button
+            asChild
+            variant='ghost'
+            size='icon'
+            className='size-9 shrink-0'
+          >
+            <Link to='/' aria-label='Open Command' title='Command'>
+              <LayoutDashboard />
+            </Link>
+          </Button>
 
           {leftExtra}
           <ToolbarSearch onOpen={() => setOpen(true)} />
