@@ -20,14 +20,11 @@ import { getCharacterProfile, putAgentGate, type CharacterProfile } from './api'
 const steps = [
   'Identity',
   'Appearance',
-  'Purpose',
   'Behavior',
+  'Character',
   'Model',
   'Tools',
   'Skills',
-  'Memory',
-  'Autonomy',
-  'Output',
   'Review',
 ] as const
 type Step = (typeof steps)[number]
@@ -37,6 +34,9 @@ type AgentForm = {
   owner_name: string
   mode: string
   description: string
+  purpose: string
+  backstory: string
+  behavior: Record<string, string>
   personality: string
   background: string
   boundaries: string
@@ -54,7 +54,7 @@ type AgentForm = {
   reasoning_level: string
 }
 
-const toolCatalog = ['Web', 'Memory', 'Files', 'Browser', 'GitHub', 'Email']
+const toolCatalog = ['Web', 'Files', 'Browser', 'GitHub', 'Email']
 const skillCatalog = [
   'Grounded research',
   'Software development',
@@ -72,11 +72,21 @@ const appearanceFields = [
   'hair',
   'eyes',
 ]
+const behaviorFields = [
+  ['communication', 'How should this Agent communicate?'],
+  ['decisions', 'How should this Agent make decisions?'],
+  ['uncertainty', 'What should it do when uncertain?'],
+  ['detail', 'How much detail should it provide?'],
+  ['avoid', 'What should it avoid doing?'],
+] as const
 const emptyForm: AgentForm = {
   name: '',
   owner_name: '',
   mode: 'companion',
   description: '',
+  purpose: '',
+  backstory: '',
+  behavior: {},
   personality: '',
   background: '',
   boundaries:
@@ -104,6 +114,9 @@ function formFromProfile(profile?: CharacterProfile): AgentForm {
     personality: profile?.personality ?? '',
     background: profile?.background ?? '',
     description: profile?.description ?? '',
+    purpose: profile?.purpose ?? profile?.background ?? '',
+    backstory: profile?.backstory ?? '',
+    behavior: profile?.behavior ?? {},
     boundaries: profile?.boundaries || emptyForm.boundaries,
     primary_model: profile?.primary_model ?? '',
     fallback_model: profile?.fallback_model ?? '',
@@ -366,7 +379,14 @@ function StepScreen({
               <option value='operator'>Operator</option>
             </select>
           </Field>
-          <Field label='Description' full>
+          <Field label='Purpose' full>
+            <Textarea
+              value={form.purpose}
+              onChange={(e) => update('purpose', e.target.value)}
+              className='min-h-28'
+            />
+          </Field>
+          <Field label='Short description' full>
             <Textarea
               value={form.description}
               onChange={(e) => update('description', e.target.value)}
@@ -380,24 +400,38 @@ function StepScreen({
     return (
       <Screen title='Appearance'>
         <div className='space-y-10'>
-          <div className='grid gap-2'>
-            <Label htmlFor='agent-profile-image'>Main 2D profile picture</Label>
-            <label
-              htmlFor='agent-profile-image'
-              className='flex aspect-square max-w-sm cursor-pointer items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground'
-            >
-              <span>
-                <ImagePlus className='mx-auto mb-3 size-6' />
-                Choose a square image
-              </span>
-            </label>
-            <Input
-              id='agent-profile-image'
-              type='file'
-              className='sr-only'
-              accept='image/*'
-              onChange={(e) => selectImage(e.target.files?.[0])}
-            />
+          <div>
+            <Label>Agent pictures</Label>
+            <div className='mt-2 grid max-w-xl grid-cols-3 gap-3 sm:grid-cols-6'>
+              {[
+                'Profile',
+                'Neutral',
+                'Happy',
+                'Thinking',
+                'Annoyed',
+                'Tired',
+              ].map((label) => (
+                <label
+                  key={label}
+                  className='grid aspect-square cursor-pointer place-items-center rounded-lg border border-dashed text-center text-[11px] text-muted-foreground hover:bg-muted/40'
+                >
+                  <span>
+                    <ImagePlus className='mx-auto mb-2 size-5' />
+                    {label}
+                  </span>
+                  <Input
+                    type='file'
+                    className='sr-only'
+                    accept='image/*'
+                    onChange={(e) => selectImage(e.target.files?.[0])}
+                  />
+                </label>
+              ))}
+            </div>
+            <p className='mt-2 text-xs text-muted-foreground'>
+              All image slots use the same square format. The large profile
+              image appears in the preview.
+            </p>
           </div>
           <div>
             <h3 className='mb-4 text-base font-medium'>Appearance details</h3>
@@ -418,48 +452,28 @@ function StepScreen({
               ))}
             </div>
           </div>
-          <div>
-            <h3 className='mb-4 text-base font-medium'>Emotion pictures</h3>
-            <div className='grid grid-cols-3 gap-3 sm:grid-cols-5'>
-              {['Neutral', 'Happy', 'Thinking', 'Annoyed', 'Tired'].map(
-                (label) => (
-                  <div
-                    key={label}
-                    className='flex aspect-square items-center justify-center rounded-lg border text-center text-xs text-muted-foreground'
-                  >
-                    <span className='text-2xl'>?</span>
-                    <span className='sr-only'>{label} unknown</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
         </div>
-      </Screen>
-    )
-  if (current === 'Purpose')
-    return (
-      <Screen title='Purpose and role'>
-        <Field label='What is this Agent responsible for?'>
-          <Textarea
-            value={form.background}
-            onChange={(e) => update('background', e.target.value)}
-            className='min-h-36'
-          />
-        </Field>
       </Screen>
     )
   if (current === 'Behavior')
     return (
-      <Screen title='Behavior and personality'>
+      <Screen title='Behavior'>
         <div className='space-y-5'>
-          <Field label='How should this Agent behave?'>
-            <Textarea
-              value={form.personality}
-              onChange={(e) => update('personality', e.target.value)}
-              className='min-h-36'
-            />
-          </Field>
+          {behaviorFields.map(([key, label]) => (
+            <Field key={key} label={label}>
+              <Textarea
+                value={form.behavior[key] ?? ''}
+                onChange={(e) =>
+                  update('behavior', {
+                    ...form.behavior,
+                    [key]: e.target.value,
+                  })
+                }
+                className='min-h-24'
+                placeholder='Unknown'
+              />
+            </Field>
+          ))}
           <Field label='Boundaries'>
             <Textarea
               value={form.boundaries}
@@ -468,6 +482,19 @@ function StepScreen({
             />
           </Field>
         </div>
+      </Screen>
+    )
+  if (current === 'Character')
+    return (
+      <Screen title='Character'>
+        <Field label='Backstory' full>
+          <Textarea
+            value={form.backstory}
+            onChange={(e) => update('backstory', e.target.value)}
+            className='min-h-56'
+            placeholder='Unknown'
+          />
+        </Field>
       </Screen>
     )
   if (current === 'Model')
@@ -550,40 +577,25 @@ function StepScreen({
               </label>
             ))}
           </div>
+          {isTools ? (
+            <div className='mt-8 border-t pt-6'>
+              <h3 className='text-base font-medium'>Memory for this Agent</h3>
+              <p className='mt-1 text-sm text-muted-foreground'>
+                Every Agent has Memory. Choose how it is reviewed and scoped.
+              </p>
+              <div className='mt-4'>
+                <Choices
+                  value={form.memory_mode}
+                  options={['enabled', 'reviewed writes', 'private scope']}
+                  onChange={(value) => update('memory_mode', value)}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       </Screen>
     )
   }
-  if (current === 'Memory')
-    return (
-      <Screen title='Memory access'>
-        <Choices
-          value={form.memory_mode}
-          options={['unknown', 'read-only', 'reviewed writes', 'off']}
-          onChange={(value) => update('memory_mode', value)}
-        />
-      </Screen>
-    )
-  if (current === 'Autonomy')
-    return (
-      <Screen title='Autonomy and limits'>
-        <Choices
-          value={form.autonomy_level}
-          options={['unknown', 'advisory', 'supervised', 'approval-gated']}
-          onChange={(value) => update('autonomy_level', value)}
-        />
-      </Screen>
-    )
-  if (current === 'Output')
-    return (
-      <Screen title='Output'>
-        <Choices
-          value={form.output_format}
-          options={['unknown', 'Markdown', 'Plain text', 'Structured JSON']}
-          onChange={(value) => update('output_format', value)}
-        />
-      </Screen>
-    )
   return (
     <Screen title='Review Agent'>
       <div className='rounded-lg border p-5'>

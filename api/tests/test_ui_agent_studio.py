@@ -12,11 +12,16 @@ def test_agent_studio_uses_one_screen_per_step_with_persistent_preview():
     layout = read('dashboard/src/components/layout/authenticated-layout.tsx')
     normalized = ' '.join(studio.split())
     assert 'Agent Studio' in studio
-    assert "'Identity', 'Appearance', 'Purpose', 'Behavior', 'Model', 'Tools', 'Skills', 'Memory', 'Autonomy', 'Output', 'Review'" in normalized
+    assert "'Identity', 'Appearance', 'Behavior', 'Character', 'Model', 'Tools', 'Skills', 'Review'" in normalized
     assert 'preview' in studio
-    assert 'Main 2D profile picture' in studio
-    assert 'Emotion pictures' in studio
-    assert 'appearance' in studio
+    assert 'Agent pictures' in studio
+    for image_slot in ('Profile', 'Neutral', 'Happy', 'Thinking', 'Annoyed', 'Tired'):
+        assert image_slot in studio
+    assert 'Purpose' in studio
+    assert 'backstory' in studio
+    for behavior_question in ('How should this Agent communicate?', 'How should this Agent make decisions?', 'What should it do when uncertain?', 'How much detail should it provide?', 'What should it avoid doing?'):
+        assert behavior_question in studio
+    assert 'Memory for this Agent' in studio
     assert "putAgentGate('/api/character'" in studio
     assert "location.pathname === '/character'" in layout
     assert "location.pathname === '/settings/character'" in layout
@@ -27,6 +32,8 @@ def test_agent_studio_uses_one_screen_per_step_with_persistent_preview():
     assert 'value={form.reasoning_level}' in normalized
     assert 'Save draft' not in studio
     assert 'setCurrent(steps[index + 1])' in normalized
+    assert "current === 'Autonomy'" not in studio
+    assert "current === 'Output'" not in studio
 
 
 def test_agent_studio_does_not_render_3d_or_fake_profile_defaults():

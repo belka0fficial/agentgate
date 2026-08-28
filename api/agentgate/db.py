@@ -85,6 +85,9 @@ class Database:
                 "tool_policy": "ALTER TABLE character_profile ADD COLUMN tool_policy TEXT NOT NULL DEFAULT 'unknown'",
                 "description": "ALTER TABLE character_profile ADD COLUMN description TEXT NOT NULL DEFAULT ''",
                 "reasoning_level": "ALTER TABLE character_profile ADD COLUMN reasoning_level TEXT NOT NULL DEFAULT 'unknown'",
+                "purpose": "ALTER TABLE character_profile ADD COLUMN purpose TEXT NOT NULL DEFAULT ''",
+                "backstory": "ALTER TABLE character_profile ADD COLUMN backstory TEXT NOT NULL DEFAULT ''",
+                "behavior_json": "ALTER TABLE character_profile ADD COLUMN behavior_json TEXT NOT NULL DEFAULT '{}'",
             }
             for name, statement in character_profile_migrations.items():
                 if name not in existing_columns:

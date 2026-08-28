@@ -12,22 +12,28 @@ def test_character_appearance_metadata_persists_without_exposing_asset_bytes(mon
     with TestClient(app) as client:
         assert client.post('/api/auth/login', json={'key': 'test-owner-key-1234'}).status_code == 200
         response = client.put('/api/character', headers=csrf_headers(client), json={
-            'name': 'Research Agent', 'owner_name': 'Alex', 'description': 'Researches carefully', 'personality': 'Direct',
-            'background': '', 'boundaries': 'Approval-gated', 'reasoning_level': 'high', 'appearance': {
-                'age': 'unknown', 'gender': 'unknown', 'pronouns': 'unknown',
-                'species': 'unknown', 'build': 'unknown', 'height': 'unknown',
-                'hair': 'unknown', 'eyes': 'unknown',
-            }, 'avatar_label': '', 'emotion_pack': '',
+            'name': 'Research Agent', 'owner_name': 'Alex', 'description': 'Researches carefully',
+            'purpose': 'Researches primary sources', 'backstory': 'Built from a reviewed research workflow',
+            'behavior': {'uncertainty': 'Say when evidence is missing'}, 'personality': 'Direct',
+            'background': '', 'boundaries': 'Approval-gated', 'reasoning_level': 'high',
+            'appearance': {'age': 'unknown', 'gender': 'unknown', 'pronouns': 'unknown', 'species': 'unknown', 'build': 'unknown', 'height': 'unknown', 'hair': 'unknown', 'eyes': 'unknown'},
+            'avatar_label': '', 'emotion_pack': '',
         })
         assert response.status_code == 200
         assert response.json()['appearance']['age'] == 'unknown'
         assert response.json()['description'] == 'Researches carefully'
         assert response.json()['reasoning_level'] == 'high'
+        assert response.json()['purpose'] == 'Researches primary sources'
+        assert response.json()['backstory'] == 'Built from a reviewed research workflow'
+        assert response.json()['behavior']['uncertainty'] == 'Say when evidence is missing'
         assert 'avatar_data' not in response.json()
         loaded = client.get('/api/character').json()
         assert loaded['appearance']['species'] == 'unknown'
         assert loaded['description'] == 'Researches carefully'
         assert loaded['reasoning_level'] == 'high'
+        assert loaded['purpose'] == 'Researches primary sources'
+        assert loaded['backstory'] == 'Built from a reviewed research workflow'
+        assert loaded['behavior']['uncertainty'] == 'Say when evidence is missing'
         assert 'avatar_data' not in loaded
 
 
@@ -45,9 +51,7 @@ def test_character_name_is_required_and_appearance_response_is_sanitized(monkeyp
         assert empty.status_code == 422
         whitespace = client.put('/api/character', headers=headers, json={'name': '   '})
         assert whitespace.status_code == 422
-        response = client.put('/api/character', headers=headers, json={
-            'name': 'Safe Agent', 'appearance': {'notes': '/etc/passwd'},
-        })
+        response = client.put('/api/character', headers=headers, json={'name': 'Safe Agent', 'appearance': {'notes': '/etc/passwd'}})
         assert response.status_code == 200
         encoded = str(response.json())
         assert '/etc/passwd' not in encoded

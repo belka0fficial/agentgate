@@ -245,6 +245,9 @@ export type CharacterProfile = {
   name: string
   owner_name?: string
   description?: string
+  purpose?: string
+  backstory?: string
+  behavior?: Record<string, string>
   personality?: string
   background?: string
   boundaries?: string
