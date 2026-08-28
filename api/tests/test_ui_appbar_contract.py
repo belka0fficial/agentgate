@@ -7,15 +7,18 @@ def read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text()
 
 
-def test_global_appbar_keeps_long_meta_search_and_truthful_quick_actions():
+def test_global_appbar_is_full_width_and_search_dominant():
     header = read('dashboard/src/features/agentgate/page-header.tsx')
 
-    assert "flex-1" in header
+    assert 'flex-1' in header
     assert 'Search AgentGate' in header
     assert "aria-label='Open chats'" in header
     assert "aria-label='Open approvals'" in header
     assert 'max-w-[42vw]' not in header
-    assert "overflow-hidden sm:max-w-none" not in header
+    assert '@7xl/content:max-w-7xl' not in header
+    assert '<h1' not in header
+    assert "className='w-full'" in header
+    assert 'aria-label={`${currentTitle}: ${currentContext} application controls`}' in header
 
 
 def test_settings_parent_owns_the_persistent_appbar():

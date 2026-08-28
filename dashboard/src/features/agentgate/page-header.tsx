@@ -61,34 +61,18 @@ export function AgentGateHeader({
   const currentContext = eyebrow ?? meta.context
 
   return (
-    <header className='sticky top-0 z-30 border-b bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'>
-      <div className='@7xl/content:mx-auto @7xl/content:w-full @7xl/content:max-w-7xl'>
+    <header
+      aria-label={`${currentTitle}: ${currentContext} application controls`}
+      className='sticky top-0 z-30 border-b bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'
+    >
+      <div className='w-full'>
         <div className='flex min-h-14 min-w-0 flex-wrap items-center gap-2 py-2 md:flex-nowrap md:py-0'>
           <SidebarTrigger
             aria-label='Open navigation'
             className='size-9 shrink-0 md:hidden'
           />
 
-          <div className='flex min-w-0 shrink-0 items-center gap-2'>
-            <div className='max-w-28 min-w-0 sm:max-w-44'>
-              <div className='flex min-w-0 items-center gap-1.5 text-sm'>
-                <span className='hidden text-muted-foreground lg:inline'>
-                  AgentGate
-                </span>
-                <span className='hidden text-muted-foreground/45 lg:inline'>
-                  /
-                </span>
-                <h1 className='truncate font-semibold tracking-[-0.015em]'>
-                  {currentTitle}
-                </h1>
-              </div>
-              <p className='hidden truncate text-[11px] leading-4 text-muted-foreground xl:block'>
-                {currentContext}
-              </p>
-            </div>
-            {leftExtra}
-          </div>
-
+          {leftExtra}
           <ToolbarSearch onOpen={() => setOpen(true)} />
 
           {actions ? (
