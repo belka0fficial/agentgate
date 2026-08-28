@@ -32,7 +32,6 @@ export const sidebarData: SidebarData = {
         { title: 'Command', url: '/', icon: LayoutDashboard },
         { title: 'Chats', url: '/chats', icon: MessagesSquare },
         { title: 'Approvals', url: '/approvals', icon: ShieldCheck },
-        { title: 'Companion', url: '/companion', icon: Bot },
         { title: 'Orchestration', url: '/orchestration', icon: GitBranch },
         { title: 'Agents', url: '/agents', icon: Bot },
         { title: 'Jobs', url: '/jobs', icon: Boxes },

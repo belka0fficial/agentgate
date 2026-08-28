@@ -70,7 +70,7 @@ export function AgentGateHeader({
         <div className='flex min-h-14 min-w-0 flex-wrap items-center gap-2 py-2 md:flex-nowrap md:py-0'>
           <SidebarTrigger
             aria-label='Open navigation'
-            className='size-9 shrink-0'
+            className='size-9 shrink-0 md:hidden'
           />
           <Button
             asChild

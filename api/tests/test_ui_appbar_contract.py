@@ -24,7 +24,7 @@ def test_global_appbar_is_full_width_and_search_dominant():
     assert "className='w-full'" in header
     assert 'aria-label={`${currentTitle}: ${currentContext} application controls`}' in header
     assert "className='sticky top-0 z-30 bg-background/95" in header
-    assert "className='size-9 shrink-0'" in header
+    assert "className='size-9 shrink-0 md:hidden'" in header
     assert header.index("aria-label='Open Command'") < header.index('<ToolbarSearch')
 
 

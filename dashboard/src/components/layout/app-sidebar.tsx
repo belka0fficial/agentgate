@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Command, Settings as SettingsIcon } from 'lucide-react'
+import { Bot, Command, Settings as SettingsIcon } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,30 +47,62 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
-      <SidebarHeader className='h-20 flex-none justify-center overflow-hidden border-b px-3 py-2 group-data-[collapsible=icon]:h-16 group-data-[collapsible=icon]:px-2'>
-        <AgentStatusBlock />
+      <SidebarHeader className='min-h-24 flex-none justify-center overflow-hidden border-b px-3 py-2 group-data-[collapsible=icon]:min-h-20 group-data-[collapsible=icon]:px-2'>
+        <SidebarBrand />
       </SidebarHeader>
       <SidebarContent>
         {sidebarData.navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
       </SidebarContent>
-      <SidebarFooter>
-        <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
-          <Button asChild variant='ghost' size='icon' className='size-10'>
-            <Link to='/settings/gateways' aria-label='Settings'>
-              <SettingsIcon />
-              <span className='sr-only'>Settings</span>
-            </Link>
-          </Button>
-          <SidebarTrigger aria-label='Toggle sidebar' className='size-10' />
-        </div>
+      <SidebarFooter className='border-t'>
+        <SidebarUtilityBlock />
       </SidebarFooter>
     </Sidebar>
   )
 }
 
-function AgentStatusBlock() {
+function SidebarBrand() {
+  return (
+    <div className='grid min-w-0 gap-1.5'>
+      <div className='flex min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center'>
+        <Button
+          asChild
+          variant='ghost'
+          size='icon'
+          className='size-9 shrink-0 text-sidebar-foreground/85'
+        >
+          <Link to='/' aria-label='Open Command'>
+            <Command />
+          </Link>
+        </Button>
+        <div className='min-w-0 group-data-[collapsible=icon]:hidden'>
+          <p className='truncate text-sm leading-5 font-semibold tracking-[-0.01em]'>
+            AgentGate
+          </p>
+          <p className='truncate text-[11px] leading-4 text-sidebar-foreground/55'>
+            Local agent console
+          </p>
+        </div>
+      </div>
+      <Button
+        asChild
+        variant='ghost'
+        size='sm'
+        className='h-8 w-full justify-start gap-2 px-2 text-sidebar-foreground/75 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0'
+      >
+        <Link to='/companion' aria-label='Open companion'>
+          <Bot />
+          <span className='group-data-[collapsible=icon]:hidden'>
+            Companion
+          </span>
+        </Link>
+      </Button>
+    </div>
+  )
+}
+
+function SidebarUtilityBlock() {
   const system = useQuery({
     queryKey: ['agentgate', 'system'],
     queryFn: () => getAgentGate<SystemInfo>('/api/system'),
@@ -88,28 +120,28 @@ function AgentStatusBlock() {
   }[status.tone]
 
   return (
-    <div className='grid min-w-0 justify-items-start gap-1.5 group-data-[collapsible=icon]:justify-items-center'>
-      <div className='flex min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center'>
-        <SystemInfoPanel />
-        <div className='min-w-0 group-data-[collapsible=icon]:hidden'>
-          <p className='truncate text-sm leading-5 font-semibold tracking-[-0.01em]'>
-            AgentGate
-          </p>
-          <p className='truncate text-[11px] leading-4 text-sidebar-foreground/55'>
-            Local agent console
-          </p>
-        </div>
-      </div>
+    <div className='grid min-w-0 gap-1.5'>
       <Link
         to='/system'
-        className='flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-sidebar-foreground/60 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+        className='flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-sidebar-foreground/60 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
         aria-label={`${status.label}. Open system status`}
+        title={status.label}
       >
         <span className={`size-1.5 shrink-0 rounded-full ${toneClass}`} />
         <span className='min-w-0 truncate text-[11px] leading-4 group-data-[collapsible=icon]:hidden'>
           {status.label}
         </span>
       </Link>
+      <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
+        <SystemInfoPanel />
+        <Button asChild variant='ghost' size='icon' className='size-10'>
+          <Link to='/settings/gateways' aria-label='Settings'>
+            <SettingsIcon />
+            <span className='sr-only'>Settings</span>
+          </Link>
+        </Button>
+        <SidebarTrigger aria-label='Toggle sidebar' className='size-10' />
+      </div>
     </div>
   )
 }
@@ -148,7 +180,7 @@ function SystemInfoPanel() {
           type='button'
           variant='ghost'
           size='icon'
-          className='size-9 rounded-md text-sidebar-foreground/80 group-data-[collapsible=icon]:size-7 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+          className='size-10 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           aria-label='Open system info'
         >
           <Command className='size-4' />

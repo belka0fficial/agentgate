@@ -19,7 +19,7 @@ function navUrls() {
 }
 
 describe('AgentGate sidebar information architecture', () => {
-  it('uses the text-first AgentGate destinations without legacy Suggestions or merged Automations', () => {
+  it('keeps Companion in the branded header and removes it from the flat nav list', () => {
     const titles = navTitles()
     const urls = navUrls()
 
@@ -27,7 +27,6 @@ describe('AgentGate sidebar information architecture', () => {
       'Command',
       'Chats',
       'Approvals',
-      'Companion',
       'Orchestration',
       'Agents',
       'Jobs',
@@ -36,6 +35,7 @@ describe('AgentGate sidebar information architecture', () => {
       'Apps',
       'System',
     ])
+    expect(titles).not.toContain('Companion')
     expect(titles).not.toContain('Suggestions')
     expect(titles).not.toContain('Automations')
     expect(titles).not.toContain('Character')
@@ -43,7 +43,6 @@ describe('AgentGate sidebar information architecture', () => {
       '/',
       '/chats',
       '/approvals',
-      '/companion',
       '/orchestration',
       '/agents',
       '/jobs',
@@ -52,6 +51,7 @@ describe('AgentGate sidebar information architecture', () => {
       '/apps/',
       '/system',
     ])
+    expect(urls).not.toContain('/companion')
     expect(urls).not.toContain('/suggestions')
     expect(urls).not.toContain('/automations')
   })
