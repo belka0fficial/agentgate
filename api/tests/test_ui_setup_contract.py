@@ -11,14 +11,8 @@ def test_modular_setup_has_reusable_per_data_routes():
     setup = read('dashboard/src/features/agentgate/setup.tsx')
     layout = read('dashboard/src/components/layout/authenticated-layout.tsx')
     owner_gate = read('dashboard/src/features/agentgate/owner-gate.tsx')
-
-    for route in (
-        'dashboard/src/routes/_authenticated/setup/index.tsx',
-        'dashboard/src/routes/_authenticated/setup/identity.tsx',
-        'dashboard/src/routes/_authenticated/setup/companion.tsx',
-    ):
+    for route in ('dashboard/src/routes/_authenticated/setup/index.tsx','dashboard/src/routes/_authenticated/setup/identity.tsx','dashboard/src/routes/_authenticated/setup/companion.tsx'):
         assert (ROOT / route).exists()
-
     assert "getAgentGate<SetupStatus>('/api/setup/status')" in setup
     assert "putAgentGate('/api/owner/profile'" in setup
     assert "postAgentGate('/api/setup/steps/companion/defer')" in setup
@@ -34,6 +28,20 @@ def test_modular_setup_has_reusable_per_data_routes():
     assert "currentPath === '/companion'" in layout
     assert 'First run setup' in owner_gate
     assert 'AgentGate setup' in owner_gate
+
+
+def test_authenticated_setup_routes_replace_application_chrome():
+    setup = read('dashboard/src/features/agentgate/setup.tsx')
+    layout = read('dashboard/src/components/layout/authenticated-layout.tsx')
+    normalized_layout = ' '.join(layout.split())
+    assert "location.pathname === '/setup' || location.pathname.startsWith('/setup/')" in normalized_layout
+    assert 'isSetupRoute ?' in layout
+    assert 'AppSidebar' in layout
+    assert 'AgentGateHeader' not in setup
+    assert '<Main>' not in setup
+    assert "className='min-h-svh" in setup
+    assert 'Registration progress' in setup
+    assert "aria-current={ location.pathname === href ? 'step' : undefined }" in ' '.join(setup.split())
 
 
 def test_setup_copy_preserves_choice_truthful_status_and_errors():

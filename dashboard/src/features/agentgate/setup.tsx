@@ -1,15 +1,13 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { Bot, Check, KeyRound, UserRound } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Main } from '@/components/layout/main'
 import { getAgentGate, postAgentGate, putAgentGate } from './api'
-import { AgentGateHeader } from './page-header'
 
 export type SetupStep = {
   id: 'password' | 'identity' | 'companion'
@@ -45,84 +43,83 @@ const stepMeta = {
 
 function SetupFrame({ children }: { children: ReactNode }) {
   const setup = useSetupStatus()
+  const location = useLocation()
   if (setup.isError) {
     return (
-      <>
-        <AgentGateHeader title='Setup' eyebrow='Modular registration' />
-        <Main>
-          <div className='w-full rounded-lg border border-destructive/40 p-5'>
-            <h1 className='text-base font-medium'>
-              Could not load setup status
-            </h1>
-            <p className='mt-2 text-sm text-muted-foreground'>
-              No module state is being inferred.
-            </p>
-            <Button
-              className='mt-4'
-              variant='outline'
-              onClick={() => setup.refetch()}
-            >
-              Retry
-            </Button>
-          </div>
-        </Main>
-      </>
+      <main className='grid min-h-svh place-items-center bg-background px-6 text-foreground'>
+        <div className='w-full max-w-lg rounded-lg border border-destructive/40 p-5'>
+          <h1 className='text-base font-medium'>Could not load setup status</h1>
+          <p className='mt-2 text-sm text-muted-foreground'>
+            No module state is being inferred.
+          </p>
+          <Button
+            className='mt-4'
+            variant='outline'
+            onClick={() => setup.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
+      </main>
     )
   }
   return (
-    <>
-      <AgentGateHeader title='Setup' eyebrow='Modular registration' />
-      <Main>
-        <div className='grid w-full gap-8 lg:grid-cols-[240px_minmax(0,1fr)]'>
-          <aside className='space-y-4'>
-            <div>
-              <h2 className='text-sm font-medium'>AgentGate setup</h2>
-              <p className='mt-1 text-xs leading-5 text-muted-foreground'>
-                Configure only the modules you want. Required dependencies block
-                only what needs them.
-              </p>
-            </div>
-            <ol className='space-y-1'>
-              {(setup.data?.steps ?? []).map((step, index) => {
-                const meta = stepMeta[step.id]
-                const Icon = meta.icon
-                return (
-                  <li key={step.id}>
-                    <Link
-                      to={
-                        step.id === 'identity'
-                          ? '/setup/identity'
-                          : step.id === 'companion'
-                            ? '/setup/companion'
-                            : '/setup'
-                      }
-                      className='flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted'
-                    >
-                      <span className='flex size-7 items-center justify-center rounded-full border text-xs'>
-                        {step.status === 'configured' ? (
-                          <Check className='size-3.5' />
-                        ) : (
-                          index + 1
-                        )}
-                      </span>
-                      <Icon className='size-4 text-muted-foreground' />
-                      <span className='min-w-0 flex-1'>{meta.label}</span>
-                      <span className='text-[11px] text-muted-foreground'>
-                        {step.status}
-                      </span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ol>
-            <p className='text-xs leading-5 text-muted-foreground'>
-              Deferred is not configured. You can reopen that module later.
-            </p>
-          </aside>
-          <section className='min-w-0'>{children}</section>
+    <main className='min-h-svh bg-background text-foreground lg:grid lg:grid-cols-[280px_minmax(0,1fr)]'>
+      <aside className='border-b px-6 py-6 lg:min-h-svh lg:border-r lg:border-b-0 lg:px-8 lg:py-10'>
+        <p className='text-sm font-semibold'>AgentGate</p>
+        <p className='mt-1 text-xs text-muted-foreground'>
+          Registration progress
+        </p>
+        <div className='mt-7'>
+          <p className='text-xs leading-5 text-muted-foreground'>
+            Configure only the modules you want. Required dependencies block
+            only what needs them.
+          </p>
+          <ol className='mt-5 space-y-1'>
+            {(setup.data?.steps ?? []).map((step, index) => {
+              const meta = stepMeta[step.id]
+              const Icon = meta.icon
+              const href =
+                step.id === 'identity'
+                  ? '/setup/identity'
+                  : step.id === 'companion'
+                    ? '/setup/companion'
+                    : '/setup'
+              return (
+                <li key={step.id}>
+                  <Link
+                    to={href}
+                    aria-current={
+                      location.pathname === href ? 'step' : undefined
+                    }
+                    className='flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted'
+                  >
+                    <span className='flex size-7 items-center justify-center rounded-full border text-xs'>
+                      {step.status === 'configured' ? (
+                        <Check className='size-3.5' />
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                    <Icon className='size-4 text-muted-foreground' />
+                    <span className='min-w-0 flex-1'>{meta.label}</span>
+                    <span className='text-[11px] text-muted-foreground'>
+                      {step.status}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ol>
+          <p className='mt-5 text-xs leading-5 text-muted-foreground'>
+            Deferred is not configured. You can reopen that module later.
+          </p>
         </div>
-      </Main>
-    </>
+      </aside>
+      <section className='min-w-0 px-6 py-8 sm:px-10 lg:px-14 lg:py-12'>
+        {children}
+      </section>
+    </main>
   )
 }
 
