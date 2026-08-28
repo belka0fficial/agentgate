@@ -78,6 +78,13 @@ class Database:
                 "allowed_skills": "ALTER TABLE character_profile ADD COLUMN allowed_skills TEXT NOT NULL DEFAULT ''",
                 "avatar_label": "ALTER TABLE character_profile ADD COLUMN avatar_label TEXT NOT NULL DEFAULT ''",
                 "emotion_pack": "ALTER TABLE character_profile ADD COLUMN emotion_pack TEXT NOT NULL DEFAULT ''",
+                "appearance_json": "ALTER TABLE character_profile ADD COLUMN appearance_json TEXT NOT NULL DEFAULT '{}'",
+                "memory_mode": "ALTER TABLE character_profile ADD COLUMN memory_mode TEXT NOT NULL DEFAULT 'unknown'",
+                "autonomy_level": "ALTER TABLE character_profile ADD COLUMN autonomy_level TEXT NOT NULL DEFAULT 'unknown'",
+                "output_format": "ALTER TABLE character_profile ADD COLUMN output_format TEXT NOT NULL DEFAULT 'unknown'",
+                "tool_policy": "ALTER TABLE character_profile ADD COLUMN tool_policy TEXT NOT NULL DEFAULT 'unknown'",
+                "description": "ALTER TABLE character_profile ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+                "reasoning_level": "ALTER TABLE character_profile ADD COLUMN reasoning_level TEXT NOT NULL DEFAULT 'unknown'",
             }
             for name, statement in character_profile_migrations.items():
                 if name not in existing_columns:

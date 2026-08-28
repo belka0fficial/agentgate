@@ -21,13 +21,17 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const location = useLocation()
   const isSetupRoute =
     location.pathname === '/setup' || location.pathname.startsWith('/setup/')
+  const isStudioRoute =
+    location.pathname === '/character' ||
+    location.pathname.startsWith('/character/') ||
+    location.pathname === '/settings/character'
   const page = children ?? <Outlet />
   return (
     <SearchProvider>
       <LayoutProvider>
         <OwnerGate>
           <SetupRequirementGate>
-            {isSetupRoute ? (
+            {isSetupRoute || isStudioRoute ? (
               page
             ) : (
               <SidebarProvider defaultOpen={defaultOpen}>

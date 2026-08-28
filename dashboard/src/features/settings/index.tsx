@@ -6,9 +6,11 @@ export function Settings() {
   const location = useLocation()
   const childOwnsHeader = location.pathname === '/settings/character'
 
+  if (childOwnsHeader) return <Outlet />
+
   return (
     <>
-      {childOwnsHeader ? null : <AgentGateHeader />}
+      <AgentGateHeader />
       <Main fluid className='px-4 py-6 sm:px-6'>
         <Outlet />
       </Main>

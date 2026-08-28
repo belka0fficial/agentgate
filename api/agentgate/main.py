@@ -144,7 +144,7 @@ SYSTEM_BUILTIN_JOB_IDS = {item["id"] for item in SYSTEM_BUILTIN_JOBS}
 
 
 class CharacterInput(BaseModel):
-    name: str = Field(default="", max_length=120)
+    name: str = Field(min_length=1, max_length=120)
     owner_name: str = Field(default="", max_length=120)
     personality: str = Field(default="", max_length=10_000)
     background: str = Field(default="", max_length=10_000)
@@ -156,6 +156,19 @@ class CharacterInput(BaseModel):
     allowed_skills: str = Field(default="", max_length=4_000)
     avatar_label: str = Field(default="", max_length=240)
     emotion_pack: str = Field(default="", max_length=240)
+    appearance: dict[str, str] = Field(default_factory=dict)
+
+
+    memory_mode: str = Field(default="unknown", max_length=80)
+    autonomy_level: str = Field(default="unknown", max_length=80)
+    output_format: str = Field(default="unknown", max_length=80)
+    tool_policy: str = Field(default="unknown", max_length=80)
+
+
+    description: str = Field(default="", max_length=2_000)
+
+
+    reasoning_level: str = Field(default="unknown", max_length=40)
 
 
 
@@ -2744,17 +2757,36 @@ async def character(store: Database = Depends(db)):
         "emotion_pack": "",
         "updated_at": "",
     }
-    safe_profile = {key: safe_browser_string(profile.get(key, ""), "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "mode", "primary_model", "fallback_model", "allowed_tools", "allowed_skills", "avatar_label", "emotion_pack", "updated_at")}
-    return {**safe_profile, "configured": item is not None, "context_preview": character_context(safe_profile)}
+    try:
+        appearance = json.loads(profile.get("appearance_json") or "{}") if item else {}
+    except (TypeError, ValueError):
+        appearance = {}
+    if not isinstance(appearance, dict):
+        appearance = {}
+    safe_appearance = {
+        str(key): safe_browser_string(value, "unknown")
+        for key, value in appearance.items()
+        if isinstance(key, str) and isinstance(value, str) and len(key) <= 40
+    }
+    safe_profile = {key: safe_browser_string(profile.get(key, ""), "") for key in ("id", "name", "owner_name", "description", "personality", "background", "boundaries", "mode", "primary_model", "fallback_model", "allowed_tools", "allowed_skills", "avatar_label", "emotion_pack", "memory_mode", "autonomy_level", "output_format", "tool_policy", "reasoning_level", "updated_at")}
+    return {**safe_profile, "appearance": safe_appearance, "configured": item is not None, "context_preview": character_context(safe_profile)}
 
 
 @app.put("/api/character", dependencies=[Depends(require_auth), Depends(require_csrf)])
 async def save_character(payload: CharacterInput, store: Database = Depends(db)):
-    item = {"id": "primary", **payload.model_dump(), "speaking_style": "", "avatar_url": None, "updated_at": now()}
-    store.execute("""INSERT INTO character_profile (id,name,owner_name,personality,background,speaking_style,boundaries,avatar_url,updated_at,mode,primary_model,fallback_model,allowed_tools,allowed_skills,avatar_label,emotion_pack) VALUES (:id,:name,:owner_name,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at,:mode,:primary_model,:fallback_model,:allowed_tools,:allowed_skills,:avatar_label,:emotion_pack)
-        ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,personality=:personality,background=:background,boundaries=:boundaries,mode=:mode,primary_model=:primary_model,fallback_model=:fallback_model,allowed_tools=:allowed_tools,allowed_skills=:allowed_skills,avatar_label=:avatar_label,emotion_pack=:emotion_pack,updated_at=:updated_at""", item)
-    safe_item = {key: safe_browser_string(item.get(key, ""), "") for key in ("id", "name", "owner_name", "personality", "background", "boundaries", "mode", "primary_model", "fallback_model", "allowed_tools", "allowed_skills", "avatar_label", "emotion_pack", "updated_at")}
-    return {**safe_item, "configured": True, "context_preview": character_context(safe_item)}
+    if not payload.name.strip():
+        raise HTTPException(422, "Agent name is required")
+    raw = payload.model_dump()
+    appearance = {
+        str(key): safe_browser_string(str(value)[:240], "unknown")
+        for key, value in raw.pop("appearance", {}).items()
+        if isinstance(key, str) and isinstance(value, str) and len(key) <= 40
+    }
+    item = {"id": "primary", **raw, "appearance_json": json.dumps(appearance), "speaking_style": "", "avatar_url": None, "updated_at": now()}
+    store.execute("""INSERT INTO character_profile (id,name,owner_name,description,personality,background,speaking_style,boundaries,avatar_url,updated_at,mode,primary_model,fallback_model,allowed_tools,allowed_skills,avatar_label,emotion_pack,appearance_json,memory_mode,autonomy_level,output_format,tool_policy,reasoning_level) VALUES (:id,:name,:owner_name,:description,:personality,:background,:speaking_style,:boundaries,:avatar_url,:updated_at,:mode,:primary_model,:fallback_model,:allowed_tools,:allowed_skills,:avatar_label,:emotion_pack,:appearance_json,:memory_mode,:autonomy_level,:output_format,:tool_policy,:reasoning_level)
+        ON CONFLICT(id) DO UPDATE SET name=:name,owner_name=:owner_name,description=:description,personality=:personality,background=:background,boundaries=:boundaries,mode=:mode,primary_model=:primary_model,fallback_model=:fallback_model,allowed_tools=:allowed_tools,allowed_skills=:allowed_skills,avatar_label=:avatar_label,emotion_pack=:emotion_pack,appearance_json=:appearance_json,memory_mode=:memory_mode,autonomy_level=:autonomy_level,output_format=:output_format,tool_policy=:tool_policy,reasoning_level=:reasoning_level,updated_at=:updated_at""", item)
+    safe_item = {key: safe_browser_string(item.get(key, ""), "") for key in ("id", "name", "owner_name", "description", "personality", "background", "boundaries", "mode", "primary_model", "fallback_model", "allowed_tools", "allowed_skills", "avatar_label", "emotion_pack", "memory_mode", "autonomy_level", "output_format", "tool_policy", "reasoning_level", "updated_at")}
+    return {**safe_item, "appearance": appearance, "configured": True, "context_preview": character_context(safe_item)}
 
 
 @app.post("/api/mcp/suggestions", dependencies=[Depends(require_mcp)])

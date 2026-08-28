@@ -244,6 +244,7 @@ export type CharacterProfile = {
   id: string
   name: string
   owner_name?: string
+  description?: string
   personality?: string
   background?: string
   boundaries?: string
@@ -254,6 +255,12 @@ export type CharacterProfile = {
   allowed_skills?: string
   avatar_label?: string
   emotion_pack?: string
+  appearance?: Record<string, string>
+  memory_mode?: string
+  autonomy_level?: string
+  output_format?: string
+  tool_policy?: string
+  reasoning_level?: string
   updated_at?: string
   configured?: boolean
 }

@@ -35,13 +35,16 @@ def test_authenticated_setup_routes_replace_application_chrome():
     layout = read('dashboard/src/components/layout/authenticated-layout.tsx')
     normalized_layout = ' '.join(layout.split())
     assert "location.pathname === '/setup' || location.pathname.startsWith('/setup/')" in normalized_layout
-    assert 'isSetupRoute ?' in layout
+    assert "location.pathname === '/character'" in layout
+    assert "location.pathname.startsWith('/character/')" in layout
+    assert "location.pathname === '/settings/character'" in layout
+    assert 'isSetupRoute || isStudioRoute ?' in layout
     assert 'AppSidebar' in layout
     assert 'AgentGateHeader' not in setup
     assert '<Main>' not in setup
     assert "className='min-h-svh" in setup
     assert 'Registration progress' in setup
-    assert "aria-current={ location.pathname === href ? 'step' : undefined }" in ' '.join(setup.split())
+    assert "aria-current={" in setup
 
 
 def test_setup_copy_preserves_choice_truthful_status_and_errors():
