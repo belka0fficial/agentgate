@@ -21,7 +21,9 @@ def test_agent_studio_uses_one_screen_per_step_with_persistent_preview():
     assert "location.pathname === '/character'" in layout
     assert "location.pathname === '/settings/character'" in layout
     assert 'SidebarProvider' in layout
-    assert 'disabled={save.isPending || !form.name.trim()}' in normalized
+    assert 'save.isPending' in studio
+    assert "current === 'Review'" in normalized
+    assert '!form.name.trim()' in normalized
     assert 'value={form.reasoning_level}' in normalized
     assert 'Save draft' not in studio
     assert 'setCurrent(steps[index + 1])' in normalized

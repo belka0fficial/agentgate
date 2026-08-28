@@ -206,7 +206,7 @@ export function AgentStudio() {
     )
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (!form.name.trim()) {
+    if (current === 'Review' && !form.name.trim()) {
       setCurrent('Identity')
       return
     }
@@ -291,7 +291,10 @@ export function AgentStudio() {
               <div className='flex gap-2'>
                 <Button
                   type='submit'
-                  disabled={save.isPending || !form.name.trim()}
+                  disabled={
+                    save.isPending ||
+                    (current === 'Review' && !form.name.trim())
+                  }
                 >
                   {current === 'Review' ? (
                     <>
