@@ -247,7 +247,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
 
   return (
     <div className='grid w-full gap-6'>
-      <div className='flex flex-col gap-3 rounded-xl border bg-card/50 p-4 sm:flex-row sm:items-center sm:justify-between'>
+      <div className='flex flex-col gap-3 rounded-lg border bg-card/50 p-4 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <p className='text-sm font-medium'>Gateway control plane</p>
           <p className='text-xs leading-5 text-muted-foreground'>
@@ -259,6 +259,29 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
           <RefreshCw className='me-2 size-4' /> Refresh
         </Button>
       </div>
+
+      <nav
+        aria-label='Gateway settings sections'
+        className='sticky top-14 z-20 -mx-1 flex gap-1 overflow-x-auto border-y bg-background/95 px-1 py-2 supports-[backdrop-filter]:backdrop-blur-sm'
+      >
+        {[
+          ['gateway-channel', 'Channel'],
+          ['gateway-auth', 'Owner auth'],
+          ['gateway-route', 'Model route'],
+          ['gateway-providers', 'Providers'],
+          ['gateway-safety', 'Safety'],
+        ].map(([id, label]) => (
+          <Button
+            key={id}
+            asChild
+            size='sm'
+            variant='ghost'
+            className='shrink-0'
+          >
+            <a href={`#${id}`}>{label}</a>
+          </Button>
+        ))}
+      </nav>
 
       {block.error ? (
         <div className='rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive'>
@@ -304,13 +327,13 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         />
       </div>
 
-      <section className='grid gap-3'>
+      <section id='gateway-channel' className='grid scroll-mt-32 gap-3'>
         <SectionTitle
           icon={Workflow}
           title='Shared channel'
           desc='Professional boundary: every gate talks through the Pi adapter facade, not through browser secrets or random direct sockets.'
         />
-        <div className='overflow-hidden rounded-xl border'>
+        <div className='overflow-hidden rounded-lg border'>
           {gatewayRows.map((row) => (
             <div
               key={row.name}
@@ -329,13 +352,13 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         </div>
       </section>
 
-      <section className='grid gap-3'>
+      <section id='gateway-auth' className='grid scroll-mt-32 gap-3'>
         <SectionTitle
           icon={KeyRound}
           title='Owner auth and CSRF'
           desc='Session details are metadata-only. The dashboard token is never returned to the browser.'
         />
-        <div className='grid gap-3 rounded-xl border p-4 sm:grid-cols-2'>
+        <div className='grid gap-3 rounded-lg border p-4 sm:grid-cols-2'>
           <Field
             label='Auth mode'
             value={block.session?.auth_mode ?? 'unknown'}
@@ -363,7 +386,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         </div>
       </section>
 
-      <section className='grid gap-3'>
+      <section id='gateway-route' className='grid scroll-mt-32 gap-3'>
         <SectionTitle
           icon={Router}
           title='Edit active model route'
@@ -384,7 +407,7 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         />
       </section>
 
-      <section className='grid gap-3'>
+      <section id='gateway-providers' className='grid scroll-mt-32 gap-3'>
         <SectionTitle
           icon={Cable}
           title='Providers and current route'
@@ -435,13 +458,13 @@ function GatewaySettingsBody({ block }: { block: QueryBlock }) {
         </div>
       </section>
 
-      <section className='grid gap-3'>
+      <section id='gateway-safety' className='grid scroll-mt-32 gap-3'>
         <SectionTitle
           icon={ShieldCheck}
           title='Safety boundary'
           desc='This is what the gateway settings page intentionally does not expose.'
         />
-        <div className='grid gap-2 rounded-xl border p-4 text-sm text-muted-foreground sm:grid-cols-2'>
+        <div className='grid gap-2 rounded-lg border p-4 text-sm text-muted-foreground sm:grid-cols-2'>
           {[
             'No provider API keys in browser',
             'No gate admin keys in browser',
@@ -762,9 +785,7 @@ function SectionTitle({
 }) {
   return (
     <div className='flex items-start gap-3'>
-      <div className='mt-0.5 rounded-md border bg-muted/40 p-2'>
-        <Icon className='size-4 text-muted-foreground' />
-      </div>
+      <Icon className='mt-1 size-4 shrink-0 text-muted-foreground' />
       <div>
         <h4 className='font-medium'>{title}</h4>
         <p className='text-sm leading-6 text-muted-foreground'>{desc}</p>
@@ -798,13 +819,13 @@ function EmptyCard({ title, desc }: { title: string; desc: string }) {
 function GatewaySkeleton() {
   return (
     <div className='grid w-full gap-4'>
-      <Skeleton className='h-24 rounded-xl' />
+      <Skeleton className='h-24 rounded-lg' />
       <div className='grid gap-4 md:grid-cols-3'>
-        <Skeleton className='h-28 rounded-xl' />
-        <Skeleton className='h-28 rounded-xl' />
-        <Skeleton className='h-28 rounded-xl' />
+        <Skeleton className='h-28 rounded-lg' />
+        <Skeleton className='h-28 rounded-lg' />
+        <Skeleton className='h-28 rounded-lg' />
       </div>
-      <Skeleton className='h-72 rounded-xl' />
+      <Skeleton className='h-72 rounded-lg' />
     </div>
   )
 }

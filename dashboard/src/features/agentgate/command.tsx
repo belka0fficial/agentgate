@@ -6,23 +6,18 @@ import {
   BriefcaseBusiness,
   CalendarClock,
   Check,
-  ChevronDown,
   CircleAlert,
   Database,
-  HardDrive,
   HeartPulse,
-  MemoryStick,
   MessageSquarePlus,
-  Server,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Main } from '@/components/layout/main'
 import { getAgentGate, relativeTime, type Approval } from './api'
-import { buildCommandStatCards, type CommandStatCard } from './command-cards'
+import { buildCommandStatCards } from './command-cards'
 import {
   emptyOrDegradedCopy,
   homeAttentionCopy,
@@ -30,7 +25,6 @@ import {
   sourceStateLabel,
   type SourceState,
 } from './command-home'
-import { Core } from './core'
 import { AgentGateHeader } from './page-header'
 
 type Suggestion = {
@@ -121,144 +115,167 @@ export function CommandPage() {
   const memoryStatus = home.data?.memory_status
   const statCards = buildCommandStatCards(system.data)
   const overallStatus = overallHomeStatus(sourceStatus)
-  const isCalm = pending.length === 0 && anomalies.length === 0
 
   return (
     <>
-      <AgentGateHeader />
+      <AgentGateHeader
+        actions={
+          <Badge variant={overallStatus === 'live' ? 'secondary' : 'outline'}>
+            Home aggregation {overallStatus}
+          </Badge>
+        }
+      />
       <Main fluid className='px-4 sm:px-6'>
-        <section className='relative isolate min-h-[calc(100dvh-6rem)] overflow-hidden pb-16'>
-          <div className='pointer-events-none absolute top-1/2 right-[4%] -z-10 size-[min(62vw,760px)] -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(117,139,176,0.07),transparent_64%)] blur-2xl' />
-          <div className='grid min-h-[calc(100dvh-10rem)] items-center gap-6 lg:grid-cols-[minmax(380px,0.72fr)_minmax(520px,1.28fr)]'>
-            <div className='z-10 flex max-w-xl flex-col gap-4 py-8 lg:pl-[clamp(0rem,3vw,3rem)]'>
-              <div className='relative overflow-hidden rounded-2xl border bg-card/85 p-6 shadow-2xl shadow-black/20 backdrop-blur-sm sm:p-8'>
-                <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent' />
-                <div className='mb-4 flex flex-wrap items-center gap-2'>
-                  <Badge
-                    variant={overallStatus === 'live' ? 'secondary' : 'outline'}
-                    className='rounded-full'
-                  >
-                    <span className='mr-1.5 size-1.5 rounded-full bg-muted-foreground/60' />
-                    Home aggregation {overallStatus}
-                  </Badge>
-                  <span className='font-mono text-[11px] text-muted-foreground'>
-                    local · private · source-bound
-                  </span>
-                </div>
-                <h1 className='max-w-lg text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl'>
-                  Command is quiet until something needs you.
-                </h1>
-                <p className='mt-4 max-w-lg text-sm leading-6 text-muted-foreground'>
-                  Text-only Home pulls bounded summaries from approvals, chats,
-                  jobs, gate health, pinned apps, and MemoryGate status. Empty
-                  and degraded states stay explicit.
-                </p>
-                <div className='mt-6 flex flex-wrap gap-2'>
-                  <Button asChild>
-                    <Link to='/chats'>
-                      <MessageSquarePlus />
-                      Start a conversation
-                    </Link>
-                  </Button>
-                  <Button asChild variant='outline'>
-                    <Link to='/approvals'>
-                      <ShieldCheck />
-                      Review decisions
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-
-              <Card className='rounded-2xl bg-card/70 backdrop-blur-sm'>
-                <CardContent className='grid items-center gap-5 p-5 sm:grid-cols-[auto_1fr]'>
-                  <div>
-                    <p className='font-mono text-[11px] tracking-wide text-muted-foreground uppercase'>
-                      Today
-                    </p>
-                    <p className='mt-2 max-w-44 text-xs leading-5 text-muted-foreground'>
-                      {isCalm
-                        ? 'Nothing is pressing.'
-                        : 'A few things are waiting.'}
-                    </p>
-                  </div>
-                  <div className='grid grid-cols-3 gap-2 text-center'>
-                    <SoftNumber value={pending.length} label='decisions' />
-                    <SoftNumber value={jobs.length} label='jobs' />
-                    <SoftNumber value={recent.length} label='chats' />
-                  </div>
-                </CardContent>
-              </Card>
+        <section className='border-b pb-5'>
+          <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
+            <div className='max-w-3xl'>
+              <h2 className='text-xl font-semibold tracking-[-0.025em]'>
+                Operational overview
+              </h2>
+              <p className='mt-1 text-sm leading-6 text-muted-foreground'>
+                Source-bound approvals, conversations, jobs, apps, runtime data,
+                and MemoryGate status. Unknown and degraded states remain
+                explicit.
+              </p>
             </div>
-
-            <div className='relative flex min-h-[440px] items-center justify-center lg:min-h-0'>
-              <div className='pointer-events-none absolute h-px w-[76%] bg-gradient-to-r from-transparent via-border/45 to-transparent' />
-              <div className='pointer-events-none absolute h-[76%] w-px bg-gradient-to-b from-transparent via-border/35 to-transparent' />
-              <div className='flex flex-col items-center gap-2'>
-                <Core className='size-[340px] sm:size-[420px] lg:size-[500px]' />
-                <p className='text-center font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase'>
-                  text-first foundation · presence deferred
-                </p>
-              </div>
+            <div className='flex flex-wrap gap-2'>
+              <Button asChild size='sm'>
+                <Link to='/chats'>
+                  <MessageSquarePlus />
+                  Open chats
+                </Link>
+              </Button>
+              <Button asChild size='sm' variant='outline'>
+                <Link to='/approvals'>
+                  <ShieldCheck />
+                  Review approvals
+                </Link>
+              </Button>
             </div>
           </div>
 
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className='absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full text-muted-foreground hover:text-foreground'
-            onClick={() =>
-              document
-                .getElementById('command-deck')
-                ?.scrollIntoView({ behavior: 'smooth' })
-            }
-          >
-            Open command deck
-            <ChevronDown />
-          </Button>
-        </section>
-
-        <section id='command-deck' className='mt-10 scroll-mt-6'>
-          <SectionHeading
-            title='Command deck'
-            detail='Everything observable, kept below the arrival room'
-          />
-          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-            {statCards.map((card) => (
-              <StatCard
-                key={card.title}
-                title={card.title}
-                value={card.value}
-                note={card.note}
-                icon={
-                  card.title === 'CPU'
-                    ? Server
-                    : card.title === 'Memory'
-                      ? MemoryStick
-                      : HardDrive
-                }
-              />
-            ))}
-            <StatCard
-              title='Pending review'
+          <dl className='mt-5 grid overflow-hidden rounded-lg border bg-surface-2 sm:grid-cols-4 sm:divide-x'>
+            <SummaryValue
+              label='Pending approvals'
               value={String(pending.length)}
-              note={homeAttentionCopy({
-                pending: pending.length,
-                sourceState: sourceStatus.toolgate_requests,
-              })}
-              icon={ShieldCheck}
+              detail={sourceStateLabel(
+                sourceStatus.toolgate_requests ?? { status: 'unknown' }
+              )}
             />
-          </div>
+            <SummaryValue
+              label='Active jobs'
+              value={String(jobs.length)}
+              detail={sourceStateLabel(
+                sourceStatus.toolgate_automations ?? { status: 'unknown' }
+              )}
+            />
+            <SummaryValue
+              label='Recent chats'
+              value={String(recent.length)}
+              detail={sourceStateLabel(
+                sourceStatus.pi_sessions ?? { status: 'unknown' }
+              )}
+            />
+            <SummaryValue
+              label='Pinned apps'
+              value={String(pinnedApps.length)}
+              detail={sourceStateLabel(
+                sourceStatus.app_registry ?? { status: 'unknown' }
+              )}
+            />
+          </dl>
         </section>
 
-        <section className='mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]'>
-          <div className='space-y-6'>
+        <div className='grid gap-8 py-6 xl:grid-cols-[minmax(0,1fr)_360px]'>
+          <div className='min-w-0 space-y-8'>
+            <section>
+              <SectionHeading
+                title='Needs your attention'
+                detail={homeAttentionCopy({
+                  pending: pending.length,
+                  sourceState: sourceStatus.toolgate_requests,
+                })}
+              />
+              <div className='divide-y overflow-hidden rounded-lg border bg-card'>
+                {pending.length === 0 ? (
+                  <StateCard
+                    icon={ShieldCheck}
+                    text={emptyOrDegradedCopy(
+                      'Pending approvals',
+                      emptyStates.pending_verifications
+                    )}
+                  />
+                ) : (
+                  pending
+                    .slice(0, 6)
+                    .map((item) => <AttentionCard key={item.id} item={item} />)
+                )}
+              </div>
+            </section>
+
+            <section>
+              <SectionHeading
+                title='Continue conversations'
+                detail='Recent source-bound sessions'
+              />
+              <div className='divide-y overflow-hidden rounded-lg border bg-card'>
+                {recent.length === 0 ? (
+                  <StateCard
+                    icon={MessageSquarePlus}
+                    text={emptyOrDegradedCopy(
+                      'Recent chats',
+                      emptyStates.recent_chats
+                    )}
+                  />
+                ) : (
+                  recent.map((chat) => (
+                    <Link
+                      key={chat.id}
+                      to='/chats/$id'
+                      params={{ id: chat.id }}
+                      className='group flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/60'
+                    >
+                      <div className='min-w-0 flex-1'>
+                        <p className='truncate text-sm font-medium'>
+                          {chat.title}
+                        </p>
+                        <p className='mt-0.5 truncate text-xs text-muted-foreground'>
+                          {chat.preview || 'No preview reported'}
+                        </p>
+                      </div>
+                      <time className='shrink-0 font-mono text-[11px] text-muted-foreground'>
+                        {relativeTime(chat.updated_at)}
+                      </time>
+                      <ArrowRight className='size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5' />
+                    </Link>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section>
+              <SectionHeading
+                title='Jobs and schedules'
+                detail='Active or recently important runtime schedules'
+              />
+              <div className='divide-y overflow-hidden rounded-lg border bg-card'>
+                {jobs.length === 0 ? (
+                  <StateCard
+                    icon={CalendarClock}
+                    text={emptyOrDegradedCopy('Jobs', emptyStates.active_jobs)}
+                  />
+                ) : (
+                  jobs.map((item) => <JobCard key={item.id} item={item} />)
+                )}
+              </div>
+            </section>
+
             <section>
               <SectionHeading
                 title='Pinned apps'
                 detail='Local AgentGate app registry pins'
               />
-              <div className='grid gap-3 md:grid-cols-2'>
+              <div className='divide-y overflow-hidden rounded-lg border bg-card'>
                 {pinnedApps.length === 0 ? (
                   <StateCard
                     icon={BriefcaseBusiness}
@@ -277,35 +294,10 @@ export function CommandPage() {
 
             <section>
               <SectionHeading
-                title='Needs your attention'
-                detail={homeAttentionCopy({
-                  pending: pending.length,
-                  sourceState: sourceStatus.toolgate_requests,
-                })}
+                title='Context suggestions'
+                detail='Suggestions reported by the current source context'
               />
-              <div className='grid gap-3 md:grid-cols-2'>
-                {pending.length === 0 ? (
-                  <StateCard
-                    icon={ShieldCheck}
-                    text={emptyOrDegradedCopy(
-                      'Pending approvals',
-                      emptyStates.pending_verifications
-                    )}
-                  />
-                ) : (
-                  pending
-                    .slice(0, 4)
-                    .map((item) => <AttentionCard key={item.id} item={item} />)
-                )}
-              </div>
-            </section>
-
-            <section>
-              <SectionHeading
-                title='Good next moves'
-                detail='Suggestions from current context'
-              />
-              <div className='grid gap-3 md:grid-cols-3'>
+              <div className='divide-y overflow-hidden rounded-lg border bg-card'>
                 {suggestions.length === 0 ? (
                   <StateCard
                     icon={Sparkles}
@@ -316,100 +308,67 @@ export function CommandPage() {
                   />
                 ) : (
                   suggestions
-                    .slice(0, 3)
+                    .slice(0, 5)
                     .map((item) => (
                       <SuggestionCard key={item.id ?? item.title} item={item} />
                     ))
                 )}
               </div>
             </section>
-
-            <section>
-              <SectionHeading
-                title='Jobs / cron'
-                detail='Active or recently important runtime schedules'
-              />
-              <div className='grid gap-3 md:grid-cols-2'>
-                {jobs.length === 0 ? (
-                  <StateCard
-                    icon={CalendarClock}
-                    text={emptyOrDegradedCopy('Jobs', emptyStates.active_jobs)}
-                  />
-                ) : (
-                  jobs.map((item) => <JobCard key={item.id} item={item} />)
-                )}
-              </div>
-            </section>
           </div>
 
-          <div className='space-y-6'>
+          <aside className='min-w-0 space-y-6 xl:sticky xl:top-20 xl:self-start'>
             <section>
               <SectionHeading
-                title='Continue'
-                detail='Recent conversations from runtime'
+                title='Runtime snapshot'
+                detail='Latest SystemGate sample'
               />
-              <div className='space-y-2'>
-                {recent.length === 0 ? (
-                  <StateCard
-                    icon={MessageSquarePlus}
-                    text={emptyOrDegradedCopy(
-                      'Recent chats',
-                      emptyStates.recent_chats
-                    )}
-                  />
-                ) : (
-                  recent.map((chat) => (
-                    <Link
-                      key={chat.id}
-                      to='/chats/$id'
-                      params={{ id: chat.id }}
-                      className='block rounded-xl bg-card p-4 transition-colors hover:bg-muted/55'
-                    >
-                      <div className='flex items-start justify-between gap-3'>
-                        <div className='min-w-0'>
-                          <p className='truncate text-sm font-medium'>
-                            {chat.title}
-                          </p>
-                          <p className='mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground'>
-                            {chat.preview}
-                          </p>
-                        </div>
-                        <ArrowRight className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
-                      </div>
-                      <p className='mt-3 font-mono text-[11px] text-muted-foreground'>
-                        {relativeTime(chat.updated_at)}
+              <div className='divide-y rounded-lg border bg-card'>
+                {statCards.map((item) => (
+                  <div
+                    key={item.title}
+                    className='flex items-center justify-between gap-4 px-4 py-3'
+                  >
+                    <div>
+                      <p className='text-sm font-medium'>{item.title}</p>
+                      <p className='text-xs text-muted-foreground'>
+                        {item.note}
                       </p>
-                    </Link>
-                  ))
-                )}
+                    </div>
+                    <code className='font-mono text-sm tabular-nums'>
+                      {item.value}
+                    </code>
+                  </div>
+                ))}
               </div>
             </section>
 
             <section>
               <SectionHeading
                 title='Memory status'
-                detail='Bounded MemoryGate summary; no raw evidence on Home'
+                detail='Bounded MemoryGate summary'
               />
               <MemoryStatusCard item={memoryStatus} />
             </section>
 
             <section>
               <SectionHeading
-                title='Gate health'
-                detail='Source status, not credentials'
+                title='Source status'
+                detail='Metadata availability, never credentials'
               />
-              <div className='space-y-2 rounded-xl bg-card p-4'>
+              <div className='divide-y rounded-lg border bg-card'>
                 {Object.entries(sourceStatus).length === 0 ? (
-                  <p className='text-xs text-muted-foreground'>
-                    unknown · Home has not loaded source status.
-                  </p>
+                  <StateCard
+                    icon={Database}
+                    text='unknown · Home has not loaded source status.'
+                  />
                 ) : (
                   Object.entries(sourceStatus).map(([name, state]) => (
                     <div
                       key={name}
-                      className='flex items-center justify-between gap-3 border-b pb-2 last:border-0 last:pb-0'
+                      className='flex items-center justify-between gap-3 px-4 py-3'
                     >
-                      <span className='text-xs text-muted-foreground'>
+                      <span className='min-w-0 truncate text-xs text-muted-foreground'>
                         {name}
                       </span>
                       <Badge
@@ -426,23 +385,20 @@ export function CommandPage() {
             </section>
 
             <section>
-              <SectionHeading title='Quiet signals' detail='Not urgent' />
-              <div className='space-y-2'>
+              <SectionHeading title='Signals' detail='Reported anomalies' />
+              <div className='divide-y rounded-lg border bg-card'>
                 {anomalies.length === 0 ? (
                   <StateCard
                     icon={CircleAlert}
-                    text='empty · no quiet signals reported.'
+                    text='empty · no signals reported.'
                   />
                 ) : (
-                  anomalies.slice(0, 3).map((item) => (
-                    <div
-                      key={item.label}
-                      className='flex items-start gap-3 rounded-xl bg-card p-4'
-                    >
+                  anomalies.slice(0, 4).map((item) => (
+                    <div key={item.label} className='flex gap-3 px-4 py-3'>
                       <CircleAlert className='mt-0.5 size-4 shrink-0 text-muted-foreground' />
                       <div className='min-w-0'>
                         <p className='text-sm font-medium'>{item.label}</p>
-                        <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                        <p className='mt-0.5 text-xs leading-5 text-muted-foreground'>
                           {item.detail}
                         </p>
                       </div>
@@ -451,50 +407,49 @@ export function CommandPage() {
                 )}
               </div>
             </section>
-          </div>
-        </section>
+          </aside>
+        </div>
       </Main>
     </>
   )
 }
 
+function SummaryValue({
+  label,
+  value,
+  detail,
+}: {
+  label: string
+  value: string
+  detail: string
+}) {
+  return (
+    <div className='border-b px-4 py-3 last:border-b-0 sm:border-b-0'>
+      <dt className='text-xs text-muted-foreground'>{label}</dt>
+      <dd className='mt-1 flex items-baseline justify-between gap-3'>
+        <span className='font-mono text-lg font-medium tabular-nums'>
+          {value}
+        </span>
+        <span className='truncate text-[11px] text-muted-foreground'>
+          {detail}
+        </span>
+      </dd>
+    </div>
+  )
+}
+
 function SoftNumber({ value, label }: { value: number; label: string }) {
   return (
-    <div className='rounded-xl bg-muted/35 px-3 py-4'>
+    <div className='rounded-md bg-surface-2 px-3 py-3'>
       <p className='font-mono text-2xl font-semibold'>{value}</p>
       <p className='mt-1 text-[11px] text-muted-foreground'>{label}</p>
     </div>
   )
 }
 
-function StatCard({
-  title,
-  value,
-  note,
-  icon: Icon,
-}: Omit<CommandStatCard, 'title'> & {
-  title: string
-  icon: LucideIcon
-}) {
-  return (
-    <Card>
-      <CardContent className='p-5'>
-        <div className='flex items-center justify-between gap-3'>
-          <p className='text-sm font-medium'>{title}</p>
-          <Icon className='size-4 text-muted-foreground' />
-        </div>
-        <div className='mt-3 font-mono text-2xl font-semibold tracking-tight'>
-          {value}
-        </div>
-        <p className='text-xs text-muted-foreground'>{note}</p>
-      </CardContent>
-    </Card>
-  )
-}
-
 function SectionHeading({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className='mb-3 flex items-end justify-between gap-4 border-b pb-3'>
+    <div className='mb-3 flex items-end justify-between gap-4'>
       <div>
         <h2 className='text-sm font-medium'>{title}</h2>
         <p className='text-xs text-muted-foreground'>{detail}</p>
@@ -505,7 +460,7 @@ function SectionHeading({ title, detail }: { title: string; detail: string }) {
 
 function StateCard({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
   return (
-    <div className='flex items-start gap-3 rounded-xl bg-card p-4 text-xs leading-5 text-muted-foreground'>
+    <div className='flex items-start gap-3 px-4 py-4 text-xs leading-5 text-muted-foreground'>
       <Icon className='mt-0.5 size-4 shrink-0' />
       <span>{text || 'unknown · source has not reported data.'}</span>
     </div>
@@ -514,7 +469,7 @@ function StateCard({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
 
 function AttentionCard({ item }: { item: Approval & { source_id?: string } }) {
   return (
-    <div className='rounded-xl bg-card p-4'>
+    <div className='px-4 py-3'>
       <div className='mb-3 flex items-center justify-between gap-3'>
         <Badge variant={item.severity === 'high' ? 'destructive' : 'secondary'}>
           {item.source}
@@ -545,7 +500,7 @@ function SuggestionCard({ item }: { item: Suggestion }) {
       ? `${item.confidence}%`
       : (item.confidence ?? 'unknown')
   return (
-    <div className='rounded-xl bg-card p-4'>
+    <div className='px-4 py-3'>
       <div className='mb-3 flex items-center gap-2 text-muted-foreground'>
         <Sparkles className='size-4' />
         <span className='font-mono text-[11px]'>{confidence} confidence</span>
@@ -564,7 +519,7 @@ function PinnedAppCard({ item }: { item: PinnedApp }) {
       href={item.url}
       target='_blank'
       rel='noreferrer'
-      className='block rounded-xl bg-card p-4 transition-colors hover:bg-muted/55'
+      className='group block px-4 py-3 transition-colors hover:bg-accent/60'
     >
       <div className='flex items-start justify-between gap-3'>
         <div className='min-w-0'>
@@ -584,7 +539,7 @@ function PinnedAppCard({ item }: { item: PinnedApp }) {
 
 function JobCard({ item }: { item: Job }) {
   return (
-    <div className='rounded-xl bg-card p-4'>
+    <div className='px-4 py-3'>
       <div className='mb-3 flex items-center justify-between gap-3'>
         <Badge
           variant={item.last_status === 'failed' ? 'destructive' : 'outline'}
@@ -617,7 +572,7 @@ function MemoryStatusCard({ item }: { item?: MemoryStatus }) {
     )
   }
   return (
-    <div className='rounded-xl bg-card p-4'>
+    <div className='px-4 py-3'>
       <div className='mb-3 flex items-center justify-between gap-3'>
         <Badge variant={item.status === 'live' ? 'secondary' : 'outline'}>
           {item.status}

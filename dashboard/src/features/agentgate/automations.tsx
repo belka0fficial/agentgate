@@ -143,133 +143,261 @@ export function JobsPage() {
               Brain jobs degraded: {brainError}
             </div>
           ) : null}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Job</TableHead>
-                <TableHead>Kind</TableHead>
-                <TableHead>Last run</TableHead>
-                <TableHead>Schedule</TableHead>
-                <TableHead>Next</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.length === 0 ? (
+          <div className='hidden md:block'>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className='py-8 text-sm text-muted-foreground'
-                  >
-                    {query.isLoading
-                      ? 'Loading jobs…'
-                      : 'No runtime jobs reported.'}
-                  </TableCell>
+                  <TableHead>Job</TableHead>
+                  <TableHead>Kind</TableHead>
+                  <TableHead>Last run</TableHead>
+                  <TableHead>Schedule</TableHead>
+                  <TableHead>Next</TableHead>
+                  <TableHead />
                 </TableRow>
-              ) : (
-                jobs.map((item) => {
-                  const paused =
-                    Boolean(item.paused) || item.status === 'paused'
-                  const actionsEnabled = jobActionsEnabled(item)
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <p className='font-medium'>{item.name}</p>
-                        <p className='text-xs text-muted-foreground'>
-                          {item.owner === 'system'
-                            ? 'Built-in system job; locked metadata only.'
-                            : 'Runtime job metadata only; prompts stay server-side.'}
-                        </p>
-                        {item.source_ref ? (
-                          <p className='mt-1 text-xs break-all text-muted-foreground'>
-                            Source: {item.source_ref}
+              </TableHeader>
+              <TableBody>
+                {jobs.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className='py-8 text-sm text-muted-foreground'
+                    >
+                      {query.isLoading
+                        ? 'Loading jobs…'
+                        : 'No runtime jobs reported.'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  jobs.map((item) => {
+                    const paused =
+                      Boolean(item.paused) || item.status === 'paused'
+                    const actionsEnabled = jobActionsEnabled(item)
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <p className='font-medium'>{item.name}</p>
+                          <p className='text-xs text-muted-foreground'>
+                            {item.owner === 'system'
+                              ? 'Built-in system job; locked metadata only.'
+                              : 'Runtime job metadata only; prompts stay server-side.'}
                           </p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant='outline'>{item.kind ?? 'cron'}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className='flex items-center gap-2'>
-                          <Badge
-                            variant={
-                              item.last_status === 'failed'
-                                ? 'destructive'
-                                : item.last_status === 'success'
-                                  ? 'secondary'
-                                  : 'outline'
-                            }
-                          >
-                            {item.last_status ?? item.status ?? 'unknown'}
-                          </Badge>
-                          <code className='font-mono text-xs text-muted-foreground'>
-                            {item.last_run ?? '—'}
+                          {item.source_ref ? (
+                            <p className='mt-1 text-xs break-all text-muted-foreground'>
+                              Source: {item.source_ref}
+                            </p>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant='outline'>{item.kind ?? 'cron'}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className='flex items-center gap-2'>
+                            <Badge
+                              variant={
+                                item.last_status === 'failed'
+                                  ? 'destructive'
+                                  : item.last_status === 'success'
+                                    ? 'secondary'
+                                    : 'outline'
+                              }
+                            >
+                              {item.last_status ?? item.status ?? 'unknown'}
+                            </Badge>
+                            <code className='font-mono text-xs text-muted-foreground'>
+                              {item.last_run ?? '—'}
+                            </code>
+                          </div>
+                          <p className='mt-1 text-xs text-muted-foreground'>
+                            {item.output?.raw_withheld === true
+                              ? `Output ${item.output.status ?? 'withheld'}.`
+                              : 'Output withheld from overview.'}{' '}
+                            {safeJobHistoryLabel(item)}.
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <code className='font-mono text-xs'>
+                            {item.schedule ?? '—'}
                           </code>
+                        </TableCell>
+                        <TableCell>
+                          <code className='font-mono text-xs'>
+                            {item.next_run ?? item.next ?? '—'}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          {canRenderJobControls(item) ? (
+                            <div className='flex justify-end gap-2'>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                disabled={action.isPending || !actionsEnabled}
+                                onClick={() =>
+                                  action.mutate({
+                                    jobId: item.id,
+                                    actionName: paused ? 'resume' : 'pause',
+                                  })
+                                }
+                              >
+                                {paused ? <Play /> : <Pause />}
+                                {paused ? 'Resume' : 'Pause'}
+                              </Button>
+                              <Button
+                                size='sm'
+                                variant='secondary'
+                                disabled={action.isPending || !actionsEnabled}
+                                onClick={() =>
+                                  action.mutate({
+                                    jobId: item.id,
+                                    actionName: 'run',
+                                  })
+                                }
+                              >
+                                <Play />
+                                Run now
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className='flex justify-end'>
+                              <Badge variant='outline'>
+                                <Lock />
+                                System locked
+                              </Badge>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div
+            data-mobile-records
+            className='divide-y overflow-hidden rounded-lg border bg-card md:hidden'
+          >
+            {jobs.length === 0 ? (
+              <div className='px-4 py-8 text-sm text-muted-foreground'>
+                {query.isLoading
+                  ? 'Loading jobs…'
+                  : 'No runtime jobs reported.'}
+              </div>
+            ) : (
+              jobs.map((item) => {
+                const paused = Boolean(item.paused) || item.status === 'paused'
+                const actionsEnabled = jobActionsEnabled(item)
+                return (
+                  <article key={item.id} className='px-4 py-4'>
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='min-w-0'>
+                        <h3 className='text-sm font-medium'>{item.name}</h3>
+                        <p className='mt-0.5 text-xs text-muted-foreground'>
+                          {item.owner === 'system'
+                            ? 'Built-in system job'
+                            : 'Runtime job'}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          item.last_status === 'failed'
+                            ? 'destructive'
+                            : item.last_status === 'success'
+                              ? 'secondary'
+                              : 'outline'
+                        }
+                      >
+                        {item.last_status ?? item.status ?? 'unknown'}
+                      </Badge>
+                    </div>
+                    <dl className='mt-3 grid grid-cols-2 gap-2 text-xs'>
+                      <div>
+                        <dt className='text-muted-foreground'>Kind</dt>
+                        <dd className='mt-0.5'>{item.kind ?? 'cron'}</dd>
+                      </div>
+                      <div>
+                        <dt className='text-muted-foreground'>Last run</dt>
+                        <dd className='mt-0.5 font-mono'>
+                          {item.last_run ?? '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className='text-muted-foreground'>Schedule</dt>
+                        <dd className='mt-0.5 font-mono'>
+                          {item.schedule ?? '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className='text-muted-foreground'>Next run</dt>
+                        <dd className='mt-0.5 font-mono'>
+                          {item.next_run ?? item.next ?? '—'}
+                        </dd>
+                      </div>
+                      {item.source_ref ? (
+                        <div className='col-span-2'>
+                          <dt className='text-muted-foreground'>
+                            Source reference
+                          </dt>
+                          <dd className='mt-0.5 break-all'>
+                            {item.source_ref}
+                          </dd>
                         </div>
-                        <p className='mt-1 text-xs text-muted-foreground'>
+                      ) : null}
+                      <div className='col-span-2'>
+                        <dt className='text-muted-foreground'>
+                          Output and history
+                        </dt>
+                        <dd className='mt-0.5 leading-5'>
                           {item.output?.raw_withheld === true
                             ? `Output ${item.output.status ?? 'withheld'}.`
                             : 'Output withheld from overview.'}{' '}
                           {safeJobHistoryLabel(item)}.
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <code className='font-mono text-xs'>
-                          {item.schedule ?? '—'}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <code className='font-mono text-xs'>
-                          {item.next_run ?? item.next ?? '—'}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        {canRenderJobControls(item) ? (
-                          <div className='flex justify-end gap-2'>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              disabled={action.isPending || !actionsEnabled}
-                              onClick={() =>
-                                action.mutate({
-                                  jobId: item.id,
-                                  actionName: paused ? 'resume' : 'pause',
-                                })
-                              }
-                            >
-                              {paused ? <Play /> : <Pause />}
-                              {paused ? 'Resume' : 'Pause'}
-                            </Button>
-                            <Button
-                              size='sm'
-                              variant='secondary'
-                              disabled={action.isPending || !actionsEnabled}
-                              onClick={() =>
-                                action.mutate({
-                                  jobId: item.id,
-                                  actionName: 'run',
-                                })
-                              }
-                            >
-                              <Play />
-                              Run now
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className='flex justify-end'>
-                            <Badge variant='outline'>
-                              <Lock />
-                              System locked
-                            </Badge>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className='mt-4 flex flex-wrap justify-end gap-2'>
+                      {canRenderJobControls(item) ? (
+                        <>
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={action.isPending || !actionsEnabled}
+                            onClick={() =>
+                              action.mutate({
+                                jobId: item.id,
+                                actionName: paused ? 'resume' : 'pause',
+                              })
+                            }
+                          >
+                            {paused ? <Play /> : <Pause />}
+                            {paused ? 'Resume' : 'Pause'}
+                          </Button>
+                          <Button
+                            size='sm'
+                            variant='secondary'
+                            disabled={action.isPending || !actionsEnabled}
+                            onClick={() =>
+                              action.mutate({
+                                jobId: item.id,
+                                actionName: 'run',
+                              })
+                            }
+                          >
+                            <Play />
+                            Run now
+                          </Button>
+                        </>
+                      ) : (
+                        <Badge variant='outline'>
+                          <Lock />
+                          System locked
+                        </Badge>
+                      )}
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </div>
         </section>
 
         <section className='mt-6'>

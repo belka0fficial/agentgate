@@ -31,11 +31,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { getAgentGate, postAgentGate } from '@/features/agentgate/api'
+import { AgentGateHeader } from '@/features/agentgate/page-header'
 import {
   type AppsResponse,
   appActionEnabled,
@@ -143,31 +141,28 @@ export function Apps() {
 
   return (
     <>
-      <Header>
-        <Search className='me-auto' />
-        <ProfileDropdown />
-      </Header>
-
-      <Main fixed fluid className='px-4 sm:px-6'>
-        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-          <div>
-            <h1 className='text-2xl font-bold tracking-tight'>
-              Apps / Projects
-            </h1>
-            <p className='text-sm text-muted-foreground'>
-              Source-bound local app registry metadata. Host paths, commands,
-              environment, provider URLs, logs, secrets, and unrestricted tool
-              arguments stay server-side. Creation and deployment remain
-              ToolGate approval-gated.
-            </p>
-          </div>
+      <AgentGateHeader
+        title='Apps'
+        eyebrow='Projects'
+        actions={
           <Badge variant={badgeVariant(query.data?.source_status?.status)}>
             {query.data?.source_status?.status ??
               (query.isLoading ? 'loading' : 'unknown')}
-            {' · '}
-            {query.data?.source_status?.source ?? 'agentgate-local-registry'}
+            <span className='hidden sm:inline'>
+              {' · '}
+              {query.data?.source_status?.source ?? 'agentgate-local-registry'}
+            </span>
           </Badge>
-        </div>
+        }
+      />
+
+      <Main fixed fluid className='px-4 sm:px-6'>
+        <p className='max-w-4xl text-sm leading-6 text-muted-foreground'>
+          Source-bound local app registry metadata. Host paths, commands,
+          environment, provider URLs, logs, secrets, and unrestricted tool
+          arguments stay server-side. Creation and deployment remain ToolGate
+          approval-gated.
+        </p>
 
         <div className='my-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex flex-col gap-3 sm:flex-row'>
@@ -228,130 +223,214 @@ export function Apps() {
 
         <div className='grid gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_22rem]'>
           <section className='overflow-hidden rounded-lg border'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>App / project</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Lifecycle</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredApps.length === 0 ? (
+            <div className='hidden md:block'>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className='py-10 text-sm text-muted-foreground'
-                    >
-                      {query.isLoading
-                        ? 'Loading source-bound apps…'
-                        : 'No user apps reported by the local registry.'}
-                    </TableCell>
+                    <TableHead>App / project</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Lifecycle</TableHead>
+                    <TableHead />
                   </TableRow>
-                ) : (
-                  filteredApps.map((app) => {
-                    const actionsEnabled = appActionsEnabled(app)
-                    return (
-                      <TableRow key={app.id} className='align-top'>
-                        <TableCell>
-                          <button
-                            className='text-left font-medium hover:underline'
-                            onClick={() => setSelectedId(app.id)}
-                          >
-                            {app.name}
-                          </button>
-                          <p className='mt-1 text-xs text-muted-foreground'>
-                            {app.purpose ?? 'Purpose not provided'}
-                          </p>
-                          {app.pinned ? (
-                            <p className='mt-1 flex items-center gap-1 text-xs text-muted-foreground'>
-                              <Pin className='size-3' /> Pinned
+                </TableHeader>
+                <TableBody>
+                  {filteredApps.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className='py-10 text-sm text-muted-foreground'
+                      >
+                        {query.isLoading
+                          ? 'Loading source-bound apps…'
+                          : 'No user apps reported by the local registry.'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredApps.map((app) => {
+                      const actionsEnabled = appActionsEnabled(app)
+                      return (
+                        <TableRow key={app.id} className='align-top'>
+                          <TableCell>
+                            <button
+                              className='text-left font-medium hover:underline'
+                              onClick={() => setSelectedId(app.id)}
+                            >
+                              {app.name}
+                            </button>
+                            <p className='mt-1 text-xs text-muted-foreground'>
+                              {app.purpose ?? 'Purpose not provided'}
                             </p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
+                            {app.pinned ? (
+                              <p className='mt-1 flex items-center gap-1 text-xs text-muted-foreground'>
+                                <Pin className='size-3' /> Pinned
+                              </p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={badgeVariant(app.status)}>
+                              {app.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <p className='text-sm'>{app.source}</p>
+                            <p className='font-mono text-xs break-all text-muted-foreground'>
+                              {app.source_ref ??
+                                app.local_ref ??
+                                'opaque reference unavailable'}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={badgeVariant(lifecycleStatus(app))}>
+                              {lifecycleStatus(app)}
+                            </Badge>
+                            <p className='mt-1 text-xs text-muted-foreground'>
+                              {app.lifecycle?.reason ??
+                                'Lifecycle metadata only.'}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <div className='flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row'>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                disabled={
+                                  !appActionEnabled(app, 'start') ||
+                                  action.isPending
+                                }
+                                onClick={() =>
+                                  action.mutate({
+                                    appId: app.id,
+                                    actionName: 'start',
+                                  })
+                                }
+                              >
+                                {actionsEnabled ? <Play /> : <Lock />} Start
+                              </Button>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                disabled={
+                                  !appActionEnabled(app, 'stop') ||
+                                  action.isPending
+                                }
+                                onClick={() =>
+                                  action.mutate({
+                                    appId: app.id,
+                                    actionName: 'stop',
+                                  })
+                                }
+                              >
+                                {actionsEnabled ? <Square /> : <Lock />} Stop
+                              </Button>
+                              <Button
+                                size='sm'
+                                variant='secondary'
+                                disabled={
+                                  !appActionEnabled(app, 'restart') ||
+                                  action.isPending
+                                }
+                                onClick={() =>
+                                  action.mutate({
+                                    appId: app.id,
+                                    actionName: 'restart',
+                                  })
+                                }
+                              >
+                                {actionsEnabled ? <RefreshCw /> : <Lock />}{' '}
+                                Restart
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div data-mobile-records className='divide-y bg-card md:hidden'>
+              {filteredApps.length === 0 ? (
+                <div className='px-4 py-8 text-sm text-muted-foreground'>
+                  {query.isLoading
+                    ? 'Loading source-bound apps…'
+                    : 'No user apps reported by the local registry.'}
+                </div>
+              ) : (
+                filteredApps.map((app) => {
+                  const actionsEnabled = appActionsEnabled(app)
+                  return (
+                    <article key={app.id} className='px-4 py-4'>
+                      <button
+                        type='button'
+                        className='w-full text-left'
+                        onClick={() => setSelectedId(app.id)}
+                      >
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='min-w-0'>
+                            <h3 className='text-sm font-medium'>{app.name}</h3>
+                            <p className='mt-0.5 text-xs leading-5 text-muted-foreground'>
+                              {app.purpose ?? 'Purpose not provided'}
+                            </p>
+                          </div>
                           <Badge variant={badgeVariant(app.status)}>
                             {app.status}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <p className='text-sm'>{app.source}</p>
-                          <p className='font-mono text-xs break-all text-muted-foreground'>
-                            {app.source_ref ??
-                              app.local_ref ??
-                              'opaque reference unavailable'}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={badgeVariant(lifecycleStatus(app))}>
-                            {lifecycleStatus(app)}
-                          </Badge>
-                          <p className='mt-1 text-xs text-muted-foreground'>
-                            {app.lifecycle?.reason ??
-                              'Lifecycle metadata only.'}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <div className='flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row'>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              disabled={
-                                !appActionEnabled(app, 'start') ||
-                                action.isPending
-                              }
-                              onClick={() =>
-                                action.mutate({
-                                  appId: app.id,
-                                  actionName: 'start',
-                                })
-                              }
-                            >
-                              {actionsEnabled ? <Play /> : <Lock />} Start
-                            </Button>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              disabled={
-                                !appActionEnabled(app, 'stop') ||
-                                action.isPending
-                              }
-                              onClick={() =>
-                                action.mutate({
-                                  appId: app.id,
-                                  actionName: 'stop',
-                                })
-                              }
-                            >
-                              {actionsEnabled ? <Square /> : <Lock />} Stop
-                            </Button>
-                            <Button
-                              size='sm'
-                              variant='secondary'
-                              disabled={
-                                !appActionEnabled(app, 'restart') ||
-                                action.isPending
-                              }
-                              onClick={() =>
-                                action.mutate({
-                                  appId: app.id,
-                                  actionName: 'restart',
-                                })
-                              }
-                            >
-                              {actionsEnabled ? <RefreshCw /> : <Lock />}{' '}
-                              Restart
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
+                        </div>
+                        <p className='mt-2 font-mono text-[11px] break-all text-muted-foreground'>
+                          {app.source} · {lifecycleStatus(app)}
+                        </p>
+                      </button>
+                      <div className='mt-4 grid grid-cols-3 gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={
+                            !appActionEnabled(app, 'start') || action.isPending
+                          }
+                          onClick={() =>
+                            action.mutate({
+                              appId: app.id,
+                              actionName: 'start',
+                            })
+                          }
+                        >
+                          {actionsEnabled ? <Play /> : <Lock />} Start
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={
+                            !appActionEnabled(app, 'stop') || action.isPending
+                          }
+                          onClick={() =>
+                            action.mutate({ appId: app.id, actionName: 'stop' })
+                          }
+                        >
+                          {actionsEnabled ? <Square /> : <Lock />} Stop
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='secondary'
+                          disabled={
+                            !appActionEnabled(app, 'restart') ||
+                            action.isPending
+                          }
+                          onClick={() =>
+                            action.mutate({
+                              appId: app.id,
+                              actionName: 'restart',
+                            })
+                          }
+                        >
+                          {actionsEnabled ? <RefreshCw /> : <Lock />} Restart
+                        </Button>
+                      </div>
+                    </article>
+                  )
+                })
+              )}
+            </div>
           </section>
 
           <aside className='rounded-lg border p-4'>

@@ -50,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -255,8 +256,12 @@ export function ChatDetailPage({ chatId }: { chatId: string }) {
         <div className='grid h-full min-h-0 w-full min-w-0 overflow-hidden'>
           <div className='flex min-h-0 min-w-0 flex-col overflow-hidden'>
             <div className='mx-auto w-full max-w-[1200px] shrink-0 px-4 pt-6 pb-4 sm:px-6'>
-              <div className='flex min-w-0 items-start justify-between gap-4'>
-                <div className='min-w-0'>
+              <div className='flex min-w-0 items-start justify-between gap-3'>
+                <SidebarTrigger
+                  aria-label='Open navigation'
+                  className='mt-0.5 size-9 shrink-0 md:hidden'
+                />
+                <div className='min-w-0 flex-1'>
                   <h1 className='truncate text-2xl font-bold tracking-tight'>
                     {sessionDetail.data?.session?.title ??
                       'AgentGate conversation'}
@@ -642,19 +647,22 @@ function InlineRunNotice({
 
 function EmptySession({ onPrompt }: { onPrompt: (prompt: string) => void }) {
   const prompts = [
-    'Review the 4 pending approvals',
-    'Explain the stale backup anomaly',
-    'Summarize recent release memories',
-    'Draft a safe automation plan',
+    'Explain the current approval workflow',
+    'Show me how to inspect system status',
+    'Summarize what MemoryGate can expose',
+    'Help me plan a safe automation',
   ]
 
   return (
     <div className='flex min-h-[420px] flex-col items-center justify-center text-center'>
-      <h2 className='text-xl font-semibold'>What should Hermes inspect?</h2>
-      <p className='mt-2 max-w-md text-sm text-muted-foreground'>
-        Start from live context: approvals, anomalies, memories, and automation
-        state.
+      <h2 className='text-xl font-semibold tracking-[-0.02em]'>
+        Start a conversation
+      </h2>
+      <p className='mt-2 max-w-md text-sm leading-6 text-muted-foreground'>
+        Choose an example or write your own. AgentGate only uses context exposed
+        by source-bound services.
       </p>
+      <p className='mt-5 text-xs text-muted-foreground'>Example prompts</p>
       <div className='mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2'>
         {prompts.map((prompt) => (
           <Button

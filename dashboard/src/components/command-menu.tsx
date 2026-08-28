@@ -121,33 +121,33 @@ export function CommandMenu() {
         if (!next) setQuery('')
       }}
       showCloseButton={false}
-      className='top-20 w-[min(86vw,1150px)] max-w-none translate-y-0 overflow-hidden rounded-xl border border-border/70 bg-popover/95 p-0 shadow-2xl ring-1 ring-white/5 sm:max-w-none'
+      className='top-20 w-[min(92vw,720px)] max-w-none translate-y-0 overflow-hidden rounded-lg border bg-popover p-0 shadow-xl sm:max-w-none'
     >
       <CommandInput
         value={query}
         onValueChange={setQuery}
         placeholder='Search commands, sessions, memories, personas...'
-        wrapperClassName='m-3 h-11 rounded-full border-0 bg-muted/70 px-4'
-        className='h-11'
+        wrapperClassName='m-2 h-10 rounded-md border bg-surface-2 px-3'
+        className='h-10'
       />
-      <CommandList className='max-h-[560px] px-2 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <CommandList className='max-h-[min(520px,70dvh)] border-t px-1 py-2'>
         <CommandEmpty>No results found.</CommandEmpty>
 
         {show('>') ? (
           <CommandGroup heading='Actions'>
             <PaletteItem
               icon={<MessageSquarePlus />}
-              value='> new chat start conversation'
-              title='New chat'
-              detail='Start a fresh session'
+              value='> open chats sessions conversation'
+              title='Open chats'
+              detail='Browse sessions or start from the Chats screen'
               shortcut='>'
               onSelect={() => runCommand(() => navigate({ to: '/chats' }))}
             />
             <PaletteItem
               icon={<Plus />}
-              value='> new automation schedule'
-              title='New automation'
-              detail='Create a scheduled job draft'
+              value='> open automations schedules'
+              title='Open automations'
+              detail='Review source-bound schedules and automations'
               shortcut='>'
               onSelect={() =>
                 runCommand(() => navigate({ to: '/automations' }))
@@ -155,17 +155,17 @@ export function CommandMenu() {
             />
             <PaletteItem
               icon={<Bot />}
-              value='> new persona character studio'
-              title='New persona'
-              detail='Open the persona roster'
+              value='> open agent studio persona character'
+              title='Open Agent Studio'
+              detail='Configure the main companion or inspect optional metadata'
               shortcut='>'
               onSelect={() => runCommand(() => navigate({ to: '/character' }))}
             />
             <PaletteItem
               icon={<Play />}
-              value='> run audit system approvals memory'
-              title='Run audit'
-              detail='Open System for the current health/audit view'
+              value='> open system status runtime'
+              title='Open system status'
+              detail='Inspect the latest source-bound runtime data'
               shortcut='>'
               onSelect={() => runCommand(() => navigate({ to: '/system' }))}
             />

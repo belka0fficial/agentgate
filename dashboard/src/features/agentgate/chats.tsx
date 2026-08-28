@@ -188,53 +188,98 @@ export function ChatsPage() {
               No Pi sessions yet. Start a new chat to create one.
             </div>
           ) : !needsOwnerLogin ? (
-            <Table className='min-w-[900px]'>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Session</TableHead>
-                  <TableHead>Last message</TableHead>
-                  <TableHead>Run context</TableHead>
-                  <TableHead>Turns</TableHead>
-                  <TableHead>Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    className='cursor-pointer hover:bg-muted/45'
-                  >
-                    <TableCell className='p-0' colSpan={5}>
-                      <Link
-                        to='/chats/$id'
-                        params={{ id: row.id }}
-                        className='grid min-w-0 grid-cols-[minmax(180px,1.2fr)_minmax(240px,2fr)_minmax(160px,1fr)_100px_120px] items-center gap-4 px-2 py-4 text-sm'
-                        aria-label={`Open ${row.title}`}
+            <>
+              <div className='hidden md:block'>
+                <Table className='min-w-[900px]'>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Session</TableHead>
+                      <TableHead>Last message</TableHead>
+                      <TableHead>Run context</TableHead>
+                      <TableHead>Turns</TableHead>
+                      <TableHead>Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        className='cursor-pointer hover:bg-muted/45'
                       >
-                        <span className='min-w-0 font-medium'>{row.title}</span>
-                        <span className='min-w-0 truncate text-muted-foreground'>
-                          {row.preview}
-                        </span>
-                        <span className='flex min-w-0 flex-wrap gap-1'>
-                          <Badge variant='outline'>
-                            {row.model ?? 'provider pending'}
-                          </Badge>
-                          <Badge variant='secondary'>
-                            {sessionContextLabel(row.mode)}
-                          </Badge>
-                        </span>
-                        <code className='font-mono text-xs'>
-                          {row.message_count ?? '—'}
-                        </code>
-                        <code className='font-mono text-xs text-muted-foreground'>
-                          {relativeTime(row.updated_at)}
-                        </code>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
+                        <TableCell className='p-0' colSpan={5}>
+                          <Link
+                            to='/chats/$id'
+                            params={{ id: row.id }}
+                            className='grid min-w-0 grid-cols-[minmax(180px,1.2fr)_minmax(240px,2fr)_minmax(160px,1fr)_100px_120px] items-center gap-4 px-2 py-4 text-sm'
+                            aria-label={`Open ${row.title}`}
+                          >
+                            <span className='min-w-0 font-medium'>
+                              {row.title}
+                            </span>
+                            <span className='min-w-0 truncate text-muted-foreground'>
+                              {row.preview}
+                            </span>
+                            <span className='flex min-w-0 flex-wrap gap-1'>
+                              <Badge variant='outline'>
+                                {row.model ?? 'provider pending'}
+                              </Badge>
+                              <Badge variant='secondary'>
+                                {sessionContextLabel(row.mode)}
+                              </Badge>
+                            </span>
+                            <code className='font-mono text-xs'>
+                              {row.message_count ?? '—'}
+                            </code>
+                            <code className='font-mono text-xs text-muted-foreground'>
+                              {relativeTime(row.updated_at)}
+                            </code>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div
+                data-mobile-records
+                className='divide-y overflow-hidden rounded-lg border bg-card md:hidden'
+              >
+                {rows.map((row) => (
+                  <Link
+                    key={row.id}
+                    to='/chats/$id'
+                    params={{ id: row.id }}
+                    className='block min-h-11 px-4 py-3 transition-colors hover:bg-accent/60'
+                    aria-label={`Open ${row.title}`}
+                  >
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='min-w-0 flex-1'>
+                        <p className='truncate text-sm font-medium'>
+                          {row.title}
+                        </p>
+                        <p className='mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground'>
+                          {row.preview || 'No preview reported'}
+                        </p>
+                      </div>
+                      <code className='shrink-0 font-mono text-[11px] text-muted-foreground'>
+                        {relativeTime(row.updated_at)}
+                      </code>
+                    </div>
+                    <div className='mt-2 flex flex-wrap items-center gap-1.5'>
+                      <Badge variant='outline'>
+                        {row.model ?? 'provider pending'}
+                      </Badge>
+                      <Badge variant='secondary'>
+                        {sessionContextLabel(row.mode)}
+                      </Badge>
+                      <span className='ml-auto text-[11px] text-muted-foreground'>
+                        {row.message_count ?? '—'} turns
+                      </span>
+                    </div>
+                  </Link>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           ) : null}
         </section>
       </Main>

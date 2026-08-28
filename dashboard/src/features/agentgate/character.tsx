@@ -314,7 +314,7 @@ export function CharacterListPage() {
             </div>
           </section>
 
-          <div className='flex flex-wrap items-center gap-3 border-t pt-6'>
+          <div className='sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-background/95 px-4 py-3 supports-[backdrop-filter]:backdrop-blur-sm sm:mx-0 sm:px-0'>
             <Button
               type='submit'
               disabled={save.isPending || !form.name.trim()}

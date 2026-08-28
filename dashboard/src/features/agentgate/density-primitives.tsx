@@ -65,7 +65,7 @@ export function RunDots({ history }: { history: string }) {
           className={cn(
             'size-1.5 rounded-full',
             result === 's'
-              ? 'bg-emerald-500'
+              ? 'bg-success'
               : result === 'f'
                 ? 'bg-destructive'
                 : 'bg-muted'

@@ -89,42 +89,105 @@ export function ApprovalsPage() {
               filter.
             </p>
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Action</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Binding</TableHead>
-                <TableHead>Risk / expiry</TableHead>
-                <TableHead className='text-right'>Decision</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className='whitespace-normal'>
-                    <p className='font-medium'>{item.title}</p>
-                    <p className='mt-1 text-xs text-muted-foreground'>
-                      {item.details}
-                    </p>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        item.severity === 'high' ? 'destructive' : 'secondary'
-                      }
-                    >
-                      {item.source}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className='whitespace-normal'>
-                    <code className='font-mono text-xs text-muted-foreground'>
-                      {item.binding.type}
-                      <br />
-                      {item.binding.digest}
-                    </code>
-                  </TableCell>
-                  <TableCell className='text-xs text-muted-foreground'>
+          <div className='hidden md:block'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Binding</TableHead>
+                  <TableHead>Risk / expiry</TableHead>
+                  <TableHead className='text-right'>Decision</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className='whitespace-normal'>
+                      <p className='font-medium'>{item.title}</p>
+                      <p className='mt-1 text-xs text-muted-foreground'>
+                        {item.details}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          item.severity === 'high' ? 'destructive' : 'secondary'
+                        }
+                      >
+                        {item.source}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className='whitespace-normal'>
+                      <code className='font-mono text-xs text-muted-foreground'>
+                        {item.binding.type}
+                        <br />
+                        {item.binding.digest}
+                      </code>
+                    </TableCell>
+                    <TableCell className='text-xs text-muted-foreground'>
+                      <Badge
+                        variant={
+                          item.severity === 'high' ? 'destructive' : 'secondary'
+                        }
+                      >
+                        {item.severity}
+                      </Badge>
+                      <div className='mt-1'>
+                        Expires {relativeTime(item.expires_at)}
+                      </div>
+                      <div className='mt-1'>
+                        Payload withheld:{' '}
+                        {item.action_payload_withheld ? 'yes' : 'unknown'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className='flex justify-end gap-2'>
+                        <Button
+                          size='sm'
+                          variant='secondary'
+                          disabled={
+                            decidingId === `${item.source}:${item.source_id}`
+                          }
+                          onClick={() => void decideApproval(item, 'approved')}
+                        >
+                          <Check />
+                          Approve
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          className='border-destructive text-destructive hover:bg-destructive hover:text-white'
+                          disabled={
+                            decidingId === `${item.source}:${item.source_id}`
+                          }
+                          onClick={() => void decideApproval(item, 'rejected')}
+                        >
+                          <X />
+                          Reject
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div
+            data-mobile-records
+            className='divide-y overflow-hidden rounded-lg border bg-card md:hidden'
+          >
+            {rows.map((item) => {
+              const busy = decidingId === `${item.source}:${item.source_id}`
+              return (
+                <article key={item.id} className='px-4 py-4'>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <h3 className='text-sm font-medium'>{item.title}</h3>
+                      <p className='mt-1 text-xs leading-5 text-muted-foreground'>
+                        {item.details}
+                      </p>
+                    </div>
                     <Badge
                       variant={
                         item.severity === 'high' ? 'destructive' : 'secondary'
@@ -132,45 +195,58 @@ export function ApprovalsPage() {
                     >
                       {item.severity}
                     </Badge>
-                    <div className='mt-1'>
-                      Expires {relativeTime(item.expires_at)}
+                  </div>
+                  <dl className='mt-3 grid grid-cols-2 gap-2 text-xs'>
+                    <div>
+                      <dt className='text-muted-foreground'>Source</dt>
+                      <dd className='mt-0.5'>{item.source}</dd>
                     </div>
-                    <div className='mt-1'>
-                      Payload withheld:{' '}
-                      {item.action_payload_withheld ? 'yes' : 'unknown'}
+                    <div>
+                      <dt className='text-muted-foreground'>Expires</dt>
+                      <dd className='mt-0.5'>
+                        {relativeTime(item.expires_at)}
+                      </dd>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className='flex justify-end gap-2'>
-                      <Button
-                        size='sm'
-                        variant='secondary'
-                        disabled={
-                          decidingId === `${item.source}:${item.source_id}`
-                        }
-                        onClick={() => void decideApproval(item, 'approved')}
-                      >
-                        <Check />
-                        Approve
-                      </Button>
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        className='border-destructive text-destructive hover:bg-destructive hover:text-white'
-                        disabled={
-                          decidingId === `${item.source}:${item.source_id}`
-                        }
-                        onClick={() => void decideApproval(item, 'rejected')}
-                      >
-                        <X />
-                        Reject
-                      </Button>
+                    <div className='col-span-2'>
+                      <dt className='text-muted-foreground'>Binding</dt>
+                      <dd className='mt-0.5 font-mono break-all'>
+                        {item.binding.type} · {item.binding.digest}
+                      </dd>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    <div className='col-span-2'>
+                      <dt className='text-muted-foreground'>
+                        Payload withheld
+                      </dt>
+                      <dd className='mt-0.5'>
+                        {item.action_payload_withheld ? 'yes' : 'unknown'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className='mt-4 grid grid-cols-2 gap-2'>
+                    <Button
+                      size='sm'
+                      variant='secondary'
+                      disabled={busy}
+                      onClick={() => void decideApproval(item, 'approved')}
+                    >
+                      <Check />
+                      Approve
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      className='border-destructive text-destructive hover:bg-destructive hover:text-white'
+                      disabled={busy}
+                      onClick={() => void decideApproval(item, 'rejected')}
+                    >
+                      <X />
+                      Reject
+                    </Button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
         </section>
         {decisionError ? (
           <div className='mt-4 rounded-lg border border-destructive/40 p-3 text-sm text-destructive'>

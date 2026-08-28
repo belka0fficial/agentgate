@@ -22,6 +22,7 @@ import {
 import { getAgentGate } from '@/features/agentgate/api'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
+import { deriveShellStatus } from './shell-status'
 
 type SystemInfo = {
   vitals?: {
@@ -46,7 +47,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
-      <SidebarHeader className='h-24 flex-none justify-center overflow-hidden border-b px-3 py-3 group-data-[collapsible=icon]:h-20 group-data-[collapsible=icon]:px-2'>
+      <SidebarHeader className='h-20 flex-none justify-center overflow-hidden border-b px-3 py-2 group-data-[collapsible=icon]:h-16 group-data-[collapsible=icon]:px-2'>
         <AgentStatusBlock />
       </SidebarHeader>
       <SidebarContent>
@@ -70,25 +71,43 @@ export function AppSidebar() {
 }
 
 function AgentStatusBlock() {
+  const system = useQuery({
+    queryKey: ['agentgate', 'system'],
+    queryFn: () => getAgentGate<SystemInfo>('/api/system'),
+  })
+  const status = deriveShellStatus({
+    isPending: system.isPending,
+    isError: system.isError,
+    hasData: Boolean(system.data),
+  })
+  const toneClass = {
+    available: 'bg-success',
+    pending: 'bg-warning',
+    unavailable: 'bg-destructive',
+    unknown: 'bg-muted-foreground/50',
+  }[status.tone]
+
   return (
-    <div className='grid min-w-0 justify-items-start gap-3 group-data-[collapsible=icon]:justify-items-center'>
-      <div className='flex min-w-0 items-center gap-3 group-data-[collapsible=icon]:justify-center'>
+    <div className='grid min-w-0 justify-items-start gap-1.5 group-data-[collapsible=icon]:justify-items-center'>
+      <div className='flex min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center'>
         <SystemInfoPanel />
         <div className='min-w-0 group-data-[collapsible=icon]:hidden'>
-          <p className='truncate text-sm leading-5 font-semibold'>AgentGate</p>
-          <p className='truncate text-[11px] leading-4 text-sidebar-foreground/60'>
-            local agent console
+          <p className='truncate text-sm leading-5 font-semibold tracking-[-0.01em]'>
+            AgentGate
+          </p>
+          <p className='truncate text-[11px] leading-4 text-sidebar-foreground/55'>
+            Local agent console
           </p>
         </div>
       </div>
       <Link
         to='/system'
-        className='flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-sidebar-foreground/65 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-        aria-label='Open system status'
+        className='flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-sidebar-foreground/60 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+        aria-label={`${status.label}. Open system status`}
       >
-        <span className='size-2 shrink-0 rounded-full bg-muted-foreground/45' />
-        <span className='min-w-0 truncate font-mono text-[11px] leading-4 group-data-[collapsible=icon]:hidden'>
-          status unknown
+        <span className={`size-1.5 shrink-0 rounded-full ${toneClass}`} />
+        <span className='min-w-0 truncate text-[11px] leading-4 group-data-[collapsible=icon]:hidden'>
+          {status.label}
         </span>
       </Link>
     </div>

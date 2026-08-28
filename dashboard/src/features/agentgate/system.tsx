@@ -73,7 +73,7 @@ export function SystemPage() {
             SystemGate overview blocked: {query.error.message}
           </div>
         ) : null}
-        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+        <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
           {overview.stats.map((stat) => (
             <Stat
               key={stat.title}

@@ -118,7 +118,7 @@ export function MemoryPage() {
             {query.error?.message ?? memoryErrors.join('; ')}
           </div>
         ) : null}
-        <div className='mb-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6'>
+        <div className='mb-5 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6'>
           {sectionSummaries.map((section) => (
             <Card key={section.id}>
               <CardHeader className='space-y-2 pb-2'>
@@ -293,7 +293,7 @@ function CompactSelect({
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className='h-8 w-40 border-0 bg-muted/45 px-2 shadow-none'>
+      <SelectTrigger className='h-8 w-24 border-0 bg-muted/45 px-2 shadow-none sm:w-40'>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>{children}</SelectContent>

@@ -24,10 +24,10 @@ describe('AgentGate sidebar information architecture', () => {
     const urls = navUrls()
 
     expect(titles).toEqual([
-      'Companion',
+      'Command',
       'Chats',
       'Approvals',
-      'Command',
+      'Companion',
       'Orchestration',
       'Agents',
       'Jobs',
@@ -40,10 +40,10 @@ describe('AgentGate sidebar information architecture', () => {
     expect(titles).not.toContain('Automations')
     expect(titles).not.toContain('Character')
     expect(urls).toEqual([
-      '/companion',
+      '/',
       '/chats',
       '/approvals',
-      '/',
+      '/companion',
       '/orchestration',
       '/agents',
       '/jobs',
