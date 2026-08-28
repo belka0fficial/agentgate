@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Bot, Command, Settings as SettingsIcon } from 'lucide-react'
+import { Bot, CircleDot, Command, Settings as SettingsIcon } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { Button } from '@/components/ui/button'
 import {
@@ -66,16 +66,7 @@ function SidebarBrand() {
   return (
     <div className='grid min-w-0 gap-1.5'>
       <div className='flex min-w-0 items-center gap-2.5 group-data-[collapsible=icon]:justify-center'>
-        <Button
-          asChild
-          variant='ghost'
-          size='icon'
-          className='size-9 shrink-0 text-sidebar-foreground/85'
-        >
-          <Link to='/' aria-label='Open Command'>
-            <Command />
-          </Link>
-        </Button>
+        <SystemInfoPanel />
         <div className='min-w-0 group-data-[collapsible=icon]:hidden'>
           <p className='truncate text-sm leading-5 font-semibold tracking-[-0.01em]'>
             AgentGate
@@ -121,19 +112,25 @@ function SidebarUtilityBlock() {
 
   return (
     <div className='grid min-w-0 gap-1.5'>
-      <Link
-        to='/system'
-        className='flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-sidebar-foreground/60 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-        aria-label={`${status.label}. Open system status`}
-        title={status.label}
-      >
-        <span className={`size-1.5 shrink-0 rounded-full ${toneClass}`} />
-        <span className='min-w-0 truncate text-[11px] leading-4 group-data-[collapsible=icon]:hidden'>
-          {status.label}
-        </span>
-      </Link>
       <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
-        <SystemInfoPanel />
+        <Button
+          asChild
+          variant='ghost'
+          size='icon'
+          className='relative size-10'
+        >
+          <Link
+            to='/activity'
+            aria-label={`${status.label}. Open activity`}
+            title={`Activity · ${status.label}`}
+          >
+            <CircleDot />
+            <span
+              aria-hidden='true'
+              className={`absolute end-1 top-1 size-2 rounded-full ring-2 ring-sidebar ${toneClass}`}
+            />
+          </Link>
+        </Button>
         <Button asChild variant='ghost' size='icon' className='size-10'>
           <Link to='/settings/gateways' aria-label='Settings'>
             <SettingsIcon />
@@ -180,7 +177,7 @@ function SystemInfoPanel() {
           type='button'
           variant='ghost'
           size='icon'
-          className='size-10 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+          className='size-9 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           aria-label='Open system info'
         >
           <Command className='size-4' />

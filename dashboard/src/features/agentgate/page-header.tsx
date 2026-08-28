@@ -21,6 +21,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 
 const routeMeta: Record<string, { title: string; context: string }> = {
   '/': { title: 'Command', context: 'Overview' },
+  '/activity': { title: 'Activity', context: 'Agent and system activity' },
   '/companion': { title: 'Companion', context: 'Main agent' },
   '/chats': { title: 'Chats', context: 'Sessions' },
   '/approvals': { title: 'Approvals', context: 'Owner gate' },

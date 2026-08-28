@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Bot,
   Brain,
+  CircleDot,
   MessageSquarePlus,
   Play,
   Plus,
@@ -276,6 +277,13 @@ export function CommandMenu() {
                 />
               ) : null
             )}
+            <PaletteItem
+              icon={<CircleDot />}
+              value='navigation Activity /activity agents work events'
+              title='Activity'
+              detail='/activity'
+              onSelect={() => runCommand(() => navigate({ to: '/activity' }))}
+            />
           </CommandGroup>
         ) : null}
 
