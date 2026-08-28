@@ -10,6 +10,14 @@ import { changeAgentGateOwnerPassword } from '@/features/agentgate/api'
 
 const sections = [
   {
+    title: 'Setup',
+    href: '/setup',
+    status: 'active',
+    keywords: 'setup registration onboarding identity companion missing data',
+    description:
+      'Review configured, missing, and deferred registration modules.',
+  },
+  {
     title: 'Gateways',
     href: '/settings/gateways',
     status: 'active',

@@ -59,13 +59,13 @@ export function OwnerGate({ children }: OwnerGateProps) {
 
   return (
     <OwnerGateShell
-      eyebrow={isFirstRun ? 'first run setup' : 'owner gate'}
+      eyebrow={isFirstRun ? 'First run setup' : 'owner gate'}
       title={
         isFirstRun ? 'Create your dashboard password' : 'AgentGate is locked'
       }
       description={
         isFirstRun
-          ? 'No owner password exists yet. Create one now; AgentGate stores only a server-side verifier and then unlocks this local dashboard.'
+          ? 'AgentGate setup starts here. Create the local owner password; only a server-side verifier is stored. Identity and optional modules follow in reusable setup screens.'
           : undefined
       }
     >
@@ -138,20 +138,33 @@ function OwnerGateShell({
   description?: string
 }) {
   return (
-    <main className='grid min-h-svh place-items-center bg-background px-4 text-foreground'>
-      <section className='relative w-full max-w-md overflow-hidden rounded-3xl border bg-card/70 p-8 shadow-2xl shadow-black/20'>
-        <div className='absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent' />
-        <div className='space-y-3'>
-          <p className='text-xs font-medium tracking-[0.28em] text-muted-foreground uppercase'>
+    <main className='grid min-h-svh bg-background text-foreground md:grid-cols-[240px_minmax(0,1fr)]'>
+      <aside className='hidden border-r px-6 py-8 md:block'>
+        <p className='text-sm font-semibold'>AgentGate</p>
+        <p className='mt-1 text-xs text-muted-foreground'>Local owner setup</p>
+        <ol className='mt-10 space-y-4 text-sm'>
+          <li className='font-medium'>1 · Password</li>
+          <li className='text-muted-foreground'>2 · Identity</li>
+          <li className='text-muted-foreground'>3 · Companion choice</li>
+        </ol>
+      </aside>
+      <section className='flex min-w-0 items-center px-6 py-10 md:px-12'>
+        <div className='w-full max-w-xl'>
+          <p className='text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase'>
             {eyebrow}
           </p>
-          <h1 className='text-3xl font-bold tracking-tight'>{title}</h1>
-          <p className='text-sm leading-6 text-muted-foreground'>
+          <h1 className='mt-3 text-2xl font-semibold tracking-tight'>
+            {title}
+          </h1>
+          <p className='mt-3 text-sm leading-6 text-muted-foreground'>
             {description ??
-              'This is a simple first-layer owner lock for local/Tailscale access. It blocks casual access before any AgentGate panels, memory, tools, chats, or system details render.'}
+              'This owner lock protects local AgentGate data before dashboard, memory, tools, chats, or system details render.'}
+          </p>
+          {children}
+          <p className='mt-6 text-xs text-muted-foreground'>
+            AgentGate setup · local-first · no provider account required
           </p>
         </div>
-        {children}
       </section>
     </main>
   )

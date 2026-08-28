@@ -19,6 +19,7 @@ Conversation ideas must be promoted into project documentation before they becom
 
 ### Product
 
+- [`product/modular-registration.md`](product/modular-registration.md) — capability-driven first-run setup and reusable missing-data recovery screens.
 - [`product/continuous-improvement.md`](product/continuous-improvement.md) — response feedback, evaluated changes, versioning, canaries, and rollback.
 - [`product/technology-intelligence.md`](product/technology-intelligence.md) — weekly global/Chinese research Jobs and Companion delivery.
 - [`product/conversation-control-and-focus-presence.md`](product/conversation-control-and-focus-presence.md) — multi-message turns, manual voice floor control, communication routing, screen sharing, Focus Room, and desktop Companion modes.

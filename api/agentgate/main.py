@@ -38,6 +38,11 @@ class OwnerPasswordChange(BaseModel):
     new_key: str = Field(min_length=12, max_length=4096)
 
 
+class OwnerProfileInput(BaseModel):
+    display_name: str = Field(min_length=1, max_length=120)
+    username: str = Field(min_length=2, max_length=40, pattern=r"^[a-z][a-z0-9_-]*$")
+
+
 class ChatInput(BaseModel):
     input: str = Field(min_length=1, max_length=100_000)
     provider: str | None = None
@@ -1010,6 +1015,66 @@ async def session(request: Request):
     session_token = request.cookies.get(COOKIE_NAME, "")
     csrf_token = issue_csrf_token(session_token, request.app.state.settings) if session_token else None
     return owner_session_payload(True, csrf_token)
+
+
+def setup_steps(store: Database, settings) -> list[dict[str, Any]]:
+    identity = store.row("SELECT id FROM owner_profile WHERE id = 'primary'")
+    companion = store.row("SELECT id FROM character_profile WHERE id = 'primary'")
+    deferred = store.row("SELECT status FROM setup_state WHERE step_id = 'companion'")
+    companion_status = "configured" if companion else "deferred" if deferred and deferred.get("status") == "deferred" else "missing"
+    return [
+        {"id": "password", "status": "missing" if owner_setup_required(store, settings) else "configured", "required": True},
+        {"id": "identity", "status": "configured" if identity else "missing", "required": True},
+        {"id": "companion", "status": companion_status, "required": False},
+    ]
+
+
+@app.get("/api/setup/status", dependencies=[Depends(require_auth)])
+async def setup_status(request: Request, store: Database = Depends(db)):
+    steps = setup_steps(store, request.app.state.settings)
+    next_required = next((step["id"] for step in steps if step["required"] and step["status"] != "configured"), None)
+    return {
+        "status": "incomplete" if next_required else "configured",
+        "next_required_step": next_required,
+        "steps": steps,
+        "metadata_only": True,
+    }
+
+
+@app.get("/api/owner/profile", dependencies=[Depends(require_auth)])
+async def owner_profile(store: Database = Depends(db)):
+    item = store.row("SELECT display_name, username, updated_at FROM owner_profile WHERE id = 'primary'")
+    if not item:
+        return {"display_name": "", "username": "", "updated_at": "", "configured": False}
+    return {
+        "display_name": safe_browser_string(item.get("display_name"), ""),
+        "username": safe_browser_string(item.get("username"), ""),
+        "updated_at": safe_browser_string(item.get("updated_at"), ""),
+        "configured": True,
+    }
+
+
+@app.put("/api/owner/profile", dependencies=[Depends(require_auth), Depends(require_csrf)])
+async def save_owner_profile(payload: OwnerProfileInput, store: Database = Depends(db)):
+    display_name = payload.display_name.strip()
+    username = payload.username.strip().lower()
+    if not display_name:
+        raise HTTPException(422, "Display name is required")
+    updated_at = now()
+    store.execute(
+        "INSERT INTO owner_profile (id, display_name, username, updated_at) VALUES ('primary', ?, ?, ?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name, username=excluded.username, updated_at=excluded.updated_at",
+        (display_name, username, updated_at),
+    )
+    return {"display_name": display_name, "username": username, "updated_at": updated_at, "configured": True}
+
+
+@app.post("/api/setup/steps/companion/defer", dependencies=[Depends(require_auth), Depends(require_csrf)])
+async def defer_companion_setup(store: Database = Depends(db)):
+    store.execute(
+        "INSERT INTO setup_state (step_id, status, updated_at) VALUES ('companion', 'deferred', ?) ON CONFLICT(step_id) DO UPDATE SET status='deferred', updated_at=excluded.updated_at",
+        (now(),),
+    )
+    return {"step": "companion", "status": "deferred", "configured": False, "metadata_only": True}
 
 
 @app.put("/api/auth/password", dependencies=[Depends(require_auth), Depends(require_csrf)])

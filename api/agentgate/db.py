@@ -56,6 +56,13 @@ class Database:
                 CREATE TABLE IF NOT EXISTS owner_config (
                     id TEXT PRIMARY KEY, verifier TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS owner_profile (
+                    id TEXT PRIMARY KEY, display_name TEXT NOT NULL,
+                    username TEXT NOT NULL UNIQUE, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS setup_state (
+                    step_id TEXT PRIMARY KEY, status TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS verification_refs (
                     id TEXT PRIMARY KEY, source TEXT NOT NULL, source_id TEXT NOT NULL,
                     run_id TEXT, session_id TEXT, status TEXT NOT NULL, summary_json TEXT NOT NULL,
