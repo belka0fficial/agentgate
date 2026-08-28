@@ -210,8 +210,11 @@ export function AgentStudio() {
       setCurrent('Identity')
       return
     }
-    if (current !== 'Review') setCurrent('Review')
-    else if (!confirming) setConfirming(true)
+    if (current !== 'Review') {
+      setCurrent(steps[index + 1])
+      return
+    }
+    if (!confirming) setConfirming(true)
     else save.mutate()
   }
   const selectImage = (file?: File) => {
