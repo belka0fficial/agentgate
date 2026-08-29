@@ -26,7 +26,7 @@ const routeMeta: Record<string, { title: string; context: string }> = {
   '/settings/gateways': { title: 'Gateways', context: 'Local routing' },
   '/settings/account': { title: 'Owner access', context: 'Settings' },
   '/settings/notifications': { title: 'Notifications', context: 'Settings' },
-  '/settings/appearance': { title: 'Appearance', context: 'Unavailable' },
+  '/settings/appearance': { title: 'Appearance', context: 'Theme' },
   '/settings/display': { title: 'Display', context: 'Unavailable' },
   '/settings/character': { title: 'Agent Studio', context: 'Settings' },
   '/settings': { title: 'Settings', context: 'Local configuration' },
