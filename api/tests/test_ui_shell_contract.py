@@ -16,6 +16,15 @@ def test_sidebar_owns_search_and_separates_product_domains():
         assert f"title: '{group}'" in data
     assert "title: 'Capabilities'" in data
     assert "title: 'Memory'" in data
+    assert 'Ctrl K' in sidebar
+    assert '⌘K' not in sidebar
+
+
+def test_sidebar_routes_have_appbar_context_metadata():
+    header = read('dashboard/src/features/agentgate/page-header.tsx')
+    for route, title in (('/automations', 'Automations'), ('/tasks', 'Tasks'), ('/users', 'Users')):
+        assert f"'{route}':" in header
+        assert f"title: '{title}'" in header
 
 
 def test_appbar_is_context_bar_not_a_second_global_search():

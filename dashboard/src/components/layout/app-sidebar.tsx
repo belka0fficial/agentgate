@@ -116,7 +116,7 @@ function SidebarSearch() {
         Search AgentGate
       </span>
       <kbd className='ms-auto hidden rounded border border-sidebar-border px-1 text-[9px] group-data-[collapsible=icon]:hidden xl:inline'>
-        ⌘K
+        Ctrl K
       </kbd>
     </Button>
   )
