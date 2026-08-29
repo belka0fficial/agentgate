@@ -1,8 +1,15 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Bot, CircleDot, Command, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Bot,
+  CircleDot,
+  Command,
+  Search,
+  Settings as SettingsIcon,
+} from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
+import { useSearch } from '@/context/search-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -49,6 +56,7 @@ export function AppSidebar() {
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader className='min-h-24 flex-none justify-center overflow-hidden border-b px-3 py-2 group-data-[collapsible=icon]:min-h-20 group-data-[collapsible=icon]:px-2'>
         <SidebarBrand />
+        <SidebarSearch />
       </SidebarHeader>
       <SidebarContent>
         {sidebarData.navGroups.map((props) => (
@@ -90,6 +98,27 @@ function SidebarBrand() {
         </Link>
       </Button>
     </div>
+  )
+}
+
+function SidebarSearch() {
+  const { setOpen } = useSearch()
+  return (
+    <Button
+      type='button'
+      variant='outline'
+      className='h-9 w-full justify-start gap-2 overflow-hidden bg-sidebar-accent/40 px-2.5 text-xs font-normal text-sidebar-foreground/65 shadow-none group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0'
+      aria-label='Open search'
+      onClick={() => setOpen(true)}
+    >
+      <Search className='size-3.5 shrink-0' />
+      <span className='truncate group-data-[collapsible=icon]:hidden'>
+        Search AgentGate
+      </span>
+      <kbd className='ms-auto hidden rounded border border-sidebar-border px-1 text-[9px] group-data-[collapsible=icon]:hidden xl:inline'>
+        ⌘K
+      </kbd>
+    </Button>
   )
 }
 

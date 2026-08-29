@@ -3,28 +3,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def read(relative_path: str) -> str:
-    return (ROOT / relative_path).read_text()
+def read(path: str) -> str:
+    return (ROOT / path).read_text()
 
 
-def test_product_header_has_mobile_navigation_and_no_fake_global_actions():
+def test_sidebar_owns_search_and_separates_product_domains():
+    sidebar = read('dashboard/src/components/layout/app-sidebar.tsx')
+    data = read('dashboard/src/components/layout/data/sidebar-data.ts')
+    assert 'Search AgentGate' in sidebar
+    assert "aria-label='Open search'" in sidebar
+    for group in ('Command', 'Agents', 'Operations', 'Knowledge', 'Workspace', 'System'):
+        assert f"title: '{group}'" in data
+    assert "title: 'Capabilities'" in data
+    assert "title: 'Memory'" in data
+
+
+def test_appbar_is_context_bar_not_a_second_global_search():
     header = read('dashboard/src/features/agentgate/page-header.tsx')
-
+    assert 'Breadcrumb' in header
     assert 'SidebarTrigger' in header
-    assert 'md:hidden' in header
-    assert 'window.location.reload' not in header
-    assert 'window.print' not in header
-    assert "label: 'New job'" not in header
-    assert "label: 'Run now'" not in header
-    assert "label: 'Export view'" not in header
-
-
-def test_command_palette_labels_navigation_as_navigation():
-    menu = read('dashboard/src/components/command-menu.tsx')
-
-    assert "title='Open automations'" in menu
-    assert "title='Open Agent Studio'" in menu
-    assert "title='Open system status'" in menu
-    assert "title='New automation'" not in menu
-    assert "title='New persona'" not in menu
-    assert "title='Run audit'" not in menu
+    assert 'Search AgentGate' not in header
+    assert '<ToolbarSearch' not in header
+    assert '<LayoutDashboard />' not in header
+    assert 'border-b' in header
+    assert 'currentContext' in header

@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import {
+  ChevronRight,
   Copy,
-  LayoutDashboard,
   MessageSquarePlus,
   MoreHorizontal,
-  Search,
   ShieldCheck,
 } from 'lucide-react'
-import { useSearch } from '@/context/search-provider'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -60,7 +58,6 @@ export function AgentGateHeader({
   title?: string
 }) {
   const location = useLocation()
-  const { setOpen } = useSearch()
   const meta = getRouteMeta(location.pathname)
   const currentTitle = title ?? meta.title
   const currentContext = eyebrow ?? meta.context
@@ -68,27 +65,16 @@ export function AgentGateHeader({
   return (
     <header
       aria-label={`${currentTitle}: ${currentContext} application controls`}
-      className='sticky top-0 z-30 bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'
+      className='sticky top-0 z-30 border-b bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'
     >
       <div className='w-full'>
         <div className='flex min-h-14 min-w-0 flex-wrap items-center gap-2 py-2 md:flex-nowrap md:py-0'>
           <SidebarTrigger
-            aria-label='Open navigation'
-            className='size-9 shrink-0 md:hidden'
-          />
-          <Button
-            asChild
-            variant='ghost'
-            size='icon'
+            aria-label='Toggle navigation'
             className='size-9 shrink-0'
-          >
-            <Link to='/' aria-label='Open Command' title='Command'>
-              <LayoutDashboard />
-            </Link>
-          </Button>
-
+          />
+          <Breadcrumb context={currentContext} title={currentTitle} />
           {leftExtra}
-          <ToolbarSearch onOpen={() => setOpen(true)} />
 
           {actions ? (
             <div className='order-last flex w-full min-w-0 items-center gap-2 border-t pt-2 md:order-none md:w-auto md:shrink-0 md:border-0 md:pt-0'>
@@ -97,9 +83,7 @@ export function AgentGateHeader({
           ) : null}
 
           <QuickActions />
-          {hideMoreActions ? null : (
-            <UtilityMenu onSearch={() => setOpen(true)} />
-          )}
+          {hideMoreActions ? null : <UtilityMenu />}
         </div>
       </div>
     </header>
@@ -114,22 +98,16 @@ function getRouteMeta(path: string) {
   return match?.[1] ?? { title: 'AgentGate', context: 'Control plane' }
 }
 
-function ToolbarSearch({ onOpen }: { onOpen: () => void }) {
+function Breadcrumb({ context, title }: { context: string; title: string }) {
   return (
-    <Button
-      type='button'
-      variant='outline'
-      className='group h-9 min-w-28 flex-1 justify-start gap-2 overflow-hidden bg-surface-1 px-3 text-sm font-normal text-muted-foreground shadow-none'
-      aria-label='Search AgentGate'
-      aria-keyshortcuts='Meta+K Control+K'
-      onClick={onOpen}
+    <nav
+      aria-label='Breadcrumb'
+      className='flex min-w-0 items-center gap-2 text-sm'
     >
-      <Search className='size-3.5 shrink-0' />
-      <span className='truncate'>Search AgentGate</span>
-      <kbd className='ml-auto hidden h-5 items-center rounded border bg-surface-2 px-1.5 font-mono text-[10px] text-muted-foreground md:inline-flex'>
-        Ctrl K
-      </kbd>
-    </Button>
+      <span className='truncate text-muted-foreground'>{context}</span>
+      <ChevronRight className='size-3.5 shrink-0 text-muted-foreground/60' />
+      <span className='truncate font-medium text-foreground'>{title}</span>
+    </nav>
   )
 }
 
@@ -150,7 +128,7 @@ function QuickActions() {
   )
 }
 
-function UtilityMenu({ onSearch }: { onSearch: () => void }) {
+function UtilityMenu() {
   const copyLink = () => navigator.clipboard?.writeText(window.location.href)
 
   return (
@@ -167,11 +145,6 @@ function UtilityMenu({ onSearch }: { onSearch: () => void }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-48'>
-        <DropdownMenuItem className='gap-2' onClick={onSearch}>
-          <Search />
-          Search AgentGate
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem asChild className='gap-2 sm:hidden'>
           <Link to='/chats'>
             <MessageSquarePlus />
@@ -184,7 +157,7 @@ function UtilityMenu({ onSearch }: { onSearch: () => void }) {
             Approvals
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator className='sm:hidden' />
+        <DropdownMenuSeparator />
         <DropdownMenuItem className='gap-2' onClick={copyLink}>
           <Copy />
           Copy link
