@@ -141,10 +141,10 @@ export function Apps() {
 
   return (
     <>
-      <AgentGateHeader
-        title='Apps'
-        eyebrow='Projects'
-        actions={
+      <AgentGateHeader title='Apps' eyebrow='Projects' />
+
+      <Main fixed fluid className='px-4 sm:px-6'>
+        <div className='mb-3'>
           <Badge variant={badgeVariant(query.data?.source_status?.status)}>
             {query.data?.source_status?.status ??
               (query.isLoading ? 'loading' : 'unknown')}
@@ -153,10 +153,7 @@ export function Apps() {
               {query.data?.source_status?.source ?? 'agentgate-local-registry'}
             </span>
           </Badge>
-        }
-      />
-
-      <Main fixed fluid className='px-4 sm:px-6'>
+        </div>
         <p className='max-w-4xl text-sm leading-6 text-muted-foreground'>
           Source-bound local app registry metadata. Host paths, commands,
           environment, provider URLs, logs, secrets, and unrestricted tool

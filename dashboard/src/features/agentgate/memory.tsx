@@ -96,17 +96,16 @@ export function MemoryPage() {
 
   return (
     <>
-      <AgentGateHeader
-        actions={
+      <AgentGateHeader />
+      <Main>
+        <div className='mb-5 flex justify-end'>
           <MemoryToolbar
             kind={kind}
             sort={sort}
             onKindChange={setKind}
             onSortChange={setSort}
           />
-        }
-      />
-      <Main>
+        </div>
         <p className='mb-6 text-sm text-muted-foreground'>
           Durable context, evidence, and operational knowledge retained by
           MemoryGate. Facts, theories, patterns, empty, and unknown states stay

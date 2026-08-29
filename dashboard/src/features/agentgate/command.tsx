@@ -118,15 +118,12 @@ export function CommandPage() {
 
   return (
     <>
-      <AgentGateHeader
-        actions={
+      <AgentGateHeader />
+      <Main fluid className='px-4 sm:px-6'>
+        <section className='border-b pb-5'>
           <Badge variant={overallStatus === 'live' ? 'secondary' : 'outline'}>
             Home aggregation {overallStatus}
           </Badge>
-        }
-      />
-      <Main fluid className='px-4 sm:px-6'>
-        <section className='border-b pb-5'>
           <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
             <div className='max-w-3xl'>
               <h2 className='text-xl font-semibold tracking-[-0.025em]'>

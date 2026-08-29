@@ -1,13 +1,7 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {
-  Bot,
-  CircleDot,
-  Command,
-  Search,
-  Settings as SettingsIcon,
-} from 'lucide-react'
+import { Bot, Command, Search, Settings as SettingsIcon } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { useSearch } from '@/context/search-provider'
 import { Button } from '@/components/ui/button'
@@ -24,7 +18,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { getAgentGate } from '@/features/agentgate/api'
 import { sidebarData } from './data/sidebar-data'
@@ -57,6 +50,7 @@ export function AppSidebar() {
       <SidebarHeader className='min-h-24 flex-none justify-center overflow-hidden border-b px-3 py-2 group-data-[collapsible=icon]:min-h-20 group-data-[collapsible=icon]:px-2'>
         <SidebarBrand />
         <SidebarSearch />
+        <SidebarCompanion />
       </SidebarHeader>
       <SidebarContent>
         {sidebarData.navGroups.map((props) => (
@@ -84,20 +78,23 @@ function SidebarBrand() {
           </p>
         </div>
       </div>
-      <Button
-        asChild
-        variant='ghost'
-        size='sm'
-        className='h-8 w-full justify-start gap-2 px-2 text-sidebar-foreground/75 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0'
-      >
-        <Link to='/companion' aria-label='Open companion'>
-          <Bot />
-          <span className='group-data-[collapsible=icon]:hidden'>
-            Companion
-          </span>
-        </Link>
-      </Button>
     </div>
+  )
+}
+
+function SidebarCompanion() {
+  return (
+    <Button
+      asChild
+      variant='ghost'
+      size='sm'
+      className='h-8 w-full justify-start gap-2 px-2 text-sidebar-foreground/75 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0'
+    >
+      <Link to='/companion' aria-label='Open companion'>
+        <Bot />
+        <span className='group-data-[collapsible=icon]:hidden'>Companion</span>
+      </Link>
+    </Button>
   )
 }
 
@@ -140,34 +137,36 @@ function SidebarUtilityBlock() {
   }[status.tone]
 
   return (
-    <div className='grid min-w-0 gap-1.5'>
-      <div className='flex items-center gap-1 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center'>
-        <Button
-          asChild
-          variant='ghost'
-          size='icon'
-          className='relative size-10'
+    <div className='grid min-w-0 gap-1.5 group-data-[collapsible=icon]:hidden'>
+      <Button
+        asChild
+        variant='ghost'
+        size='sm'
+        className='h-9 w-full justify-start gap-2 px-2 text-sidebar-foreground/75'
+      >
+        <Link
+          to='/activity'
+          aria-label={`${status.label}. Open activity`}
+          title={`Activity · ${status.label}`}
         >
-          <Link
-            to='/activity'
-            aria-label={`${status.label}. Open activity`}
-            title={`Activity · ${status.label}`}
-          >
-            <CircleDot />
-            <span
-              aria-hidden='true'
-              className={`absolute end-1 top-1 size-2 rounded-full ring-2 ring-sidebar ${toneClass}`}
-            />
-          </Link>
-        </Button>
-        <Button asChild variant='ghost' size='icon' className='size-10'>
-          <Link to='/settings/gateways' aria-label='Settings'>
-            <SettingsIcon />
-            <span className='sr-only'>Settings</span>
-          </Link>
-        </Button>
-        <SidebarTrigger aria-label='Toggle sidebar' className='size-10' />
-      </div>
+          <span
+            className={`size-2 rounded-full ${toneClass}`}
+            aria-hidden='true'
+          />
+          <span>Activity</span>
+        </Link>
+      </Button>
+      <Button
+        asChild
+        variant='ghost'
+        size='sm'
+        className='h-9 w-full justify-start gap-2 px-2 text-sidebar-foreground/75'
+      >
+        <Link to='/settings/gateways' aria-label='Settings'>
+          <SettingsIcon />
+          <span>Settings</span>
+        </Link>
+      </Button>
     </div>
   )
 }

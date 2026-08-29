@@ -73,10 +73,11 @@ export function ApprovalsPage() {
   )
   return (
     <>
-      <AgentGateHeader
-        actions={<ApprovalToolbar source={source} onSourceChange={setSource} />}
-      />
+      <AgentGateHeader />
       <Main>
+        <div className='mb-5 flex justify-end'>
+          <ApprovalToolbar source={source} onSourceChange={setSource} />
+        </div>
         <p className='mb-6 text-sm text-muted-foreground'>
           Review source-bound approval requests using metadata-only action
           summaries.

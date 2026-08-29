@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -37,24 +37,39 @@ export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{title}</SidebarGroupLabel>
-      <SidebarMenu>
-        {items.map((item) => {
-          const key = `${item.title}-${item.url}`
+    <Collapsible defaultOpen className='group/nav-group'>
+      <SidebarGroup>
+        <SidebarGroupLabel asChild>
+          <CollapsibleTrigger className='cursor-pointer select-none hover:text-sidebar-foreground'>
+            <span>{title}</span>
+            <ChevronDown className='ms-auto size-3.5 transition-transform group-data-[collapsible=icon]:hidden group-data-[state=closed]/nav-group:-rotate-90' />
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
+        <CollapsibleContent>
+          <SidebarMenu>
+            {items.map((item) => {
+              const key = `${item.title}-${item.url}`
 
-          if (!item.items)
-            return <SidebarMenuLink key={key} item={item} href={href} />
+              if (!item.items)
+                return <SidebarMenuLink key={key} item={item} href={href} />
 
-          if (state === 'collapsed' && !isMobile)
-            return (
-              <SidebarMenuCollapsedDropdown key={key} item={item} href={href} />
-            )
+              if (state === 'collapsed' && !isMobile)
+                return (
+                  <SidebarMenuCollapsedDropdown
+                    key={key}
+                    item={item}
+                    href={href}
+                  />
+                )
 
-          return <SidebarMenuCollapsible key={key} item={item} href={href} />
-        })}
-      </SidebarMenu>
-    </SidebarGroup>
+              return (
+                <SidebarMenuCollapsible key={key} item={item} href={href} />
+              )
+            })}
+          </SidebarMenu>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
   )
 }
 

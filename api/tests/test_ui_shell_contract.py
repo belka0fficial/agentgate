@@ -34,5 +34,10 @@ def test_appbar_is_context_bar_not_a_second_global_search():
     assert 'Search AgentGate' not in header
     assert '<ToolbarSearch' not in header
     assert '<LayoutDashboard />' not in header
+    assert 'QuickActions' not in header
+    nav_group = read('dashboard/src/components/layout/nav-group.tsx')
+    assert '<SidebarGroupLabel asChild>' in nav_group
+    assert '<CollapsibleTrigger' in nav_group
+    assert 'UtilityMenu' not in header
     assert 'border-b' in header
     assert 'currentContext' in header

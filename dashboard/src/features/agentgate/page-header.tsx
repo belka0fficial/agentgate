@@ -1,20 +1,6 @@
 import type { ReactNode } from 'react'
-import { Link, useLocation } from '@tanstack/react-router'
-import {
-  ChevronRight,
-  Copy,
-  MessageSquarePlus,
-  MoreHorizontal,
-  ShieldCheck,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { useLocation } from '@tanstack/react-router'
+import { ChevronRight } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 const routeMeta: Record<string, { title: string; context: string }> = {
@@ -48,15 +34,11 @@ const routeMeta: Record<string, { title: string; context: string }> = {
 }
 
 export function AgentGateHeader({
-  actions,
   eyebrow,
-  hideMoreActions = false,
   leftExtra,
   title,
 }: {
-  actions?: ReactNode
   eyebrow?: string
-  hideMoreActions?: boolean
   leftExtra?: ReactNode
   title?: string
 }) {
@@ -70,24 +52,13 @@ export function AgentGateHeader({
       aria-label={`${currentTitle}: ${currentContext} application controls`}
       className='sticky top-0 z-30 border-b bg-background/95 px-4 supports-[backdrop-filter]:backdrop-blur-sm'
     >
-      <div className='w-full'>
-        <div className='flex min-h-14 min-w-0 flex-wrap items-center gap-2 py-2 md:flex-nowrap md:py-0'>
-          <SidebarTrigger
-            aria-label='Toggle navigation'
-            className='size-9 shrink-0'
-          />
-          <Breadcrumb context={currentContext} title={currentTitle} />
-          {leftExtra}
-
-          {actions ? (
-            <div className='order-last flex w-full min-w-0 items-center gap-2 border-t pt-2 md:order-none md:w-auto md:shrink-0 md:border-0 md:pt-0'>
-              {actions}
-            </div>
-          ) : null}
-
-          <QuickActions />
-          {hideMoreActions ? null : <UtilityMenu />}
-        </div>
+      <div className='flex min-h-14 min-w-0 items-center gap-2 py-2 md:py-0'>
+        <SidebarTrigger
+          aria-label='Toggle navigation'
+          className='size-9 shrink-0'
+        />
+        <Breadcrumb context={currentContext} title={currentTitle} />
+        {leftExtra}
       </div>
     </header>
   )
@@ -111,61 +82,5 @@ function Breadcrumb({ context, title }: { context: string; title: string }) {
       <ChevronRight className='size-3.5 shrink-0 text-muted-foreground/60' />
       <span className='truncate font-medium text-foreground'>{title}</span>
     </nav>
-  )
-}
-
-function QuickActions() {
-  return (
-    <div className='hidden shrink-0 items-center gap-1 sm:flex'>
-      <Button asChild variant='ghost' size='icon' className='size-8'>
-        <Link to='/chats' aria-label='Open chats' title='Chats'>
-          <MessageSquarePlus />
-        </Link>
-      </Button>
-      <Button asChild variant='ghost' size='icon' className='size-8'>
-        <Link to='/approvals' aria-label='Open approvals' title='Approvals'>
-          <ShieldCheck />
-        </Link>
-      </Button>
-    </div>
-  )
-}
-
-function UtilityMenu() {
-  const copyLink = () => navigator.clipboard?.writeText(window.location.href)
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type='button'
-          variant='ghost'
-          size='icon'
-          className='size-8 shrink-0 text-muted-foreground'
-          aria-label='Page actions'
-        >
-          <MoreHorizontal />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-48'>
-        <DropdownMenuItem asChild className='gap-2 sm:hidden'>
-          <Link to='/chats'>
-            <MessageSquarePlus />
-            Chats
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild className='gap-2 sm:hidden'>
-          <Link to='/approvals'>
-            <ShieldCheck />
-            Approvals
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className='gap-2' onClick={copyLink}>
-          <Copy />
-          Copy link
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }
